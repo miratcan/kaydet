@@ -1,68 +1,113 @@
 #!/usr/bin/env python
 
-"""logme: Simplest diary program"""
-
 __author__ = "Mirat Can Bayrak"
 __copyright__ = "Copyright 2016, Planet Earth"
+__version__ = "0.8"
 
 
 from datetime import datetime
 
-from os import mkdir
+from os import mkdir, environ as env
 from os.path import expanduser, join, exists
+from configparser import ConfigParser
+from os import fdopen, remove
 import argparse
 import subprocess
-from tempfile import NamedTemporaryFile
+from tempfile import mkstemp
 
 
-def parse_args():
+def parse_args(config_path):
     parser = argparse.ArgumentParser(
-        description='Diary program for your terminal.')
-    group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument(
-        '--story', '-s', type=str, action='store',
-        help='Your one line story to be saved.')
-    group.add_argument(
+        prog='logme',
+        description="Simple and terminal-based personal diary app designed "
+                    "to help you preserve your daily thoughts, experiences, "
+                    "and memories.",
+        epilog="You can configure this by editing: %s" % config_path +
+               "You can try these:\n\n"
+               "  $ logme 'I felt grateful when spending time with my "
+               "kids.'\n"
+               "  $ logme \"When I'm typing this I felt that I need an "
+               "editor\" --editor",
+        formatter_class=argparse.RawTextHelpFormatter
+
+    )
+    parser.add_argument(
+        'entry', type=str, nargs='?', metavar='Entry', action='store',
+        help='Your one entry to be saved. If not given, editor will be '
+             'dispayed.')
+    parser.add_argument(
         '--editor', '-e', dest='use_editor', action='store_true',
-        help='Use editor to make multiline stories.')
+        help='Force to open editor')
     return parser.parse_args()
 
 
-def get_story_from_editor():
-    with NamedTemporaryFile('r') as tfile:
-        subprocess.call(["vim", tfile.name])
-        with open(tfile.name, 'r') as sfile:  # TODO: Fix this hack.
-            story = sfile.read()
-    return story
+def get_entry(args, config):
+    entry: str
+    if args.use_editor or args.entry is None:
+        fd, path = mkstemp()
+        with fdopen(fd, 'w+') as file:
+            file.write(args.entry or '')
+        subprocess.call([config['EDITOR'], path])
+        with open(path, 'r') as file:
+            entry = file.read()
+        remove(path)
+        return entry + '\n'
+    return args.entry + '\n'
 
 
-args = parse_args()
-if args.use_editor:
-    story = get_story_from_editor()
-else:
-    story = args.story
+def get_config():
+    config_dir = env.get("XDG_CONFIG_HOME", "")
+    if not config_dir.strip():
+        config_dir = expanduser("~/.config")
+    config_dir = join(config_dir, 'logme')
 
-DAY_FILE_PATTERN = '%Y-%m-%d.txt'
-DAY_TITLE_PATTERN = '%Y/%m/%d/ - %A\n'
-LOG_DIR = join(expanduser('~'), '.logme')
+    if not exists(config_dir):
+        mkdir(config_dir)
 
-if not exists(LOG_DIR):
-    mkdir(LOG_DIR)
+    config = ConfigParser(interpolation=None)
 
-now = datetime.now()
-file_name = datetime.strftime(now, DAY_FILE_PATTERN)
-file_path = join(LOG_DIR, file_name)
+    config_path = join(config_dir, 'config.ini')
 
-if not exists(file_path):
-    fp = open(file_path, 'w')
-    title = datetime.strftime(now, DAY_TITLE_PATTERN)
-    fp.write(title)
-    fp.write('-' * (len(title) - 1) + '\n')
-else:
-    fp = open(file_path, 'a')
-    timestamp = now.strftime("%H:%M")
-    if args.use_editor:
-        fp.write('%s: %s' % (timestamp, story.strip()))
-    else:
-        fp.write('%s: %s\n' % (timestamp, story.strip()))
-fp.close()
+    if not exists(config_path):
+        config['SETTINGS'] = {
+            'DAY_FILE_PATTERN': '%Y-%m-%d.txt',
+            'DAY_TITLE_PATTERN': '%Y/%m/%d/ - %A',
+            'LOG_DIR': join(expanduser('~'), '.logme'),
+            'EDITOR': 'vim'
+        }
+        with open(config_path, 'w') as config_file:
+            config.write(config_file)
+            return config['SETTINGS'], config_path
+    config.read(config_path)
+    return config['SETTINGS'], config_path
+
+
+if __name__ == '__main__':
+
+    config, config_path = get_config()
+
+    if not exists(config['LOG_DIR']):
+        mkdir(config['LOG_DIR'])
+
+    args = parse_args(config_path)
+    now = datetime.now()
+
+    file_name = datetime.strftime(now, config['DAY_FILE_PATTERN'])
+    file_path = join(config['LOG_DIR'], file_name)
+
+    if not exists(file_path):
+        with open(file_path, 'w') as file:
+            title = datetime.strftime(now, config['DAY_TITLE_PATTERN'])
+            file.write(title + '\n')
+            file.write('-' * (len(title) - 1) + '\n')
+
+    entry = get_entry(args, config)
+    with open(file_path, 'a') as file:
+        timestamp = now.strftime("%H:%M")
+        if args.use_editor:
+            file.write('%s: %s' % (timestamp, entry.strip()))
+        else:
+            file.write('%s: %s\n' % (timestamp, entry.strip()))
+
+    print("Entry added to:", file_path)
+
