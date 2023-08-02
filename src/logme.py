@@ -1,8 +1,9 @@
-#!/usr/bin/env python
-
 __author__ = "Mirat Can Bayrak"
 __copyright__ = "Copyright 2016, Planet Earth"
-__version__ = "0.8"
+__version__ = "0.8.3"
+__description__ = "Simple and terminal-based personal diary app designed " \
+                  "to help you preserve your daily thoughts, experiences, " \
+                  "and memories.",
 
 
 from datetime import datetime
@@ -19,17 +20,13 @@ from tempfile import mkstemp
 def parse_args(config_path):
     parser = argparse.ArgumentParser(
         prog='logme',
-        description="Simple and terminal-based personal diary app designed "
-                    "to help you preserve your daily thoughts, experiences, "
-                    "and memories.",
+        description=__description__,
         epilog="You can configure this by editing: %s" % config_path +
                "You can try these:\n\n"
-               "  $ logme 'I felt grateful when spending time with my "
-               "kids.'\n"
+               "  $ logme 'I felt grateful when spending time with my kids.'\n"
                "  $ logme \"When I'm typing this I felt that I need an "
                "editor\" --editor",
         formatter_class=argparse.RawTextHelpFormatter
-
     )
     parser.add_argument(
         'entry', type=str, nargs='?', metavar='Entry', action='store',
@@ -82,8 +79,7 @@ def get_config():
     return config['SETTINGS'], config_path
 
 
-if __name__ == '__main__':
-
+def main():
     config, config_path = get_config()
 
     if not exists(config['LOG_DIR']):
@@ -104,10 +100,12 @@ if __name__ == '__main__':
     entry = get_entry(args, config)
     with open(file_path, 'a') as file:
         timestamp = now.strftime("%H:%M")
-        if args.use_editor:
-            file.write('%s: %s' % (timestamp, entry.strip()))
-        else:
-            file.write('%s: %s\n' % (timestamp, entry.strip()))
+        file.write('%s: %s\n' % (timestamp, entry.strip()))
 
     print("Entry added to:", file_path)
+
+
+if __name__ == '__main__':
+    main()
+
 

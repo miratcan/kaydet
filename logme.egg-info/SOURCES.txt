@@ -1,7 +1,0 @@
-README.md
-logme.py
-pyproject.toml
-logme.egg-info/PKG-INFO
-logme.egg-info/SOURCES.txt
-logme.egg-info/dependency_links.txt
-logme.egg-info/top_level.txt
