@@ -6,13 +6,13 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setup(
-    name="logme",
+    name="kaydet",
     version=__version__,
     author=__author__,
     description=__description__,
     long_description=long_description,
     long_description_content_type="text/markdown",
-    keywords="diary diarytui logme tui",
+    keywords="diary tui",
     url="https://github.com/miratcan/logme",
     license="MIT",
     classifiers=[
@@ -31,5 +31,5 @@ setup(
         "Topic :: Utilities"
     ],
     python_requires=">=3.4",
-    entry_points={"console_scripts": ["logme=logme:main"]},
+    entry_points={"console_scripts": ["kaydet=kaydet:main"]},
 )
