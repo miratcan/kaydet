@@ -1,5 +1,5 @@
 from setuptools import setup
-from src.logme import __author__, __version__, __description__
+from src.kaydet import __author__, __version__, __description__
 
 
 with open("README.md", "r") as fh:
