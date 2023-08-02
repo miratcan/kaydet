@@ -1,4 +1,4 @@
-# Kaydet- Your Personal Terminal Diary
+# Kaydet is Your Personal Terminal Diary
 
 "kaydet" is a simple (112 lines if Python code) based diary app designed to
 help you preserve your daily thoughts, experiences, and memories without 

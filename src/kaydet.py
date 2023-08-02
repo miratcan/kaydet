@@ -1,6 +1,6 @@
 __author__ = "Mirat Can Bayrak"
 __copyright__ = "Copyright 2016, Planet Earth"
-__version__ = "0.8.3"
+__version__ = "0.8.4"
 __description__ = "Simple and terminal-based personal diary app designed " \
                   "to help you preserve your daily thoughts, experiences, " \
                   "and memories.",
