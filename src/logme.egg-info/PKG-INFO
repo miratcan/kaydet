@@ -1,3 +1,28 @@
+Metadata-Version: 2.1
+Name: logme
+Version: 0.8.3
+Summary: ('Simple and terminal-based personal diary app designed to help you preserve your daily thoughts, experiences, and memories.',)
+Home-page: https://github.com/miratcan/logme
+Author: Mirat Can Bayrak
+License: MIT
+Keywords: diary diarytui logme tui
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Information Technology
+Classifier: Natural Language :: English
+Classifier: Topic :: Utilities
+Classifier: Topic :: Utilities
+Classifier: Topic :: Utilities
+Classifier: Topic :: Utilities
+Requires-Python: >=3.4
+Description-Content-Type: text/markdown
+License-File: LICENSE
+
 # LogMe - Your Personal Terminal Diary
 
 "logme" is a simple (112 lines if Python code) based diary app designed to
