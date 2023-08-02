@@ -1,9 +1,9 @@
 __author__ = "Mirat Can Bayrak"
 __copyright__ = "Copyright 2016, Planet Earth"
-__version__ = "0.8.4"
+__version__ = "0.8.5"
 __description__ = "Simple and terminal-based personal diary app designed " \
                   "to help you preserve your daily thoughts, experiences, " \
-                  "and memories.",
+                  "and memories."
 
 
 from datetime import datetime
@@ -23,7 +23,7 @@ def parse_args(config_path):
         description=__description__,
         epilog="You can configure this by editing: %s" % config_path +
                "You can try these:\n\n"
-               "  $ kaydet 'I felt grateful when spending time with my kids.'\n"
+               "  $ kaydet 'I felt grateful now.'\n"
                "  $ kaydet \"When I'm typing this I felt that I need an "
                "editor\" --editor",
         formatter_class=argparse.RawTextHelpFormatter
