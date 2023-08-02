@@ -4,6 +4,10 @@
 help you preserve your daily thoughts, experiences, and memories without 
 leaving terminal.
 
+# How to Install?
+
+    $ pip3 install kaydet
+
 # Key Features:
 
 ## Short Entries
