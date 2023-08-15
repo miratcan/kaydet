@@ -1,13 +1,13 @@
 __author__ = "Mirat Can Bayrak"
 __copyright__ = "Copyright 2016, Planet Earth"
-__version__ = "0.8.5"
+__version__ = "0.8.6"
 __description__ = "Simple and terminal-based personal diary app designed " \
                   "to help you preserve your daily thoughts, experiences, " \
                   "and memories."
 
 
 from datetime import datetime
-
+from startfile import startfile
 from os import mkdir, environ as env
 from os.path import expanduser, join, exists
 from configparser import ConfigParser
@@ -23,18 +23,21 @@ def parse_args(config_path):
         description=__description__,
         epilog="You can configure this by editing: %s" % config_path +
                "You can try these:\n\n"
-               "  $ kaydet 'I felt grateful now.'\n"
+               "  $ kaydet 'I am feeling grateful now.'\n"
                "  $ kaydet \"When I'm typing this I felt that I need an "
                "editor\" --editor",
         formatter_class=argparse.RawTextHelpFormatter
     )
     parser.add_argument(
         'entry', type=str, nargs='?', metavar='Entry', action='store',
-        help='Your one entry to be saved. If not given, editor will be '
+        help='your one entry to be saved. If not given, editor will be '
              'dispayed.')
     parser.add_argument(
         '--editor', '-e', dest='use_editor', action='store_true',
-        help='Force to open editor')
+        help='force to open editor.')
+    parser.add_argument(
+        '--folder', '-f', dest='open_folder', action='store_true',
+        help='open the folder that contains your records.')
     return parser.parse_args()
 
 
@@ -86,6 +89,11 @@ def main():
         mkdir(config['LOG_DIR'])
 
     args = parse_args(config_path)
+
+    if args.open_folder:
+        startfile(config['LOG_DIR'])
+        return
+
     now = datetime.now()
 
     file_name = datetime.strftime(now, config['DAY_FILE_PATTERN'])

@@ -2,8 +2,11 @@ from setuptools import setup
 from src.kaydet import __author__, __version__, __description__
 
 
-with open("README.md", "r") as fh:
-    long_description = fh.read()
+with open("README.md", "r") as f:
+    long_description = f.read()
+
+with open("requirements.txt") as f:
+    requirements = f.read().splitlines()
 
 setup(
     name="kaydet",
@@ -15,6 +18,7 @@ setup(
     keywords="diary tui",
     url="https://github.com/miratcan/logme",
     license="MIT",
+    install_requires=requirements,
     classifiers=[
         "License :: OSI Approved :: MIT License",
         "Programming Language :: Python :: 3.8",
