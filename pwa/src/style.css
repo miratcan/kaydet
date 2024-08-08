@@ -1,0 +1,129 @@
+
+:root {
+  --breakpoint-xs: 0;
+  --breakpoint-sm: 576px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 960px;
+  --breakpoint-xl: 1152px;
+  --gap: 1ch;
+  --radius: 4px;
+  --bg-color: #DEDEDE;
+  --bg-color-secondary: #414947;
+  --text-color: #425467;
+  --text-color-muted: #666666;
+  --text-color-strong: #121284;
+}
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+html {
+  font-size: 1rem;
+  line-height: 1.6rem;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+  background: var(--bg-color);
+  color: var(--text-color);
+  font-family: sans;
+}
+body {
+  padding: 0;
+  margin: 0 auto;
+}
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+h1, h2, h3, h4, h5 {
+  color: var(--text-color-strong);
+  font-size: inherit;
+  line-height: inherit;
+  margin: 0;
+  padding: 0;
+}
+header, main, footer {
+  padding: var(--gap);
+}
+header {
+  border-bottom: 2px solid black;
+  margin-bottom: calc(var(--gap) / 2)
+}
+footer {
+  border-top: 2px solid black;
+  margin-top: calc(var(--gap) / 2)
+}
+main {
+  overflow: auto;
+  flex-grow: 1;
+}
+h2 {
+  text-align: center;
+  margin-bottom: calc(var(--gap) * 1)
+}
+h3 {
+  text-transform: uppercase;
+  margin-bottom: calc(var(--gap) * 1)
+}
+p {
+  margin: 0 0 var(--gap) 0;
+}
+.entry .tags {
+  display: flex;
+  gap: var(--gap);
+  margin-bottom: calc(var(--gap) * 1)
+}
+.entry .tag {
+  color: var(--text-color-muted);
+}
+.form-wrapper {
+  overflow: hidden;
+  transition: 220ms height;
+}
+form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  height: 400px;
+}
+footer.closed .form-wrapper {
+  height: 0;
+}
+footer.open .form-wrapper {
+  height: 25vh;
+  overflow: auto;
+}
+input, select, textarea, button, option { 
+  font-size: inherit;
+  line-height: inherit;
+  background: var(--text-color);
+  color: var(--bg-color);
+  padding: var(--gap);
+  border: none;
+}
+input[type="button"], input[type="submit"], button {
+  background: gray;
+}
+textarea {
+  flex-grow: 1;
+}
+#footer-switch {
+  padding: var(--gap);
+  width: 100%;
+  transition: 1s margin;
+  margin-bottom: var(--gap);
+  transition: margin 200ms;
+  transition-delay: 260ms;
+}
+footer.closed #footer-switch {
+  margin-bottom: 0;
+}
+.row {
+  display: flex;
+  gap: var(--gap);
+  justify-content: space-between;
+}
+.row > * {
+  width: 100%;
+}
