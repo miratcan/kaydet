@@ -8,7 +8,7 @@ leaving terminal.
 
     $ pip3 install kaydet
 
-# Key Features:
+# Features:
 
 ## Short Entries
 
