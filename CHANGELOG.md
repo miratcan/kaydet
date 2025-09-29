@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.20.2] - 2025-09-29
+### Changed
+- README clarifies GitHub-based installs and groups tag workflows for quicker onboarding.
+
 ## [0.20.1] - 2025-09-29
 ### Fixed
 - `kaydet --doctor` now tolerates diary files with non-UTF8 bytes by replacing invalid characters during parsing.
