@@ -119,6 +119,13 @@ Clone the repository and install in editable mode to hack on Kaydet locally:
 git clone https://github.com/miratcan/kaydet.git
 cd kaydet
 pip install -e .
+
+# optional: install formatting/lint extras
+pip install -e .[dev]
+
+# run style checks
+ruff check src
+black --check src
 ```
 
 Run the CLI from source with `python -m kaydet`.
