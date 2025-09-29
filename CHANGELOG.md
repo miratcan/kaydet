@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.19.0] - 2025-09-29
+### Changed
+- `kaydet --tags` now lists existing tag folders directly for faster results without scanning every diary file.
+
 ## [0.18.0] - 2025-09-29
 ### Added
 - `kaydet --folder TAG` now opens the requested tag directory (accepts `#tag` or `tag`) and reports when it does not exist.
