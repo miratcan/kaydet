@@ -1,9 +1,58 @@
-# Kaydet — Your Terminal Diary
+# Kaydet — Your Thoughts, One Command Away
+
+[![PyPI version](https://img.shields.io/pypi/v/kaydet.svg)](https://pypi.org/project/kaydet/)
+[![Downloads](https://img.shields.io/pypi/dm/kaydet.svg)](https://pypi.org/project/kaydet/)
+[![Python](https://img.shields.io/pypi/pyversions/kaydet.svg)](https://pypi.org/project/kaydet/)
+[![License](https://img.shields.io/github/license/miratcan/kaydet.svg)](LICENSE)
+
+> 🚀 **Ultra-fast command-line diary** | 📦 **Plain text, zero lock-in** | 🏷️ **Smart tagging**
 
 Kaydet is a lightweight command-line diary that keeps your daily thoughts in
 plain text files on your own machine. It is designed to disappear into your
 workflow: invoke it for a quick note, drop into your editor for longer
 reflections, or pop open the archive folder when you feel nostalgic.
+
+**[📥 Install Now](#installation)** • **[⚡ Quick Start](#quick-start)** • **[🎬 See It in Action](#demo)**
+
+## Demo
+
+![Kaydet Demo](https://raw.githubusercontent.com/miratcan/kaydet/master/assets/demo.gif)
+
+*Watch how Kaydet seamlessly integrates into your terminal workflow*
+
+## Installation
+
+Kaydet is published on PyPI and installs like any other Python CLI:
+
+```bash
+pip install kaydet
+```
+
+Prefer isolated environments? Kaydet also works well with [pipx](https://github.com/pypa/pipx):
+
+```bash
+pipx install kaydet
+```
+
+> 💡  Waiting on a PyPI refresh? Install the latest build from GitHub instead:
+> `pip install git+https://github.com/miratcan/kaydet.git`
+
+## Why Kaydet?
+
+### vs. Notion, Obsidian, Logseq
+- **🏃 No context switching** — Stay in your terminal, no GUI required
+- **⚡ Instant capture** — One command vs. opening an app and navigating menus
+- **📂 Plain text files** — No database, no lock-in, grep-able, git-friendly
+
+### vs. Plain Text Files
+- **🔍 Built-in search** — Find entries instantly without `grep` wizardry
+- **🏷️ Automatic tagging** — Organize with hashtags, auto-archived by tag
+- **📊 Stats & insights** — Calendar view, entry counts, activity tracking
+
+### vs. Journaling Apps
+- **🔒 Privacy first** — Your data never leaves your machine
+- **🎨 Editor freedom** — Use vim, emacs, nano, or any editor you love
+- **🔧 Fully customizable** — File naming, timestamps, directory structure
 
 ## Use Cases
 
@@ -74,22 +123,6 @@ kaydet "Called Ahmet Yılmaz to discuss the proposal. He will follow up by Frida
 - **Configurable** – adjust file naming, headings, the editor command, and storage location.
 - **Gentle reminders** – optional nudge when you have not written anything for a while.
 - **Cross-platform** – works anywhere Python 3.8+ runs.
-
-## Installation
-Kaydet is published on PyPI and installs like any other Python CLI:
-
-```bash
-pip install kaydet
-```
-
-Prefer isolated environments? Kaydet also works well with [pipx](https://github.com/pypa/pipx):
-
-```bash
-pipx install kaydet
-```
-
-> 💡  Waiting on a PyPI refresh? Install the latest build from GitHub instead:
-> `pip install git+https://github.com/miratcan/kaydet.git`
 
 ## Quick Start
 ```bash
@@ -189,7 +222,24 @@ black --check src
 
 Run the CLI from source with `python -m kaydet`.
 
+## Contributing
+
+We welcome contributions! Whether it's bug reports, feature requests, or code contributions, please feel free to open an issue or submit a pull request.
+
 ## License
+
 Kaydet is released under the permissive [MIT License](LICENSE).
 
 See [CHANGELOG.md](CHANGELOG.md) for release history.
+
+---
+
+<div align="center">
+
+💡 **Found Kaydet useful?**
+
+[⭐ Star the repo](https://github.com/miratcan/kaydet) to help others discover it!
+
+Made with ❤️ by [Mirat Can Bayrak](https://github.com/miratcan)
+
+</div>

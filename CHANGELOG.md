@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.23.0] - 2025-09-30
+### Changed
+- Enhanced README with marketing-focused improvements:
+  - Added compelling tagline: "Your Thoughts, One Command Away"
+  - Added PyPI badges (version, downloads, Python versions, license)
+  - Added "Why Kaydet?" comparison section (vs. Notion/Obsidian, Plain Text, Journaling Apps)
+  - Reorganized structure: Demo and Installation sections moved before Use Cases
+  - Added clear CTAs (Call-to-Actions) throughout the document
+  - Added Contributing section
+  - Added footer with star CTA and author attribution
+  - Added demo GIF placeholder for better visual representation
+
 ## [0.22.2] - 2025-09-30
 ### Added
 - Added Turkish README file (`README_tr.md`).
