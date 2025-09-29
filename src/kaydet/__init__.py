@@ -1,4 +1,5 @@
 """Kaydet terminal diary package metadata."""
+
 from __future__ import annotations
 
 __all__ = (

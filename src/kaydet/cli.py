@@ -1,4 +1,5 @@
 """Command-line interface for the kaydet diary application."""
+
 from __future__ import annotations
 
 import argparse
@@ -10,7 +11,8 @@ from collections import defaultdict
 from configparser import ConfigParser, SectionProxy
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
-from os import environ as env, fdopen, remove
+from os import environ as env
+from os import fdopen, remove
 from pathlib import Path
 from tempfile import mkstemp
 from textwrap import dedent
@@ -188,7 +190,9 @@ def get_config() -> Tuple[SectionProxy, Path, Path]:
     return section, config_path, config_dir
 
 
-def load_last_entry_timestamp(config_dir: Path, log_dir: Path) -> Optional[datetime]:
+def load_last_entry_timestamp(
+    config_dir: Path, log_dir: Path
+) -> Optional[datetime]:
     """Return the timestamp of the most recent saved entry, if any."""
     record_path = config_dir / LAST_ENTRY_FILENAME
     try:
@@ -216,7 +220,9 @@ def save_last_entry_timestamp(config_dir: Path, moment: datetime) -> None:
     record_path.write_text(moment.isoformat(), encoding="utf-8")
 
 
-def maybe_show_reminder(config_dir: Path, log_dir: Path, now: datetime) -> None:
+def maybe_show_reminder(
+    config_dir: Path, log_dir: Path, now: datetime
+) -> None:
     """Emit a reminder if no entry has been written recently."""
     last_entry = load_last_entry_timestamp(config_dir, log_dir)
     if last_entry is None:
@@ -233,7 +239,9 @@ def maybe_show_reminder(config_dir: Path, log_dir: Path, now: datetime) -> None:
         )
 
 
-def ensure_day_file(log_dir: Path, now: datetime, config: SectionProxy) -> Path:
+def ensure_day_file(
+    log_dir: Path, now: datetime, config: SectionProxy
+) -> Path:
     """Ensure the daily file exists and return its path."""
     log_dir.mkdir(parents=True, exist_ok=True)
 
@@ -250,7 +258,9 @@ def ensure_day_file(log_dir: Path, now: datetime, config: SectionProxy) -> Path:
     return day_file
 
 
-def append_entry(day_file: Path, timestamp: str, entry_text: str) -> Tuple[str, Tuple[str, ...]]:
+def append_entry(
+    day_file: Path, timestamp: str, entry_text: str
+) -> Tuple[str, Tuple[str, ...]]:
     """Append a timestamped entry to the daily file and return normalized text + tags."""
     normalized, tags = normalize_entry(entry_text)
     with day_file.open("a", encoding="utf-8") as handle:
@@ -274,7 +284,9 @@ def mirror_entry_to_tag_files(
             handle.write(f"{timestamp}: {entry_text}\n")
 
 
-def show_calendar_stats(log_dir: Path, config: SectionProxy, now: datetime) -> None:
+def show_calendar_stats(
+    log_dir: Path, config: SectionProxy, now: datetime
+) -> None:
     """Render a calendar for the current month with entry counts per day."""
     if not log_dir.exists():
         print("No diary entries found yet.")
@@ -317,7 +329,9 @@ def collect_month_counts(
 ) -> Dict[int, int]:
     """Return a mapping of day number to entry count for the given month."""
     counts: Dict[int, int] = defaultdict(int)
-    day_file_pattern = config.get("DAY_FILE_PATTERN", DEFAULT_SETTINGS["DAY_FILE_PATTERN"])
+    day_file_pattern = config.get(
+        "DAY_FILE_PATTERN", DEFAULT_SETTINGS["DAY_FILE_PATTERN"]
+    )
 
     for candidate in sorted(log_dir.iterdir()):
         if not candidate.is_file():
@@ -325,7 +339,9 @@ def collect_month_counts(
 
         entry_date = resolve_entry_date(candidate, day_file_pattern)
         if entry_date is None:
-            entry_date = datetime.fromtimestamp(candidate.stat().st_mtime).date()
+            entry_date = datetime.fromtimestamp(
+                candidate.stat().st_mtime
+            ).date()
 
         if entry_date.year != year or entry_date.month != month:
             continue
@@ -402,7 +418,9 @@ def parse_day_entries(day_file: Path, day: Optional[date]) -> List[DiaryEntry]:
     return entries
 
 
-def deduplicate_tags(initial_tags: Iterable[str], lines: Iterable[str]) -> Tuple[str, ...]:
+def deduplicate_tags(
+    initial_tags: Iterable[str], lines: Iterable[str]
+) -> Tuple[str, ...]:
     """Return unique lowercase tags extracted from legacy markers and hashtags."""
     seen: List[str] = []
 
@@ -457,12 +475,16 @@ def normalize_entry(entry_text: str) -> Tuple[str, Tuple[str, ...]]:
     return normalized, tuple(collected)
 
 
-def iter_diary_entries(log_dir: Path, config: SectionProxy) -> Iterable[DiaryEntry]:
+def iter_diary_entries(
+    log_dir: Path, config: SectionProxy
+) -> Iterable[DiaryEntry]:
     """Yield entries from every diary file sorted by filename."""
     if not log_dir.exists():
         return ()
 
-    day_file_pattern = config.get("DAY_FILE_PATTERN", DEFAULT_SETTINGS["DAY_FILE_PATTERN"])
+    day_file_pattern = config.get(
+        "DAY_FILE_PATTERN", DEFAULT_SETTINGS["DAY_FILE_PATTERN"]
+    )
 
     for candidate in sorted(log_dir.iterdir()):
         if not candidate.is_file():
@@ -470,7 +492,9 @@ def iter_diary_entries(log_dir: Path, config: SectionProxy) -> Iterable[DiaryEnt
 
         entry_date = resolve_entry_date(candidate, day_file_pattern)
         if entry_date is None:
-            entry_date = datetime.fromtimestamp(candidate.stat().st_mtime).date()
+            entry_date = datetime.fromtimestamp(
+                candidate.stat().st_mtime
+            ).date()
 
         for entry in parse_day_entries(candidate, entry_date):
             yield entry
@@ -508,7 +532,9 @@ def run_search(log_dir: Path, config: SectionProxy, query: str) -> None:
 
         tag_suffix = f" {' '.join(extra_tags)}" if extra_tags else ""
 
-        print(f"{day_label} {match.timestamp} {first_line}{tag_suffix}".rstrip())
+        print(
+            f"{day_label} {match.timestamp} {first_line}{tag_suffix}".rstrip()
+        )
         for extra in rest:
             print(f"    {extra}")
         print()
@@ -565,9 +591,13 @@ def run_doctor(log_dir: Path, config: SectionProxy) -> None:
 
         entry_day = entry.day
         if entry_day is None:
-            entry_day = datetime.fromtimestamp(entry.source.stat().st_mtime).date()
+            entry_day = datetime.fromtimestamp(
+                entry.source.stat().st_mtime
+            ).date()
 
-        day_reference = datetime.combine(entry_day, datetime.strptime(entry.timestamp, "%H:%M").time())
+        day_reference = datetime.combine(
+            entry_day, datetime.strptime(entry.timestamp, "%H:%M").time()
+        )
 
         for tag in entry.tags:
             tag_dir = log_dir / tag
@@ -578,12 +608,16 @@ def run_doctor(log_dir: Path, config: SectionProxy) -> None:
 
     if not rebuilt_counts:
         if removed:
-            print("Removed existing tag folders but found no tagged entries to rebuild.")
+            print(
+                "Removed existing tag folders but found no tagged entries to rebuild."
+            )
         else:
             print("No tagged entries discovered; nothing to rebuild.")
         return
 
-    summary = ", ".join(f"#{tag}: {count}" for tag, count in sorted(rebuilt_counts.items()))
+    summary = ", ".join(
+        f"#{tag}: {count}" for tag, count in sorted(rebuilt_counts.items())
+    )
     print(f"Rebuilt tag archives for {len(rebuilt_counts)} tags. {summary}")
 
 
@@ -643,6 +677,8 @@ def main() -> None:
     save_last_entry_timestamp(config_dir, now)
 
     if tags:
-        mirror_entry_to_tag_files(log_dir, config, now, timestamp, normalized_entry, tags)
+        mirror_entry_to_tag_files(
+            log_dir, config, now, timestamp, normalized_entry, tags
+        )
 
     print("Entry added to:", day_file)
