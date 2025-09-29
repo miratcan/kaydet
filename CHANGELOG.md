@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.20.3] - 2025-09-29
+### Changed
+- README language normalized to English and GitHub install note references v0.20.2.
+
 ## [0.20.2] - 2025-09-29
 ### Changed
 - README clarifies GitHub-based installs and groups tag workflows for quicker onboarding.
