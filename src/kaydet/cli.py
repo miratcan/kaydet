@@ -232,8 +232,9 @@ def ensure_day_file(log_dir: Path, now: datetime, config: SectionProxy) -> Path:
 
 def append_entry(day_file: Path, timestamp: str, entry_text: str) -> None:
     """Append a timestamped entry to the daily file."""
+    normalized = normalize_entry(entry_text)
     with day_file.open("a", encoding="utf-8") as handle:
-        handle.write(f"{timestamp}: {entry_text}\n")
+        handle.write(f"{timestamp}: {normalized}\n")
 
 
 def show_calendar_stats(log_dir: Path, config: SectionProxy, now: datetime) -> None:
@@ -383,6 +384,39 @@ def deduplicate_tags(initial_tags: Iterable[str], lines: Iterable[str]) -> Tuple
     return tuple(seen)
 
 
+def normalize_entry(entry_text: str) -> str:
+    """Move hashtags to the end of the entry text while keeping them unique."""
+    if not entry_text:
+        return entry_text
+
+    tags: List[str] = []
+    lines = entry_text.splitlines() or [entry_text]
+    cleaned_lines: List[str] = []
+
+    for line in lines:
+        for candidate in HASHTAG_PATTERN.findall(line):
+            lowered = candidate.lower()
+            if lowered not in tags:
+                tags.append(lowered)
+
+        cleaned = HASHTAG_PATTERN.sub("", line)
+        cleaned = re.sub(r"\s{2,}", " ", cleaned).rstrip()
+        cleaned_lines.append(cleaned)
+
+    if not tags:
+        return entry_text
+
+    suffix = " ".join(f"#{tag}" for tag in tags)
+
+    if cleaned_lines:
+        base = cleaned_lines[-1].rstrip()
+        cleaned_lines[-1] = f"{base} {suffix}".strip() if base else suffix
+    else:
+        cleaned_lines.append(suffix)
+
+    return "\n".join(cleaned_lines).rstrip()
+
+
 def iter_diary_entries(log_dir: Path, config: SectionProxy) -> Iterable[DiaryEntry]:
     """Yield entries from every diary file sorted by filename."""
     if not log_dir.exists():
@@ -425,10 +459,11 @@ def run_search(log_dir: Path, config: SectionProxy, query: str) -> None:
         day_label = match.day.isoformat() if match.day else match.source.name
         first_line, *rest = list(match.lines) or [""]
 
+        followup_text = " ".join(match.lines[1:])
         extra_tags = []
         for tag in match.tags:
             marker = f"#{tag}"
-            if marker not in first_line:
+            if marker not in first_line and marker not in followup_text:
                 extra_tags.append(marker)
 
         tag_suffix = f" {' '.join(extra_tags)}" if extra_tags else ""
