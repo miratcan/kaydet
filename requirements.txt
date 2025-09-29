@@ -1,1 +1,4 @@
 universal-startfile>=0.2
+pytest
+pytest-cov
+pytest-mock
