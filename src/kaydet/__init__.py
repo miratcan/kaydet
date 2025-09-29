@@ -6,6 +6,7 @@ __all__ = (
     "__description__",
     "__author__",
     "__copyright__",
+    "main",
 )
 
 __author__ = "Mirat Can Bayrak"
@@ -15,3 +16,5 @@ __description__ = (
     "Simple and terminal-based personal diary app designed to help you "
     "preserve your daily thoughts, experiences, and memories."
 )
+
+from .cli import main
