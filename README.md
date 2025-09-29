@@ -240,6 +240,6 @@ See [CHANGELOG.md](CHANGELOG.md) for release history.
 
 [⭐ Star the repo](https://github.com/miratcan/kaydet) to help others discover it!
 
-Made with ❤️ by [Mirat Can Bayrak](https://github.com/miratcan)
+Made with Concerta by [Mirat Can Bayrak](https://github.com/miratcan)
 
 </div>
