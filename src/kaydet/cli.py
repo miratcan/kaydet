@@ -35,7 +35,6 @@ ENTRY_LINE_PATTERN = re.compile(r"^\d{2}:\d{2}: ")
 LEGACY_TAG_PATTERN = re.compile(r"^\[(?P<tags>[a-z-]+(?:,[a-z-]+)*)\]\s*")
 HASHTAG_PATTERN = re.compile(r"#([a-z-]+)")
 TAG_PATTERN = re.compile(r"^[a-z-]+$")
-TAG_TOKEN_PATTERN = re.compile(r"\s*#([a-z-]+)")
 
 
 def read_diary_lines(path: Path) -> List[str]:
@@ -261,11 +260,11 @@ def ensure_day_file(
 def append_entry(
     day_file: Path, timestamp: str, entry_text: str
 ) -> Tuple[str, Tuple[str, ...]]:
-    """Append a timestamped entry to the daily file and return normalized text + tags."""
-    normalized, tags = normalize_entry(entry_text)
+    """Append a timestamped entry to the daily file and return text and tags."""
+    tags = extract_tags_from_text(entry_text)
     with day_file.open("a", encoding="utf-8") as handle:
-        handle.write(f"{timestamp}: {normalized}\n")
-    return normalized, tags
+        handle.write(f"{timestamp}: {entry_text}\n")
+    return entry_text, tags
 
 
 def mirror_entry_to_tag_files(
@@ -445,48 +444,22 @@ def deduplicate_tags(
     return tuple(seen)
 
 
-def normalize_entry(entry_text: str) -> Tuple[str, Tuple[str, ...]]:
-    """Move hashtags to the end of the entry text and return the tag list.
+def extract_tags_from_text(entry_text: str) -> Tuple[str, ...]:
+    """Return all unique hashtags present in the entry text.
 
-    >>> normalize_entry("Dinner out #family #friends")
-    ('Dinner out #family #friends', ('family', 'friends'))
-    >>> normalize_entry("Planning #projects\nNotes #ideas #projects")
-    ('Planning\nNotes #projects #ideas', ('projects', 'ideas'))
-    >>> normalize_entry("Just text")
-    ('Just text', ())
+    >>> extract_tags_from_text("Dinner out #family #friends")
+    ('family', 'friends')
+    >>> extract_tags_from_text("Planning #projects\nNotes #ideas #projects")
+    ('projects', 'ideas')
+    >>> extract_tags_from_text("Just text")
+    ()
     """
+
     if not entry_text:
-        return entry_text, ()
-
-    collected: List[str] = []
-    for candidate in HASHTAG_PATTERN.findall(entry_text):
-        lowered = candidate.lower()
-        if lowered not in collected:
-            collected.append(lowered)
-
-    if not collected:
-        return entry_text, ()
+        return ()
 
     lines = entry_text.splitlines() or [entry_text]
-    cleaned_lines: List[str] = []
-
-    for line in lines:
-        cleaned = TAG_TOKEN_PATTERN.sub("", line).rstrip()
-        cleaned_lines.append(cleaned)
-
-    suffix = " ".join(f"#{tag}" for tag in collected)
-
-    if cleaned_lines:
-        base = cleaned_lines[-1].rstrip()
-        cleaned_lines[-1] = f"{base} {suffix}".strip() if base else suffix
-    else:
-        cleaned_lines.append(suffix)
-
-    normalized = "\n".join(cleaned_lines).rstrip()
-    if not normalized:
-        normalized = suffix
-
-    return normalized, tuple(collected)
+    return deduplicate_tags([], lines)
 
 
 def iter_diary_entries(
@@ -687,12 +660,12 @@ def main() -> None:
         return
 
     timestamp = now.strftime("%H:%M")
-    normalized_entry, tags = append_entry(day_file, timestamp, entry)
+    saved_entry, tags = append_entry(day_file, timestamp, entry)
     save_last_entry_timestamp(config_dir, now)
 
     if tags:
         mirror_entry_to_tag_files(
-            log_dir, config, now, timestamp, normalized_entry, tags
+            log_dir, config, now, timestamp, saved_entry, tags
         )
 
     print("Entry added to:", day_file)
