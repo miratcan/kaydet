@@ -36,6 +36,9 @@ dev = [
     "black==24.4.2",
     "ruff==0.6.1",
 ]
+mcp = [
+    "mcp>=0.9.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/miratcan/kaydet"
@@ -44,6 +47,7 @@ Issues = "https://github.com/miratcan/kaydet/issues"
 
 [project.entry-points."console_scripts"]
 kaydet = "kaydet.cli:main"
+kaydet-mcp = "kaydet.mcp_server:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

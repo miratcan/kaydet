@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.24.0] - 2025-09-30
+### Added
+- Added `--format json` flag for JSON output in search, tags, and stats commands
+- Added MCP (Model Context Protocol) server integration for AI assistants
+- Added `kaydet-mcp` command for running the MCP server
+- Added optional `mcp` dependency group (`pip install kaydet[mcp]`)
+- Added `to_dict()` method to `DiaryEntry` dataclass for JSON serialization
+
+### Changed
+- Updated `run_search()`, `list_tags()`, and `show_calendar_stats()` to support JSON output
+- Improved code formatting with ruff and black
+
 ## [0.23.0] - 2025-09-30
 ### Changed
 - Enhanced README with marketing-focused improvements:

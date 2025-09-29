@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import calendar
+import json
 import re
 import shutil
 import subprocess
@@ -59,6 +60,16 @@ class DiaryEntry:
     @property
     def text(self) -> str:
         return "\n".join(self.lines)
+
+    def to_dict(self) -> dict:
+        """Convert entry to dictionary for JSON serialization."""
+        return {
+            "date": self.day.isoformat() if self.day else None,
+            "timestamp": self.timestamp,
+            "text": self.text,
+            "tags": list(self.tags),
+            "source": str(self.source),
+        }
 
 
 def parse_args(config_path: Path) -> argparse.Namespace:
@@ -131,6 +142,13 @@ def parse_args(config_path: Path) -> argparse.Namespace:
         dest="doctor",
         action="store_true",
         help="Rebuild tag archives from existing entries and exit.",
+    )
+    parser.add_argument(
+        "--format",
+        dest="output_format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format for search, tags, and stats commands (default: text).",
     )
     return parser.parse_args()
 
@@ -284,11 +302,17 @@ def mirror_entry_to_tag_files(
 
 
 def show_calendar_stats(
-    log_dir: Path, config: SectionProxy, now: datetime
+    log_dir: Path,
+    config: SectionProxy,
+    now: datetime,
+    output_format: str = "text",
 ) -> None:
     """Render a calendar for the current month with entry counts per day."""
     if not log_dir.exists():
-        print("No diary entries found yet.")
+        if output_format == "json":
+            print(json.dumps({"error": "No diary entries found yet."}))
+        else:
+            print("No diary entries found yet.")
         return
 
     year = now.year
@@ -296,31 +320,41 @@ def show_calendar_stats(
 
     counts = collect_month_counts(log_dir, config, year, month)
 
-    title = now.strftime("%B %Y")
-    print(title)
-    print("Mo Tu We Th Fr Sa Su")
-
-    month_calendar = calendar.Calendar().monthdayscalendar(year, month)
-    for week in month_calendar:
-        cells = []
-        for day in week:
-            if day == 0:
-                cells.append("      ")
-                continue
-            count = counts.get(day, 0)
-            if count == 0:
-                cells.append(f"{day:2d}[  ]")
-            elif count < 100:
-                cells.append(f"{day:2d}[{count:2d}]")
-            else:
-                cells.append(f"{day:2d}[**]")
-        print(" ".join(cells))
-
-    total_entries = sum(counts.values())
-    if total_entries == 0:
-        print("\nNo entries recorded for this month yet.")
+    if output_format == "json":
+        result = {
+            "year": year,
+            "month": month,
+            "month_name": now.strftime("%B %Y"),
+            "days": counts,
+            "total_entries": sum(counts.values()),
+        }
+        print(json.dumps(result, indent=2))
     else:
-        print(f"\nTotal entries this month: {total_entries}")
+        title = now.strftime("%B %Y")
+        print(title)
+        print("Mo Tu We Th Fr Sa Su")
+
+        month_calendar = calendar.Calendar().monthdayscalendar(year, month)
+        for week in month_calendar:
+            cells = []
+            for day in week:
+                if day == 0:
+                    cells.append("      ")
+                    continue
+                count = counts.get(day, 0)
+                if count == 0:
+                    cells.append(f"{day:2d}[  ]")
+                elif count < 100:
+                    cells.append(f"{day:2d}[{count:2d}]")
+                else:
+                    cells.append(f"{day:2d}[**]")
+            print(" ".join(cells))
+
+        total_entries = sum(counts.values())
+        if total_entries == 0:
+            print("\nNo entries recorded for this month yet.")
+        else:
+            print(f"\nTotal entries this month: {total_entries}")
 
 
 def collect_month_counts(
@@ -487,10 +521,18 @@ def iter_diary_entries(
             yield entry
 
 
-def run_search(log_dir: Path, config: SectionProxy, query: str) -> None:
+def run_search(
+    log_dir: Path,
+    config: SectionProxy,
+    query: str,
+    output_format: str = "text",
+) -> None:
     """Search diary entries for the query and print any matches."""
     if not log_dir.exists():
-        print("No diary entries found yet.")
+        if output_format == "json":
+            print(json.dumps({"error": "No diary entries found yet."}))
+        else:
+            print("No diary entries found yet.")
         return
 
     query_norm = query.lower()
@@ -503,38 +545,56 @@ def run_search(log_dir: Path, config: SectionProxy, query: str) -> None:
             matches.append(entry)
 
     if not matches:
-        print(f"No entries matched '{query}'.")
+        if output_format == "json":
+            print(json.dumps({"query": query, "matches": [], "total": 0}))
+        else:
+            print(f"No entries matched '{query}'.")
         return
 
-    for match in matches:
-        day_label = match.day.isoformat() if match.day else match.source.name
-        first_line, *rest = list(match.lines) or [""]
+    if output_format == "json":
+        result = {
+            "query": query,
+            "matches": [match.to_dict() for match in matches],
+            "total": len(matches),
+        }
+        print(json.dumps(result, indent=2))
+    else:
+        for match in matches:
+            day_label = (
+                match.day.isoformat() if match.day else match.source.name
+            )
+            first_line, *rest = list(match.lines) or [""]
 
-        followup_text = " ".join(match.lines[1:])
-        extra_tags = []
-        for tag in match.tags:
-            marker = f"#{tag}"
-            if marker not in first_line and marker not in followup_text:
-                extra_tags.append(marker)
+            followup_text = " ".join(match.lines[1:])
+            extra_tags = []
+            for tag in match.tags:
+                marker = f"#{tag}"
+                if marker not in first_line and marker not in followup_text:
+                    extra_tags.append(marker)
 
-        tag_suffix = f" {' '.join(extra_tags)}" if extra_tags else ""
+            tag_suffix = f" {' '.join(extra_tags)}" if extra_tags else ""
 
-        print(
-            f"{day_label} {match.timestamp} {first_line}{tag_suffix}".rstrip()
-        )
-        for extra in rest:
-            print(f"    {extra}")
-        print()
+            print(
+                f"{day_label} {match.timestamp} {first_line}{tag_suffix}".rstrip()
+            )
+            for extra in rest:
+                print(f"    {extra}")
+            print()
 
-    total = len(matches)
-    suffix = "entry" if total == 1 else "entries"
-    print(f"Found {total} {suffix} containing '{query}'.")
+        total = len(matches)
+        suffix = "entry" if total == 1 else "entries"
+        print(f"Found {total} {suffix} containing '{query}'.")
 
 
-def list_tags(log_dir: Path, config: SectionProxy) -> None:
+def list_tags(
+    log_dir: Path, config: SectionProxy, output_format: str = "text"
+) -> None:
     """Print the unique set of tags recorded across all diary entries."""
     if not log_dir.exists():
-        print("No diary entries found yet.")
+        if output_format == "json":
+            print(json.dumps({"error": "No diary entries found yet."}))
+        else:
+            print("No diary entries found yet.")
         return
 
     folders = sorted(
@@ -543,11 +603,17 @@ def list_tags(log_dir: Path, config: SectionProxy) -> None:
         if child.is_dir() and TAG_PATTERN.fullmatch(child.name)
     )
     if not folders:
-        print("No tags have been recorded yet.")
+        if output_format == "json":
+            print(json.dumps({"tags": []}))
+        else:
+            print("No tags have been recorded yet.")
         return
 
-    for folder in folders:
-        print(folder)
+    if output_format == "json":
+        print(json.dumps({"tags": folders}, indent=2))
+    else:
+        for folder in folders:
+            print(folder)
 
 
 def run_doctor(log_dir: Path, config: SectionProxy) -> None:
@@ -623,15 +689,15 @@ def main() -> None:
         return
 
     if args.stats:
-        show_calendar_stats(log_dir, config, now)
+        show_calendar_stats(log_dir, config, now, args.output_format)
         return
 
     if args.list_tags:
-        list_tags(log_dir, config)
+        list_tags(log_dir, config, args.output_format)
         return
 
     if args.search:
-        run_search(log_dir, config, args.search)
+        run_search(log_dir, config, args.search, args.output_format)
         return
 
     if args.doctor:
