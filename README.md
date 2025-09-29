@@ -25,6 +25,9 @@ Prefer isolated environments? Kaydet also works well with [pipx](https://github.
 pipx install kaydet
 ```
 
+> 💡  PyPI güncellemesi beklerken son sürümü doğrudan GitHub’dan alabilirsiniz:
+> `pip install git+https://github.com/miratcan/kaydet.git@v0.20.1`
+
 ## Quick Start
 ```bash
 # Append a short entry to today's file
@@ -39,28 +42,20 @@ kaydet --editor
 # Open the folder that keeps all diary files
 kaydet --folder
 
-# Jump straight to a specific tag folder if it exists
-kaydet --folder family
-# or with the hashtag form
-kaydet --folder #family
-
-# List every tag you've used so far
-kaydet --tags
+# Quick tag housekeeping
+kaydet --folder family   # aç
+kaydet --tags            # listele
+kaydet --doctor          # arşivleri yeniden oluştur
 
 # Search past entries for a word or tag fragment
 kaydet --search gratitude
-
-# Entries with hashtags are also copied into per-tag folders
-ls ~/.kaydet/family
-
-# Rebuild tag folders if you migrated from an older version
-kaydet --doctor
 ```
 
 Each entry is written to a daily file (for example `~/.kaydet/2024-02-19.txt`) and
 prefixed with the current time. Opening an existing daily file will append a new
 section; the first entry of the day creates the file with a heading for easy
 navigating.
+
 Add inline hashtags (for example `#family`) to categorize notes — Kaydet moves
 them to the end of the entry when saving, mirrors the entry into a per-tag
 folder (for example `~/.kaydet/family/`), lets you open tag folders directly via
@@ -106,6 +101,17 @@ It's been over two hours since your last Kaydet entry. Capture what you've been 
 If you have written within the last two hours nothing is printed, keeping your
 terminal uncluttered.
 
+Example `kaydet --stats` output:
+
+```
+September 2025
+Mo Tu We Th Fr Sa Su
+ 1[  ]  2[  ]  3[  ]  4[  ]  5[  ]  6[  ]  7[  ]
+ 8[  ]  9[  ] 10[  ] 11[  ] 12[  ] 13[  ] 14[  ]
+...
+Total entries this month: 12
+```
+
 ## Development
 Clone the repository and install in editable mode to hack on Kaydet locally:
 
@@ -119,3 +125,5 @@ Run the CLI from source with `python -m kaydet`.
 
 ## License
 Kaydet is released under the permissive [MIT License](LICENSE).
+
+See [CHANGELOG.md](CHANGELOG.md) for release history.
