@@ -22,20 +22,23 @@ reflections, or pop open the archive folder when you feel nostalgic.
 
 ## Installation
 
-Kaydet is published on PyPI and installs like any other Python CLI:
+Install directly from GitHub:
 
 ```bash
-pip install kaydet
+pip install git+https://github.com/miratcan/kaydet.git
 ```
 
-Prefer isolated environments? Kaydet also works well with [pipx](https://github.com/pypa/pipx):
+For isolated environments, use [pipx](https://github.com/pypa/pipx):
 
 ```bash
-pipx install kaydet
+pipx install git+https://github.com/miratcan/kaydet.git
 ```
 
-> 💡  Waiting on a PyPI refresh? Install the latest build from GitHub instead:
-> `pip install git+https://github.com/miratcan/kaydet.git`
+For AI integration, install with MCP support:
+
+```bash
+pip install "git+https://github.com/miratcan/kaydet.git#egg=kaydet[mcp]"
+```
 
 ## Why Kaydet?
 
