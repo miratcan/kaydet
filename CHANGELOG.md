@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.22.0] - 2025-09-30
+### Added
+- Added a comprehensive test suite with `pytest`, achieving ~99% code coverage for the main CLI logic.
+- Integrated `pytest-cov` for coverage reporting and `pytest-mock` for mocking dependencies.
+- Created 29 unit and integration tests covering all major features, edge cases, and error conditions.
+
+### Changed
+- Improved overall code stability and reliability due to extensive testing.
+
 ## [0.21.0] - 2025-09-29
 ### Changed
 - Saved entries now keep inline hashtags exactly as typed while still extracting
