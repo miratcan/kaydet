@@ -26,7 +26,7 @@ pipx install kaydet
 ```
 
 > 💡  Waiting on a PyPI refresh? Install the latest build from GitHub instead:
-> `pip install git+https://github.com/miratcan/kaydet.git@v0.21.0`
+> `pip install git+https://github.com/miratcan/kaydet.git`
 
 ## Quick Start
 ```bash
