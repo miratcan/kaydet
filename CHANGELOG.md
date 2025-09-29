@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.18.0] - 2025-09-29
+### Added
+- `kaydet --folder TAG` now opens the requested tag directory (accepts `#tag` or `tag`) and reports when it does not exist.
+
 ## [0.17.0] - 2025-09-29
 ### Added
 - Entries that include hashtags are also written to per-tag day files (for example `family/2025-09-29.txt`) so you can browse tag archives directly.

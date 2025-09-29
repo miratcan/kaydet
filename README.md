@@ -39,6 +39,11 @@ kaydet --editor
 # Open the folder that keeps all diary files
 kaydet --folder
 
+# Jump straight to a specific tag folder if it exists
+kaydet --folder family
+# or with the hashtag form
+kaydet --folder #family
+
 # List every tag you've used so far
 kaydet --tags
 
@@ -55,8 +60,9 @@ section; the first entry of the day creates the file with a heading for easy
 navigating.
 Add inline hashtags (for example `#family`) to categorize notes — Kaydet moves
 them to the end of the entry when saving, mirrors the entry into a per-tag
-folder (for example `~/.kaydet/family/`), shows the tags in `kaydet --tags`, and
-makes them searchable via `kaydet --search`.
+folder (for example `~/.kaydet/family/`), lets you open tag folders directly via
+`kaydet --folder family`, shows the tags in `kaydet --tags`, and makes them
+searchable via `kaydet --search`.
 
 ## Configuration
 Kaydet stores its settings in `~/.config/kaydet/config.ini` (or the location
