@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.20.1] - 2025-09-29
+### Fixed
+- `kaydet --doctor` now tolerates diary files with non-UTF8 bytes by replacing invalid characters during parsing.
+
 ## [0.20.0] - 2025-09-29
 ### Added
 - `kaydet --doctor` rebuilds all tag archives from existing entries and cleans out stale tag folders.
