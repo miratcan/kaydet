@@ -30,17 +30,28 @@ pipx install kaydet
 # Append a short entry to today's file
 kaydet "Made progress on the side project."
 
+# Add inline hashtags to categorize an entry
+kaydet "Dinner with friends #family #gratitude"
+
 # Drop into your favourite editor for a longer note
 kaydet --editor
 
 # Open the folder that keeps all diary files
 kaydet --folder
+
+# List every tag you've used so far
+kaydet --tags
+
+# Search past entries for a word or tag fragment
+kaydet --search gratitude
 ```
 
 Each entry is written to a daily file (for example `~/.kaydet/2024-02-19.txt`) and
 prefixed with the current time. Opening an existing daily file will append a new
 section; the first entry of the day creates the file with a heading for easy
 navigating.
+Add inline hashtags (for example `#family`) to categorize notes — they show up in
+`kaydet --tags` and are searchable with `kaydet --search`.
 
 ## Configuration
 Kaydet stores its settings in `~/.config/kaydet/config.ini` (or the location

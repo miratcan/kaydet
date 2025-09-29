@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.15.0] - 2025-09-29
+### Changed
+- Entries now capture tags via inline hashtags (for example `#family`); the `--tag/-t` option was removed.
+- Tag listing and search commands recognize both inline hashtags and older bracketed tags for backward compatibility.
+
 ## [0.14.0] - 2025-09-29
 ### Added
 - `kaydet --search TEXT` scans diary files and prints matching entries with context.
