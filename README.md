@@ -52,6 +52,9 @@ kaydet --search gratitude
 
 # Entries with hashtags are also copied into per-tag folders
 ls ~/.kaydet/family
+
+# Rebuild tag folders if you migrated from an older version
+kaydet --doctor
 ```
 
 Each entry is written to a daily file (for example `~/.kaydet/2024-02-19.txt`) and
@@ -61,8 +64,9 @@ navigating.
 Add inline hashtags (for example `#family`) to categorize notes — Kaydet moves
 them to the end of the entry when saving, mirrors the entry into a per-tag
 folder (for example `~/.kaydet/family/`), lets you open tag folders directly via
-`kaydet --folder family`, shows the tags in `kaydet --tags`, and makes them
-searchable via `kaydet --search`.
+`kaydet --folder family`, shows the tags in `kaydet --tags`, makes them
+searchable via `kaydet --search`, and can backfill existing journals with
+`kaydet --doctor`.
 
 ## Configuration
 Kaydet stores its settings in `~/.config/kaydet/config.ini` (or the location

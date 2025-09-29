@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.20.0] - 2025-09-29
+### Added
+- `kaydet --doctor` rebuilds all tag archives from existing entries and cleans out stale tag folders.
+
 ## [0.19.0] - 2025-09-29
 ### Changed
 - `kaydet --tags` now lists existing tag folders directly for faster results without scanning every diary file.
