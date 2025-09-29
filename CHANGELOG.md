@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.17.0] - 2025-09-29
+### Added
+- Entries that include hashtags are also written to per-tag day files (for example `family/2025-09-29.txt`) so you can browse tag archives directly.
+
+### Changed
+- Hashtag normalization now returns both sanitized text and the tag set for downstream mirroring.
+
 ## [0.16.0] - 2025-09-29
 ### Changed
 - New entries automatically move inline hashtags to the end, ensuring consistent formatting in saved files.

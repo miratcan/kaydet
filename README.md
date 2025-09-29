@@ -44,6 +44,9 @@ kaydet --tags
 
 # Search past entries for a word or tag fragment
 kaydet --search gratitude
+
+# Entries with hashtags are also copied into per-tag folders
+ls ~/.kaydet/family
 ```
 
 Each entry is written to a daily file (for example `~/.kaydet/2024-02-19.txt`) and
@@ -51,8 +54,9 @@ prefixed with the current time. Opening an existing daily file will append a new
 section; the first entry of the day creates the file with a heading for easy
 navigating.
 Add inline hashtags (for example `#family`) to categorize notes — Kaydet moves
-them to the end of the entry when saving, they show up in `kaydet --tags`, and
-they are searchable with `kaydet --search`.
+them to the end of the entry when saving, mirrors the entry into a per-tag
+folder (for example `~/.kaydet/family/`), shows the tags in `kaydet --tags`, and
+makes them searchable via `kaydet --search`.
 
 ## Configuration
 Kaydet stores its settings in `~/.config/kaydet/config.ini` (or the location
