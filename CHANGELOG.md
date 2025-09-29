@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.21.0] - 2025-09-29
+### Changed
+- Saved entries now keep inline hashtags exactly as typed while still extracting
+  tags for archives and search results.
+- Added doctest examples covering hashtag utilities.
+
 ## [0.20.4] - 2025-09-29
 ### Changed
 - Applied Ruff auto-fixes and Black formatting to keep the codebase aligned with the new tooling.

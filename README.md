@@ -26,7 +26,7 @@ pipx install kaydet
 ```
 
 > 💡  Waiting on a PyPI refresh? Install the latest build from GitHub instead:
-> `pip install git+https://github.com/miratcan/kaydet.git@v0.20.2`
+> `pip install git+https://github.com/miratcan/kaydet.git@v0.21.0`
 
 ## Quick Start
 ```bash
@@ -56,12 +56,11 @@ prefixed with the current time. Opening an existing daily file will append a new
 section; the first entry of the day creates the file with a heading for easy
 navigating.
 
-Add inline hashtags (for example `#family`) to categorize notes — Kaydet moves
-them to the end of the entry when saving, mirrors the entry into a per-tag
-folder (for example `~/.kaydet/family/`), lets you open tag folders directly via
-`kaydet --folder family`, shows the tags in `kaydet --tags`, makes them
-searchable via `kaydet --search`, and can backfill existing journals with
-`kaydet --doctor`.
+Add inline hashtags (for example `#family`) to categorize notes — Kaydet keeps
+them inline, mirrors the entry into a per-tag folder (for example
+`~/.kaydet/family/`), lets you open tag folders directly via `kaydet --folder
+family`, shows the tags in `kaydet --tags`, makes them searchable via `kaydet
+--search`, and can backfill existing journals with `kaydet --doctor`.
 
 ## Configuration
 Kaydet stores its settings in `~/.config/kaydet/config.ini` (or the location
