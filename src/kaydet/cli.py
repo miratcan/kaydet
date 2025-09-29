@@ -31,6 +31,7 @@ REMINDER_THRESHOLD = timedelta(hours=2)
 ENTRY_LINE_PATTERN = re.compile(r"^\d{2}:\d{2}: ")
 LEGACY_TAG_PATTERN = re.compile(r"^\[(?P<tags>[a-z-]+(?:,[a-z-]+)*)\]\s*")
 HASHTAG_PATTERN = re.compile(r"#([a-z-]+)")
+TAG_TOKEN_PATTERN = re.compile(r"\s*#([a-z-]+)")
 
 
 @dataclass(frozen=True)
@@ -230,11 +231,28 @@ def ensure_day_file(log_dir: Path, now: datetime, config: SectionProxy) -> Path:
     return day_file
 
 
-def append_entry(day_file: Path, timestamp: str, entry_text: str) -> None:
-    """Append a timestamped entry to the daily file."""
-    normalized = normalize_entry(entry_text)
+def append_entry(day_file: Path, timestamp: str, entry_text: str) -> Tuple[str, Tuple[str, ...]]:
+    """Append a timestamped entry to the daily file and return normalized text + tags."""
+    normalized, tags = normalize_entry(entry_text)
     with day_file.open("a", encoding="utf-8") as handle:
         handle.write(f"{timestamp}: {normalized}\n")
+    return normalized, tags
+
+
+def mirror_entry_to_tag_files(
+    log_dir: Path,
+    config: SectionProxy,
+    now: datetime,
+    timestamp: str,
+    entry_text: str,
+    tags: Tuple[str, ...],
+) -> None:
+    """Write the entry to per-tag daily files so tag archives stay in sync."""
+    for tag in tags:
+        tag_dir = log_dir / tag
+        tag_day_file = ensure_day_file(tag_dir, now, config)
+        with tag_day_file.open("a", encoding="utf-8") as handle:
+            handle.write(f"{timestamp}: {entry_text}\n")
 
 
 def show_calendar_stats(log_dir: Path, config: SectionProxy, now: datetime) -> None:
@@ -384,29 +402,28 @@ def deduplicate_tags(initial_tags: Iterable[str], lines: Iterable[str]) -> Tuple
     return tuple(seen)
 
 
-def normalize_entry(entry_text: str) -> str:
-    """Move hashtags to the end of the entry text while keeping them unique."""
+def normalize_entry(entry_text: str) -> Tuple[str, Tuple[str, ...]]:
+    """Move hashtags to the end of the entry text and return the tag list."""
     if not entry_text:
-        return entry_text
+        return entry_text, ()
 
-    tags: List[str] = []
+    collected: List[str] = []
+    for candidate in HASHTAG_PATTERN.findall(entry_text):
+        lowered = candidate.lower()
+        if lowered not in collected:
+            collected.append(lowered)
+
+    if not collected:
+        return entry_text, ()
+
     lines = entry_text.splitlines() or [entry_text]
     cleaned_lines: List[str] = []
 
     for line in lines:
-        for candidate in HASHTAG_PATTERN.findall(line):
-            lowered = candidate.lower()
-            if lowered not in tags:
-                tags.append(lowered)
-
-        cleaned = HASHTAG_PATTERN.sub("", line)
-        cleaned = re.sub(r"\s{2,}", " ", cleaned).rstrip()
+        cleaned = TAG_TOKEN_PATTERN.sub("", line).rstrip()
         cleaned_lines.append(cleaned)
 
-    if not tags:
-        return entry_text
-
-    suffix = " ".join(f"#{tag}" for tag in tags)
+    suffix = " ".join(f"#{tag}" for tag in collected)
 
     if cleaned_lines:
         base = cleaned_lines[-1].rstrip()
@@ -414,7 +431,11 @@ def normalize_entry(entry_text: str) -> str:
     else:
         cleaned_lines.append(suffix)
 
-    return "\n".join(cleaned_lines).rstrip()
+    normalized = "\n".join(cleaned_lines).rstrip()
+    if not normalized:
+        normalized = suffix
+
+    return normalized, tuple(collected)
 
 
 def iter_diary_entries(log_dir: Path, config: SectionProxy) -> Iterable[DiaryEntry]:
@@ -532,7 +553,11 @@ def main() -> None:
         print("Nothing to save.")
         return
 
-    append_entry(day_file, now.strftime("%H:%M"), entry)
+    timestamp = now.strftime("%H:%M")
+    normalized_entry, tags = append_entry(day_file, timestamp, entry)
     save_last_entry_timestamp(config_dir, now)
+
+    if tags:
+        mirror_entry_to_tag_files(log_dir, config, now, timestamp, normalized_entry, tags)
 
     print("Entry added to:", day_file)
