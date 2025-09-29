@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.2] - 2025-09-29
+### Fixed
+- Display a clear message when `kaydet --reminder` runs before any entries exist.
+
 ## [0.10.1] - 2025-09-29
 ### Fixed
 - Export `kaydet.main` so the installed console script can import it without errors.
