@@ -421,7 +421,13 @@ def parse_day_entries(day_file: Path, day: Optional[date]) -> List[DiaryEntry]:
 def deduplicate_tags(
     initial_tags: Iterable[str], lines: Iterable[str]
 ) -> Tuple[str, ...]:
-    """Return unique lowercase tags extracted from legacy markers and hashtags."""
+    """Return unique lowercase tags extracted from legacy markers and hashtags.
+
+    >>> deduplicate_tags(['Work'], ['Focus #Idea', 'Next steps #work'])
+    ('work', 'idea')
+    >>> deduplicate_tags([], ['No tags here'])
+    ()
+    """
     seen: List[str] = []
 
     def register(tag: str) -> None:
@@ -440,7 +446,15 @@ def deduplicate_tags(
 
 
 def normalize_entry(entry_text: str) -> Tuple[str, Tuple[str, ...]]:
-    """Move hashtags to the end of the entry text and return the tag list."""
+    """Move hashtags to the end of the entry text and return the tag list.
+
+    >>> normalize_entry("Dinner out #family #friends")
+    ('Dinner out #family #friends', ('family', 'friends'))
+    >>> normalize_entry("Planning #projects\nNotes #ideas #projects")
+    ('Planning\nNotes #projects #ideas', ('projects', 'ideas'))
+    >>> normalize_entry("Just text")
+    ('Just text', ())
+    """
     if not entry_text:
         return entry_text, ()
 
