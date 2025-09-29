@@ -160,6 +160,10 @@ def maybe_show_reminder(config_dir: Path, log_dir: Path, now: datetime) -> None:
     """Emit a reminder if no entry has been written recently."""
     last_entry = load_last_entry_timestamp(config_dir, log_dir)
     if last_entry is None:
+        print(
+            "You haven't written any Kaydet entries yet. "
+            "Capture your first note with `kaydet --editor`."
+        )
         return
 
     if now - last_entry >= REMINDER_THRESHOLD:
