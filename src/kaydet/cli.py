@@ -5,14 +5,14 @@ import argparse
 import calendar
 import re
 import subprocess
+from collections import defaultdict
 from configparser import ConfigParser, SectionProxy
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from os import environ as env, fdopen, remove
 from pathlib import Path
 from tempfile import mkstemp
 from textwrap import dedent
-from collections import defaultdict
-from dataclasses import dataclass
 from typing import Dict, Iterable, List, Optional, Tuple
 
 from startfile import startfile
@@ -29,8 +29,8 @@ DEFAULT_SETTINGS = {
 LAST_ENTRY_FILENAME = "last_entry_timestamp"
 REMINDER_THRESHOLD = timedelta(hours=2)
 ENTRY_LINE_PATTERN = re.compile(r"^\d{2}:\d{2}: ")
-TAG_CAPTURE_PATTERN = re.compile(r"^\d{2}:\d{2}: \[(?P<tags>[a-z-]+(?:,[a-z-]+)*)\]\s")
-TAG_PATTERN = re.compile(r"^[a-z-]+$")
+LEGACY_TAG_PATTERN = re.compile(r"^\[(?P<tags>[a-z-]+(?:,[a-z-]+)*)\]\s*")
+HASHTAG_PATTERN = re.compile(r"#([a-z-]+)")
 
 
 @dataclass(frozen=True)
@@ -110,14 +110,6 @@ def parse_args(config_path: Path) -> argparse.Namespace:
         dest="search",
         metavar="TEXT",
         help="Search diary entries for the given text and exit.",
-    )
-    parser.add_argument(
-        "--tag",
-        "-t",
-        dest="tag",
-        type=validate_tag,
-        metavar="TAG",
-        help="Assign a lowercase tag (letters and hyphen only) to the saved entry.",
     )
     return parser.parse_args()
 
@@ -238,11 +230,10 @@ def ensure_day_file(log_dir: Path, now: datetime, config: SectionProxy) -> Path:
     return day_file
 
 
-def append_entry(day_file: Path, timestamp: str, entry_text: str, tag: Optional[str]) -> None:
+def append_entry(day_file: Path, timestamp: str, entry_text: str) -> None:
     """Append a timestamped entry to the daily file."""
     with day_file.open("a", encoding="utf-8") as handle:
-        formatted = format_entry(entry_text, tag)
-        handle.write(f"{timestamp}: {formatted}\n")
+        handle.write(f"{timestamp}: {entry_text}\n")
 
 
 def show_calendar_stats(log_dir: Path, config: SectionProxy, now: datetime) -> None:
@@ -327,49 +318,69 @@ def parse_day_entries(day_file: Path, day: Optional[date]) -> List[DiaryEntry]:
     entries: List[DiaryEntry] = []
     current_time: Optional[str] = None
     current_lines: List[str] = []
-    current_tags: Tuple[str, ...] = ()
+    current_legacy_tags: List[str] = []
 
     for line in lines:
         if ENTRY_LINE_PATTERN.match(line):
             if current_time is not None:
+                tags = deduplicate_tags(current_legacy_tags, current_lines)
                 entries.append(
                     DiaryEntry(
                         day=day,
                         timestamp=current_time,
                         lines=tuple(current_lines),
-                        tags=current_tags,
+                        tags=tags,
                         source=day_file,
                     )
                 )
 
             timestamp, remainder = line.split(": ", 1)
-            tags: Tuple[str, ...] = ()
-            match = TAG_CAPTURE_PATTERN.match(line)
+            legacy_tags: List[str] = []
+            match = LEGACY_TAG_PATTERN.match(remainder)
             if match:
-                tag_text = match.group("tags")
-                tags = tuple(tag_text.split(","))
-                prefix = f"[{tag_text}] "
-                if remainder.startswith(prefix):
-                    remainder = remainder[len(prefix) :]
+                legacy_tags.extend(match.group("tags").split(","))
+                remainder = remainder[match.end() :]
+
+            remainder = remainder.lstrip()
 
             current_time = timestamp
             current_lines = [remainder]
-            current_tags = tags
+            current_legacy_tags = legacy_tags
         elif current_time is not None:
             current_lines.append(line)
 
     if current_time is not None:
+        tags = deduplicate_tags(current_legacy_tags, current_lines)
         entries.append(
             DiaryEntry(
                 day=day,
                 timestamp=current_time,
                 lines=tuple(current_lines),
-                tags=current_tags,
+                tags=tags,
                 source=day_file,
             )
         )
 
     return entries
+
+
+def deduplicate_tags(initial_tags: Iterable[str], lines: Iterable[str]) -> Tuple[str, ...]:
+    """Return unique lowercase tags extracted from legacy markers and hashtags."""
+    seen: List[str] = []
+
+    def register(tag: str) -> None:
+        tag_lower = tag.lower()
+        if tag_lower and tag_lower not in seen:
+            seen.append(tag_lower)
+
+    for tag in initial_tags:
+        register(tag)
+
+    for line in lines:
+        for tag in HASHTAG_PATTERN.findall(line):
+            register(tag)
+
+    return tuple(seen)
 
 
 def iter_diary_entries(log_dir: Path, config: SectionProxy) -> Iterable[DiaryEntry]:
@@ -412,9 +423,17 @@ def run_search(log_dir: Path, config: SectionProxy, query: str) -> None:
 
     for match in matches:
         day_label = match.day.isoformat() if match.day else match.source.name
-        tag_block = f"[{','.join(match.tags)}] " if match.tags else ""
         first_line, *rest = list(match.lines) or [""]
-        print(f"{day_label} {match.timestamp} {tag_block}{first_line}".rstrip())
+
+        extra_tags = []
+        for tag in match.tags:
+            marker = f"#{tag}"
+            if marker not in first_line:
+                extra_tags.append(marker)
+
+        tag_suffix = f" {' '.join(extra_tags)}" if extra_tags else ""
+
+        print(f"{day_label} {match.timestamp} {first_line}{tag_suffix}".rstrip())
         for extra in rest:
             print(f"    {extra}")
         print()
@@ -437,22 +456,6 @@ def list_tags(log_dir: Path, config: SectionProxy) -> None:
 
     for tag in tags:
         print(tag)
-
-
-def format_entry(entry_text: str, tag: Optional[str]) -> str:
-    """Prepend the optional tag to the entry text."""
-    if tag:
-        return f"[{tag}] {entry_text}"
-    return entry_text
-
-
-def validate_tag(value: str) -> str:
-    """Ensure tag strings only contain lowercase letters and hyphens."""
-    if not TAG_PATTERN.fullmatch(value):
-        raise argparse.ArgumentTypeError(
-            "Tags must use only lowercase letters and hyphens (example: personal-growth)."
-        )
-    return value
 
 
 def main() -> None:
@@ -494,7 +497,7 @@ def main() -> None:
         print("Nothing to save.")
         return
 
-    append_entry(day_file, now.strftime("%H:%M"), entry, args.tag)
+    append_entry(day_file, now.strftime("%H:%M"), entry)
     save_last_entry_timestamp(config_dir, now)
 
     print("Entry added to:", day_file)
