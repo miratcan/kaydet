@@ -28,6 +28,7 @@ DEFAULT_SETTINGS = {
 LAST_ENTRY_FILENAME = "last_entry_timestamp"
 REMINDER_THRESHOLD = timedelta(hours=2)
 ENTRY_LINE_PATTERN = re.compile(r"^\d{2}:\d{2}: ")
+TAG_CAPTURE_PATTERN = re.compile(r"^\d{2}:\d{2}: \[(?P<tags>[a-z-]+(?:,[a-z-]+)*)\]\s")
 TAG_PATTERN = re.compile(r"^[a-z-]+$")
 
 
@@ -81,6 +82,12 @@ def parse_args(config_path: Path) -> argparse.Namespace:
         dest="stats",
         action="store_true",
         help="Show a calendar for the current month with daily entry counts.",
+    )
+    parser.add_argument(
+        "--tags",
+        dest="list_tags",
+        action="store_true",
+        help="List every tag you have used so far and exit.",
     )
     parser.add_argument(
         "--tag",
@@ -291,6 +298,31 @@ def count_entries(day_file: Path) -> int:
     return sum(1 for line in lines if ENTRY_LINE_PATTERN.match(line))
 
 
+def list_tags(log_dir: Path) -> None:
+    """Print the unique set of tags recorded across all diary entries."""
+    if not log_dir.exists():
+        print("No diary entries found yet.")
+        return
+
+    tags = sorted({tag for path in log_dir.iterdir() if path.is_file() for tag in extract_tags(path)})
+    if not tags:
+        print("No tags have been recorded yet.")
+        return
+
+    for tag in tags:
+        print(tag)
+
+
+def extract_tags(day_file: Path) -> Tuple[str, ...]:
+    """Return all tags found within a single diary file."""
+    found = []
+    for line in day_file.read_text(encoding="utf-8").splitlines():
+        match = TAG_CAPTURE_PATTERN.match(line)
+        if match:
+            found.extend(match.group("tags").split(","))
+    return tuple(found)
+
+
 def format_entry(entry_text: str, tag: Optional[str]) -> str:
     """Prepend the optional tag to the entry text."""
     if tag:
@@ -323,6 +355,10 @@ def main() -> None:
 
     if args.stats:
         show_calendar_stats(log_dir, config, now)
+        return
+
+    if args.list_tags:
+        list_tags(log_dir)
         return
 
     log_dir.mkdir(parents=True, exist_ok=True)
