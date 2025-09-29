@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.22.2] - 2025-09-30
+### Added
+- Added Turkish README file (`README_tr.md`).
+
 ## [0.22.1] - 2025-09-30
 ### Changed
 - Added a detailed "Use Cases" section to the README.
