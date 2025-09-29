@@ -204,6 +204,58 @@ When the last entry is older than two hours Kaydet prints:
 It's been over two hours since your last Kaydet entry. Capture what you've been up to with `kaydet --editor`.
 ```
 
+## AI Integration (MCP Server)
+
+Kaydet supports the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/), allowing AI assistants like Claude to interact with your diary entries.
+
+### Installation
+
+```bash
+pip install kaydet[mcp]
+```
+
+### Configuration
+
+Add to your Claude Desktop config (`~/.config/Claude/claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "kaydet": {
+      "command": "kaydet-mcp"
+    }
+  }
+}
+```
+
+### Available Tools
+
+The MCP server exposes these tools to AI assistants:
+
+- **add_entry** - Add new diary entries
+- **search_entries** - Search through your diary
+- **list_tags** - Get all your tags
+- **get_stats** - View entry statistics
+
+### Example Usage
+
+Once configured, you can ask Claude:
+
+- "Add a diary entry: Today I fixed the auth bug #work"
+- "What did I work on for the McDonald's project last month?"
+- "Show me all my #fitness entries"
+- "What are my diary stats for this month?"
+
+### JSON Output
+
+Kaydet also supports JSON output for programmatic access:
+
+```bash
+kaydet --search work --format json
+kaydet --tags --format json
+kaydet --stats --format json
+```
+
 ## Development
 Clone the repository and install in editable mode to hack on Kaydet locally:
 
