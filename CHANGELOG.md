@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.1] - 2025-09-29
+### Fixed
+- Export `kaydet.main` so the installed console script can import it without errors.
+
 ## [0.10.0] - 2025-09-29
 ### Added
 - `kaydet --reminder` warns if your last entry is older than two hours so you can log a fresh update quickly.
