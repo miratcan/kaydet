@@ -5,7 +5,7 @@
 [![Python](https://img.shields.io/pypi/pyversions/kaydet.svg)](https://pypi.org/project/kaydet/)
 [![License](https://img.shields.io/github/license/miratcan/kaydet.svg)](LICENSE)
 
-> 🚀 **Ultra-fast command-line diary** | 📦 **Plain text, zero lock-in** | 🏷️ **Smart tagging**
+> 🚀 **Ultra-fast command-line diary** | 📦 **Plain text, zero lock-in** | 🏷️ **Smart tagging** | 🤖 **AI-ready**
 
 Kaydet is a lightweight command-line diary that keeps your daily thoughts in
 plain text files on your own machine. It is designed to disappear into your
@@ -53,6 +53,12 @@ pipx install kaydet
 - **🔒 Privacy first** — Your data never leaves your machine
 - **🎨 Editor freedom** — Use vim, emacs, nano, or any editor you love
 - **🔧 Fully customizable** — File naming, timestamps, directory structure
+
+### 🤖 AI-Ready
+- **MCP integration** — Works with Claude and other AI assistants out of the box
+- **Natural language queries** — "What did I work on last week?" instead of complex searches
+- **JSON API** — Structured output for programmatic access and automation
+- **Smart summaries** — Let AI analyze patterns and insights from your entries
 
 ## Use Cases
 
