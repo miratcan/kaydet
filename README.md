@@ -5,6 +5,69 @@ plain text files on your own machine. It is designed to disappear into your
 workflow: invoke it for a quick note, drop into your editor for longer
 reflections, or pop open the archive folder when you feel nostalgic.
 
+## Use Cases
+
+Beyond a simple diary, `kaydet`'s combination of fast CLI access, timestamps, and powerful tagging makes it a versatile tool for various logging needs.
+
+### Work Log
+Track tasks, progress, and meeting notes. Use tags to categorize by project or client.
+
+```bash
+kaydet "Fixed the authentication bug on the staging server. #project-apollo"
+kaydet "Meeting with the design team about the new UI. #meeting #project-apollo"
+```
+
+### Personal Knowledge Base (Today I Learned)
+Quickly save new commands, code snippets, or interesting facts you learn.
+
+```bash
+kaydet "TIL: `pytest --cov-report=html` generates a browsable coverage report. #python #testing"
+```
+
+### Habit and Fitness Tracker
+Log workouts, daily habits, or any other activity you want to track over time.
+
+```bash
+kaydet "Completed 5k run in 28 minutes. #fitness #running"
+kaydet "Read 20 pages of 'The Pragmatic Programmer'. #habit #reading"
+```
+
+### Simple Time Tracking
+Log when you start and stop tasks to get a rough idea of time spent.
+
+```bash
+kaydet "START: Refactoring the user authentication module. #project-apollo"
+kaydet "STOP: Refactoring the user authentication module. #project-apollo"
+```
+
+### Idea Catcher
+Instantly capture ideas without breaking your workflow in the terminal.
+
+```bash
+kaydet "Idea for a new feature: add encryption for diary files. #kaydet #idea"
+```
+
+### Mood Journal
+Quickly log how you're feeling throughout the day. Over time, you can search your `#mood` tags to see patterns.
+
+```bash
+kaydet "Feeling productive and focused today. ✨ #mood"
+```
+
+### Simple Expense Tracker
+Log business expenses or mileage on the go. The plain text format makes it easy to process later.
+
+```bash
+kaydet "Lunch with client: 650.00 TL #expense #client-a"
+```
+
+### Personal CRM
+Keep track of interactions with professional or personal contacts.
+
+```bash
+kaydet "Called Ahmet Yılmaz to discuss the proposal. He will follow up by Friday. #ahmet-yılmaz"
+```
+
 ## Highlights
 - **Terminal native** – stays in your shell and respects your configured editor.
 - **Own your data** – simple timestamped text files, perfect for syncing however you like.
