@@ -36,6 +36,15 @@ TAG_PATTERN = re.compile(r"^[a-z-]+$")
 TAG_TOKEN_PATTERN = re.compile(r"\s*#([a-z-]+)")
 
 
+def read_diary_lines(path: Path) -> List[str]:
+    """Return diary file lines, tolerating non-UTF8 bytes by replacing them."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    return text.splitlines()
+
+
 @dataclass(frozen=True)
 class DiaryEntry:
     """Structured view of a diary entry loaded from disk."""
@@ -336,13 +345,13 @@ def resolve_entry_date(day_file: Path, pattern: str) -> Optional[date]:
 
 def count_entries(day_file: Path) -> int:
     """Count timestamped diary entries inside a daily file."""
-    lines = day_file.read_text(encoding="utf-8").splitlines()
+    lines = read_diary_lines(day_file)
     return sum(1 for line in lines if ENTRY_LINE_PATTERN.match(line))
 
 
 def parse_day_entries(day_file: Path, day: Optional[date]) -> List[DiaryEntry]:
     """Parse structured entries from a diary file."""
-    lines = day_file.read_text(encoding="utf-8").splitlines()
+    lines = read_diary_lines(day_file)
 
     entries: List[DiaryEntry] = []
     current_time: Optional[str] = None
