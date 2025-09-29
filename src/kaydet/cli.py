@@ -31,6 +31,7 @@ REMINDER_THRESHOLD = timedelta(hours=2)
 ENTRY_LINE_PATTERN = re.compile(r"^\d{2}:\d{2}: ")
 LEGACY_TAG_PATTERN = re.compile(r"^\[(?P<tags>[a-z-]+(?:,[a-z-]+)*)\]\s*")
 HASHTAG_PATTERN = re.compile(r"#([a-z-]+)")
+TAG_PATTERN = re.compile(r"^[a-z-]+$")
 TAG_TOKEN_PATTERN = re.compile(r"\s*#([a-z-]+)")
 
 
@@ -507,13 +508,17 @@ def list_tags(log_dir: Path, config: SectionProxy) -> None:
         print("No diary entries found yet.")
         return
 
-    tags = sorted({tag for entry in iter_diary_entries(log_dir, config) for tag in entry.tags})
-    if not tags:
+    folders = sorted(
+        child.name
+        for child in log_dir.iterdir()
+        if child.is_dir() and TAG_PATTERN.fullmatch(child.name)
+    )
+    if not folders:
         print("No tags have been recorded yet.")
         return
 
-    for tag in tags:
-        print(tag)
+    for folder in folders:
+        print(folder)
 
 
 def main() -> None:
