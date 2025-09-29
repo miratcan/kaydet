@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import calendar
 import re
+import shutil
 import subprocess
 from collections import defaultdict
 from configparser import ConfigParser, SectionProxy
@@ -114,6 +115,12 @@ def parse_args(config_path: Path) -> argparse.Namespace:
         dest="search",
         metavar="TEXT",
         help="Search diary entries for the given text and exit.",
+    )
+    parser.add_argument(
+        "--doctor",
+        dest="doctor",
+        action="store_true",
+        help="Rebuild tag archives from existing entries and exit.",
     )
     return parser.parse_args()
 
@@ -521,6 +528,56 @@ def list_tags(log_dir: Path, config: SectionProxy) -> None:
         print(folder)
 
 
+def run_doctor(log_dir: Path, config: SectionProxy) -> None:
+    """Rebuild tag archives from existing diary entries."""
+    if not log_dir.exists():
+        print("Log directory does not exist yet; nothing to rebuild.")
+        return
+
+    entries = list(iter_diary_entries(log_dir, config))
+    if not entries:
+        print("No entries found; nothing to rebuild.")
+        return
+
+    # Remove existing tag directories so we can rebuild from scratch.
+    removed = 0
+    for child in log_dir.iterdir():
+        if child.is_dir() and TAG_PATTERN.fullmatch(child.name):
+            shutil.rmtree(child)
+            removed += 1
+
+    rebuilt_counts: Dict[str, int] = defaultdict(int)
+
+    for entry in entries:
+        if not entry.tags:
+            continue
+
+        entry_body = "\n".join(entry.lines)
+
+        entry_day = entry.day
+        if entry_day is None:
+            entry_day = datetime.fromtimestamp(entry.source.stat().st_mtime).date()
+
+        day_reference = datetime.combine(entry_day, datetime.strptime(entry.timestamp, "%H:%M").time())
+
+        for tag in entry.tags:
+            tag_dir = log_dir / tag
+            tag_day_file = ensure_day_file(tag_dir, day_reference, config)
+            with tag_day_file.open("a", encoding="utf-8") as handle:
+                handle.write(f"{entry.timestamp}: {entry_body}\n")
+            rebuilt_counts[tag] += 1
+
+    if not rebuilt_counts:
+        if removed:
+            print("Removed existing tag folders but found no tagged entries to rebuild.")
+        else:
+            print("No tagged entries discovered; nothing to rebuild.")
+        return
+
+    summary = ", ".join(f"#{tag}: {count}" for tag, count in sorted(rebuilt_counts.items()))
+    print(f"Rebuilt tag archives for {len(rebuilt_counts)} tags. {summary}")
+
+
 def main() -> None:
     """Application entry point for the kaydet CLI."""
     config, config_path, config_dir = get_config()
@@ -545,6 +602,10 @@ def main() -> None:
 
     if args.search:
         run_search(log_dir, config, args.search)
+        return
+
+    if args.doctor:
+        run_doctor(log_dir, config)
         return
 
     log_dir.mkdir(parents=True, exist_ok=True)
