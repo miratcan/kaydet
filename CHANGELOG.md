@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.11.0] - 2025-09-29
+### Added
+- `kaydet --stats` renders a calendar for the current month showing how many entries you logged each day.
+
 ## [0.10.2] - 2025-09-29
 ### Fixed
 - Display a clear message when `kaydet --reminder` runs before any entries exist.

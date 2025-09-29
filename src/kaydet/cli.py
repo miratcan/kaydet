@@ -2,14 +2,17 @@
 from __future__ import annotations
 
 import argparse
+import calendar
+import re
 import subprocess
 from configparser import ConfigParser, SectionProxy
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from os import environ as env, fdopen, remove
 from pathlib import Path
 from tempfile import mkstemp
 from textwrap import dedent
-from typing import Optional, Tuple
+from collections import defaultdict
+from typing import Dict, Optional, Tuple
 
 from startfile import startfile
 
@@ -24,6 +27,7 @@ DEFAULT_SETTINGS = {
 }
 LAST_ENTRY_FILENAME = "last_entry_timestamp"
 REMINDER_THRESHOLD = timedelta(hours=2)
+ENTRY_LINE_PATTERN = re.compile(r"^\d{2}:\d{2}: ")
 
 
 def parse_args(config_path: Path) -> argparse.Namespace:
@@ -70,6 +74,12 @@ def parse_args(config_path: Path) -> argparse.Namespace:
         dest="reminder",
         action="store_true",
         help="Print a reminder if it has been more than two hours since the last entry.",
+    )
+    parser.add_argument(
+        "--stats",
+        dest="stats",
+        action="store_true",
+        help="Show a calendar for the current month with daily entry counts.",
     )
     return parser.parse_args()
 
@@ -196,6 +206,81 @@ def append_entry(day_file: Path, timestamp: str, entry_text: str) -> None:
         handle.write(f"{timestamp}: {entry_text}\n")
 
 
+def show_calendar_stats(log_dir: Path, config: SectionProxy, now: datetime) -> None:
+    """Render a calendar for the current month with entry counts per day."""
+    if not log_dir.exists():
+        print("No diary entries found yet.")
+        return
+
+    year = now.year
+    month = now.month
+
+    counts = collect_month_counts(log_dir, config, year, month)
+
+    title = now.strftime("%B %Y")
+    print(title)
+    print("Mo Tu We Th Fr Sa Su")
+
+    month_calendar = calendar.Calendar().monthdayscalendar(year, month)
+    for week in month_calendar:
+        cells = []
+        for day in week:
+            if day == 0:
+                cells.append("      ")
+                continue
+            count = counts.get(day, 0)
+            if count == 0:
+                cells.append(f"{day:2d}[  ]")
+            elif count < 100:
+                cells.append(f"{day:2d}[{count:2d}]")
+            else:
+                cells.append(f"{day:2d}[**]")
+        print(" ".join(cells))
+
+    total_entries = sum(counts.values())
+    if total_entries == 0:
+        print("\nNo entries recorded for this month yet.")
+    else:
+        print(f"\nTotal entries this month: {total_entries}")
+
+
+def collect_month_counts(
+    log_dir: Path, config: SectionProxy, year: int, month: int
+) -> Dict[int, int]:
+    """Return a mapping of day number to entry count for the given month."""
+    counts: Dict[int, int] = defaultdict(int)
+    day_file_pattern = config.get("DAY_FILE_PATTERN", DEFAULT_SETTINGS["DAY_FILE_PATTERN"])
+
+    for candidate in sorted(log_dir.iterdir()):
+        if not candidate.is_file():
+            continue
+
+        entry_date = resolve_entry_date(candidate, day_file_pattern)
+        if entry_date is None:
+            entry_date = datetime.fromtimestamp(candidate.stat().st_mtime).date()
+
+        if entry_date.year != year or entry_date.month != month:
+            continue
+
+        counts[entry_date.day] += count_entries(candidate)
+
+    return dict(counts)
+
+
+def resolve_entry_date(day_file: Path, pattern: str) -> Optional[datetime.date]:
+    """Infer the date represented by a diary file using the configured pattern."""
+    try:
+        return datetime.strptime(day_file.name, pattern).date()
+    except ValueError:
+        return None
+
+
+def count_entries(day_file: Path) -> int:
+    """Count timestamped diary entries inside a daily file."""
+    lines = day_file.read_text(encoding="utf-8").splitlines()
+    return sum(1 for line in lines if ENTRY_LINE_PATTERN.match(line))
+
+
 def main() -> None:
     """Application entry point for the kaydet CLI."""
     config, config_path, config_dir = get_config()
@@ -208,6 +293,10 @@ def main() -> None:
 
     if args.reminder:
         maybe_show_reminder(config_dir, log_dir, now)
+        return
+
+    if args.stats:
+        show_calendar_stats(log_dir, config, now)
         return
 
     log_dir.mkdir(parents=True, exist_ok=True)
