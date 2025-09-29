@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.16.0] - 2025-09-29
+### Changed
+- New entries automatically move inline hashtags to the end, ensuring consistent formatting in saved files.
+- Hashtag normalization deduplicates repeated markers and keeps them searchable via `kaydet --tags` and `kaydet --search`.
+
 ## [0.15.0] - 2025-09-29
 ### Changed
 - Entries now capture tags via inline hashtags (for example `#family`); the `--tag/-t` option was removed.

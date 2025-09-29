@@ -50,8 +50,9 @@ Each entry is written to a daily file (for example `~/.kaydet/2024-02-19.txt`) a
 prefixed with the current time. Opening an existing daily file will append a new
 section; the first entry of the day creates the file with a heading for easy
 navigating.
-Add inline hashtags (for example `#family`) to categorize notes — they show up in
-`kaydet --tags` and are searchable with `kaydet --search`.
+Add inline hashtags (for example `#family`) to categorize notes — Kaydet moves
+them to the end of the entry when saving, they show up in `kaydet --tags`, and
+they are searchable with `kaydet --search`.
 
 ## Configuration
 Kaydet stores its settings in `~/.config/kaydet/config.ini` (or the location
