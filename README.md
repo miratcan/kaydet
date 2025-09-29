@@ -25,8 +25,8 @@ Prefer isolated environments? Kaydet also works well with [pipx](https://github.
 pipx install kaydet
 ```
 
-> 💡  PyPI güncellemesi beklerken son sürümü doğrudan GitHub’dan alabilirsiniz:
-> `pip install git+https://github.com/miratcan/kaydet.git@v0.20.1`
+> 💡  Waiting on a PyPI refresh? Install the latest build from GitHub instead:
+> `pip install git+https://github.com/miratcan/kaydet.git@v0.20.2`
 
 ## Quick Start
 ```bash
@@ -43,9 +43,9 @@ kaydet --editor
 kaydet --folder
 
 # Quick tag housekeeping
-kaydet --folder family   # aç
-kaydet --tags            # listele
-kaydet --doctor          # arşivleri yeniden oluştur
+kaydet --folder family   # open
+kaydet --tags            # list
+kaydet --doctor          # rebuild tag archives
 
 # Search past entries for a word or tag fragment
 kaydet --search gratitude
