@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.22.1] - 2025-09-30
+### Changed
+- Added a detailed "Use Cases" section to the README.
+- Improved the overall structure and readability of the README.
+
 ## [0.22.0] - 2025-09-30
 ### Added
 - Added a comprehensive test suite with `pytest`, achieving ~99% code coverage for the main CLI logic.
