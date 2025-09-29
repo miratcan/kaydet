@@ -28,6 +28,7 @@ DEFAULT_SETTINGS = {
 LAST_ENTRY_FILENAME = "last_entry_timestamp"
 REMINDER_THRESHOLD = timedelta(hours=2)
 ENTRY_LINE_PATTERN = re.compile(r"^\d{2}:\d{2}: ")
+TAG_PATTERN = re.compile(r"^[a-z-]+$")
 
 
 def parse_args(config_path: Path) -> argparse.Namespace:
@@ -80,6 +81,14 @@ def parse_args(config_path: Path) -> argparse.Namespace:
         dest="stats",
         action="store_true",
         help="Show a calendar for the current month with daily entry counts.",
+    )
+    parser.add_argument(
+        "--tag",
+        "-t",
+        dest="tag",
+        type=validate_tag,
+        metavar="TAG",
+        help="Assign a lowercase tag (letters and hyphen only) to the saved entry.",
     )
     return parser.parse_args()
 
@@ -200,10 +209,11 @@ def ensure_day_file(log_dir: Path, now: datetime, config: SectionProxy) -> Path:
     return day_file
 
 
-def append_entry(day_file: Path, timestamp: str, entry_text: str) -> None:
+def append_entry(day_file: Path, timestamp: str, entry_text: str, tag: Optional[str]) -> None:
     """Append a timestamped entry to the daily file."""
     with day_file.open("a", encoding="utf-8") as handle:
-        handle.write(f"{timestamp}: {entry_text}\n")
+        formatted = format_entry(entry_text, tag)
+        handle.write(f"{timestamp}: {formatted}\n")
 
 
 def show_calendar_stats(log_dir: Path, config: SectionProxy, now: datetime) -> None:
@@ -281,6 +291,22 @@ def count_entries(day_file: Path) -> int:
     return sum(1 for line in lines if ENTRY_LINE_PATTERN.match(line))
 
 
+def format_entry(entry_text: str, tag: Optional[str]) -> str:
+    """Prepend the optional tag to the entry text."""
+    if tag:
+        return f"[{tag}] {entry_text}"
+    return entry_text
+
+
+def validate_tag(value: str) -> str:
+    """Ensure tag strings only contain lowercase letters and hyphens."""
+    if not TAG_PATTERN.fullmatch(value):
+        raise argparse.ArgumentTypeError(
+            "Tags must use only lowercase letters and hyphens (example: personal-growth)."
+        )
+    return value
+
+
 def main() -> None:
     """Application entry point for the kaydet CLI."""
     config, config_path, config_dir = get_config()
@@ -312,7 +338,7 @@ def main() -> None:
         print("Nothing to save.")
         return
 
-    append_entry(day_file, now.strftime("%H:%M"), entry)
+    append_entry(day_file, now.strftime("%H:%M"), entry, args.tag)
     save_last_entry_timestamp(config_dir, now)
 
     print("Entry added to:", day_file)

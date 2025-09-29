@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.12.0] - 2025-09-29
+### Added
+- `kaydet --tag/-t` assigns a lowercase tag to the entry and enforces letter-and-hyphen validation.
+
 ## [0.11.0] - 2025-09-29
 ### Added
 - `kaydet --stats` renders a calendar for the current month showing how many entries you logged each day.
