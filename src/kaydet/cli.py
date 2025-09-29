@@ -85,8 +85,10 @@ def parse_args(config_path: Path) -> argparse.Namespace:
         "--folder",
         "-f",
         dest="open_folder",
-        action="store_true",
-        help="Open the folder that contains your records and exit.",
+        nargs="?",
+        const="",
+        metavar="TAG",
+        help="Open the main log directory or, if TAG is given, the tag folder.",
     )
     parser.add_argument(
         "--reminder",
@@ -542,8 +544,16 @@ def main() -> None:
 
     log_dir.mkdir(parents=True, exist_ok=True)
 
-    if args.open_folder:
-        startfile(str(log_dir))
+    if args.open_folder is not None:
+        if args.open_folder == "":
+            startfile(str(log_dir))
+        else:
+            tag_name = args.open_folder.lstrip("#")
+            tag_dir = log_dir / tag_name
+            if tag_dir.exists() and tag_dir.is_dir():
+                startfile(str(tag_dir))
+            else:
+                print(f"No tag folder found for '#{tag_name}'.")
         return
 
     day_file = ensure_day_file(log_dir, now, config)
