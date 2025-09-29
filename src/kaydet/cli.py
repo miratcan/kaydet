@@ -4,12 +4,12 @@ from __future__ import annotations
 import argparse
 import subprocess
 from configparser import ConfigParser, SectionProxy
-from datetime import datetime
+from datetime import datetime, timedelta
 from os import environ as env, fdopen, remove
 from pathlib import Path
 from tempfile import mkstemp
 from textwrap import dedent
-from typing import Tuple
+from typing import Optional, Tuple
 
 from startfile import startfile
 
@@ -22,6 +22,8 @@ DEFAULT_SETTINGS = {
     "LOG_DIR": str(Path.home() / ".kaydet"),
     "EDITOR": env.get("EDITOR", "vim"),
 }
+LAST_ENTRY_FILENAME = "last_entry_timestamp"
+REMINDER_THRESHOLD = timedelta(hours=2)
 
 
 def parse_args(config_path: Path) -> argparse.Namespace:
@@ -63,6 +65,12 @@ def parse_args(config_path: Path) -> argparse.Namespace:
         action="store_true",
         help="Open the folder that contains your records and exit.",
     )
+    parser.add_argument(
+        "--reminder",
+        dest="reminder",
+        action="store_true",
+        help="Print a reminder if it has been more than two hours since the last entry.",
+    )
     return parser.parse_args()
 
 
@@ -89,7 +97,7 @@ def open_editor(initial_text: str, editor_command: str) -> str:
             pass
 
 
-def get_config() -> Tuple[SectionProxy, Path]:
+def get_config() -> Tuple[SectionProxy, Path, Path]:
     """Load configuration and ensure defaults exist."""
     config_root = Path(env.get("XDG_CONFIG_HOME") or Path.home() / ".config")
     config_dir = config_root / "kaydet"
@@ -117,7 +125,48 @@ def get_config() -> Tuple[SectionProxy, Path]:
         with config_path.open("w", encoding="utf-8") as config_file:
             parser.write(config_file)
 
-    return section, config_path
+    return section, config_path, config_dir
+
+
+def load_last_entry_timestamp(config_dir: Path, log_dir: Path) -> Optional[datetime]:
+    """Return the timestamp of the most recent saved entry, if any."""
+    record_path = config_dir / LAST_ENTRY_FILENAME
+    try:
+        raw_value = record_path.read_text(encoding="utf-8").strip()
+        if raw_value:
+            return datetime.fromisoformat(raw_value)
+    except (FileNotFoundError, ValueError):
+        pass
+
+    latest_mtime: Optional[float] = None
+    if log_dir.exists():
+        for candidate in log_dir.iterdir():
+            if candidate.is_file():
+                mtime = candidate.stat().st_mtime
+                if latest_mtime is None or mtime > latest_mtime:
+                    latest_mtime = mtime
+    if latest_mtime is None:
+        return None
+    return datetime.fromtimestamp(latest_mtime)
+
+
+def save_last_entry_timestamp(config_dir: Path, moment: datetime) -> None:
+    """Persist the provided timestamp for subsequent reminder checks."""
+    record_path = config_dir / LAST_ENTRY_FILENAME
+    record_path.write_text(moment.isoformat(), encoding="utf-8")
+
+
+def maybe_show_reminder(config_dir: Path, log_dir: Path, now: datetime) -> None:
+    """Emit a reminder if no entry has been written recently."""
+    last_entry = load_last_entry_timestamp(config_dir, log_dir)
+    if last_entry is None:
+        return
+
+    if now - last_entry >= REMINDER_THRESHOLD:
+        print(
+            "It's been over two hours since your last Kaydet entry. "
+            "Capture what you've been up to with `kaydet --editor`."
+        )
 
 
 def ensure_day_file(log_dir: Path, now: datetime, config: SectionProxy) -> Path:
@@ -145,18 +194,24 @@ def append_entry(day_file: Path, timestamp: str, entry_text: str) -> None:
 
 def main() -> None:
     """Application entry point for the kaydet CLI."""
-    config, config_path = get_config()
+    config, config_path, config_dir = get_config()
 
     args = parse_args(config_path)
 
     log_dir = Path(config["LOG_DIR"]).expanduser()
+
+    now = datetime.now()
+
+    if args.reminder:
+        maybe_show_reminder(config_dir, log_dir, now)
+        return
+
     log_dir.mkdir(parents=True, exist_ok=True)
 
     if args.open_folder:
         startfile(str(log_dir))
         return
 
-    now = datetime.now()
     day_file = ensure_day_file(log_dir, now, config)
 
     entry = get_entry(args, config).strip()
@@ -165,5 +220,6 @@ def main() -> None:
         return
 
     append_entry(day_file, now.strftime("%H:%M"), entry)
+    save_last_entry_timestamp(config_dir, now)
 
     print("Entry added to:", day_file)

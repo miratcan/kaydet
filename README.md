@@ -9,6 +9,7 @@ reflections, or pop open the archive folder when you feel nostalgic.
 - **Terminal native** – stays in your shell and respects your configured editor.
 - **Own your data** – simple timestamped text files, perfect for syncing however you like.
 - **Configurable** – adjust file naming, headings, the editor command, and storage location.
+- **Gentle reminders** – optional nudge when you have not written anything for a while.
 - **Cross-platform** – works anywhere Python 3.8+ runs.
 
 ## Installation
@@ -60,6 +61,24 @@ EDITOR = nvim
 - `EDITOR` is the command Kaydet runs for long-form entries (`--editor`).
 
 Any edits take effect the next time you invoke Kaydet.
+
+## Reminders
+Want a heads-up if you have not logged anything lately? Add the reminder flag to
+your shell startup (for example in `~/.zshrc`):
+
+```bash
+# ~/.zshrc
+kaydet --reminder
+```
+
+When the last entry is older than two hours Kaydet prints:
+
+```
+It's been over two hours since your last Kaydet entry. Capture what you've been up to with `kaydet --editor`.
+```
+
+If you have written within the last two hours nothing is printed, keeping your
+terminal uncluttered.
 
 ## Development
 Clone the repository and install in editable mode to hack on Kaydet locally:
