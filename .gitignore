@@ -1,8 +1,4 @@
-build/
+.ruff_cache/
 dist/
-*eggs
-*.egg-info/
-*.egg
-__pycache__/
-*.py[cod]
-
+src/kaydet.egg-info/
+.coverage

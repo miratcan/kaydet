@@ -51,6 +51,17 @@ kaydet --doctor          # rebuild tag archives
 kaydet --search gratitude
 ```
 
+Example `kaydet --stats` output:
+
+```
+September 2025
+Mo Tu We Th Fr Sa Su
+ 1[  ]  2[  ]  3[  ]  4[  ]  5[  ]  6[  ]  7[  ]
+ 8[  ]  9[  ] 10[  ] 11[  ] 12[  ] 13[  ] 14[  ]
+...
+Total entries this month: 12
+```
+
 Each entry is written to a daily file (for example `~/.kaydet/2024-02-19.txt`) and
 prefixed with the current time. Opening an existing daily file will append a new
 section; the first entry of the day creates the file with a heading for easy
@@ -95,20 +106,6 @@ When the last entry is older than two hours Kaydet prints:
 
 ```
 It's been over two hours since your last Kaydet entry. Capture what you've been up to with `kaydet --editor`.
-```
-
-If you have written within the last two hours nothing is printed, keeping your
-terminal uncluttered.
-
-Example `kaydet --stats` output:
-
-```
-September 2025
-Mo Tu We Th Fr Sa Su
- 1[  ]  2[  ]  3[  ]  4[  ]  5[  ]  6[  ]  7[  ]
- 8[  ]  9[  ] 10[  ] 11[  ] 12[  ] 13[  ] 14[  ]
-...
-Total entries this month: 12
 ```
 
 ## Development
