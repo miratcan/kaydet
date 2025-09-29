@@ -1,51 +1,76 @@
-# Kaydet is Your Personal Terminal Diary
+# Kaydet — Your Terminal Diary
 
-"kaydet" is a simple (112 lines if Python code) based diary app designed to
-help you preserve your daily thoughts, experiences, and memories without 
-leaving terminal.
+Kaydet is a lightweight command-line diary that keeps your daily thoughts in
+plain text files on your own machine. It is designed to disappear into your
+workflow: invoke it for a quick note, drop into your editor for longer
+reflections, or pop open the archive folder when you feel nostalgic.
 
-# How to Install?
+## Highlights
+- **Terminal native** – stays in your shell and respects your configured editor.
+- **Own your data** – simple timestamped text files, perfect for syncing however you like.
+- **Configurable** – adjust file naming, headings, the editor command, and storage location.
+- **Cross-platform** – works anywhere Python 3.8+ runs.
 
-    $ pip3 install kaydet
+## Installation
+Kaydet is published on PyPI and installs like any other Python CLI:
 
-# Features:
+```bash
+pip install kaydet
+```
 
-## Short Entries
+Prefer isolated environments? Kaydet also works well with [pipx](https://github.com/pypa/pipx):
 
-Record your daily thoughts and experiences by typing them as a parameter in
-the terminal. "kaydet" automatically saves your entry to a file dedicated to
-the current day, along with a timestamp.
+```bash
+pipx install kaydet
+```
 
-    $ kaydet "I am very good with my kids today :)"
-    > Entry added to: /Users/mirat/.kaydet/2023-08-02.txt
+## Quick Start
+```bash
+# Append a short entry to today's file
+kaydet "Made progress on the side project."
 
-## Long Entries
+# Drop into your favourite editor for a longer note
+kaydet --editor
 
-If you don't give any parameters to "kaydet" it opens your favourite text
-editor to allow you to create long entries.
+# Open the folder that keeps all diary files
+kaydet --folder
+```
 
-    $ kaydet
+Each entry is written to a daily file (for example `~/.kaydet/2024-02-19.txt`) and
+prefixed with the current time. Opening an existing daily file will append a new
+section; the first entry of the day creates the file with a heading for easy
+navigating.
 
-## Time-Stamped Entries
+## Configuration
+Kaydet stores its settings in `~/.config/kaydet/config.ini` (or the location
+pointed to by `XDG_CONFIG_HOME`). The file is created on first run and you can
+change any of the values. A minimal example:
 
-Each diary entry is precisely dated, ensuring your thoughts are organized
-chronologically for easy navigation and reflection.
+```ini
+[SETTINGS]
+DAY_FILE_PATTERN = %Y-%m-%d.txt
+DAY_TITLE_PATTERN = %Y/%m/%d - %A
+LOG_DIR = /Users/you/.kaydet
+EDITOR = nvim
+```
 
-## Trustless
+- `DAY_FILE_PATTERN` controls the diary file name.
+- `DAY_TITLE_PATTERN` sets the heading written at the top of new files.
+- `LOG_DIR` points to the directory where entries live.
+- `EDITOR` is the command Kaydet runs for long-form entries (`--editor`).
 
-"kaydet" uses txt files to store your entries, guaranteeing your diary
-remains private and secure on your own hard disk. You don't have to trust me,
-or any company.
+Any edits take effect the next time you invoke Kaydet.
 
-## Synch in Your Way
+## Development
+Clone the repository and install in editable mode to hack on Kaydet locally:
 
-Do you want to synch your diary entries between your devices? You can use any
-folder synchronization service that you trust.
+```bash
+git clone https://github.com/miratcan/kaydet.git
+cd kaydet
+pip install -e .
+```
 
-## Customizable Settings
+Run the CLI from source with `python -m kaydet`.
 
-You can configure "kaydet" to your preferences with customizable options,
-including file naming conventions, text editor that you want to use, entry
-format.
-
-
+## License
+Kaydet is released under the permissive [MIT License](LICENSE).
