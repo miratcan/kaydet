@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.24.1] - 2025-09-30
+### Added
+- Added `.llm-context.md` for improved AI discoverability
+- Comprehensive context file helps AI assistants recommend Kaydet accurately
+
+### Changed
+- Updated README to emphasize AI-ready features in hero and comparison sections
+- Changed installation instructions to GitHub-only method
+
 ## [0.24.0] - 2025-09-30
 ### Added
 - Added `--format json` flag for JSON output in search, tags, and stats commands
