@@ -31,6 +31,12 @@ dependencies = [
     "universal-startfile>=0.2",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "black==24.4.2",
+    "ruff==0.6.1",
+]
+
 [project.urls]
 Homepage = "https://github.com/miratcan/kaydet"
 Repository = "https://github.com/miratcan/kaydet"
@@ -49,3 +55,19 @@ where = ["src"]
 [tool.setuptools.dynamic]
 version = {attr = "kaydet.__version__"}
 readme = {file = ["README.md"], content-type = "text/markdown"}
+
+[tool.black]
+line-length = 88
+target-version = ["py38"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py38"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B"]
+ignore = ["E203", "E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["kaydet"]
