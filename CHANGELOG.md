@@ -1,0 +1,20 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+## [0.9.0] - 2025-09-29
+### Added
+- Package structure moved under `src/kaydet/` with module entrypoint for `python -m kaydet`.
+- Modern `pyproject.toml` configuration with dynamic versioning and metadata.
+- README overhaul covering installation, configuration, and development workflow.
+
+### Changed
+- CLI now trims blank editor entries and respects the `$EDITOR` value by default.
+- Configuration loader backfills missing keys in existing config files without overwriting user values.
+
+### Removed
+- Legacy `setup.py` metadata (now delegated to `pyproject.toml`).
+
+## [0.8.6] - 2023-08-02
+### Added
+- Initial terminal diary functionality with timestamped entries and editor support.

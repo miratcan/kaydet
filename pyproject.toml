@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kaydet"
+dynamic = ["version", "readme"]
+description = "Simple and terminal-based personal diary app for your shell."
+authors = [{name = "Mirat Can Bayrak"}]
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = ["diary", "terminal", "cli"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Environment :: Console :: Curses",
+    "Intended Audience :: End Users/Desktop",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Utilities",
+    "Topic :: Office/Business :: Scheduling",
+]
+requires-python = ">=3.8"
+dependencies = [
+    "universal-startfile>=0.2",
+]
+
+[project.urls]
+Homepage = "https://github.com/miratcan/kaydet"
+Repository = "https://github.com/miratcan/kaydet"
+Issues = "https://github.com/miratcan/kaydet/issues"
+
+[project.entry-points."console_scripts"]
+kaydet = "kaydet.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = false
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.dynamic]
+version = {attr = "kaydet.__version__"}
+readme = {file = ["README.md"], content-type = "text/markdown"}
