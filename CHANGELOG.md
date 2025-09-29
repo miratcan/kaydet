@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.13.0] - 2025-09-29
+### Added
+- `kaydet --tags` lists every tag you have used across all diary entries.
+
 ## [0.12.0] - 2025-09-29
 ### Added
 - `kaydet --tag/-t` assigns a lowercase tag to the entry and enforces letter-and-hyphen validation.
