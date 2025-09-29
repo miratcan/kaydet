@@ -12,7 +12,8 @@ from pathlib import Path
 from tempfile import mkstemp
 from textwrap import dedent
 from collections import defaultdict
-from typing import Dict, Optional, Tuple
+from dataclasses import dataclass
+from typing import Dict, Iterable, List, Optional, Tuple
 
 from startfile import startfile
 
@@ -30,6 +31,21 @@ REMINDER_THRESHOLD = timedelta(hours=2)
 ENTRY_LINE_PATTERN = re.compile(r"^\d{2}:\d{2}: ")
 TAG_CAPTURE_PATTERN = re.compile(r"^\d{2}:\d{2}: \[(?P<tags>[a-z-]+(?:,[a-z-]+)*)\]\s")
 TAG_PATTERN = re.compile(r"^[a-z-]+$")
+
+
+@dataclass(frozen=True)
+class DiaryEntry:
+    """Structured view of a diary entry loaded from disk."""
+
+    day: Optional[date]
+    timestamp: str
+    lines: Tuple[str, ...]
+    tags: Tuple[str, ...]
+    source: Path
+
+    @property
+    def text(self) -> str:
+        return "\n".join(self.lines)
 
 
 def parse_args(config_path: Path) -> argparse.Namespace:
@@ -88,6 +104,12 @@ def parse_args(config_path: Path) -> argparse.Namespace:
         dest="list_tags",
         action="store_true",
         help="List every tag you have used so far and exit.",
+    )
+    parser.add_argument(
+        "--search",
+        dest="search",
+        metavar="TEXT",
+        help="Search diary entries for the given text and exit.",
     )
     parser.add_argument(
         "--tag",
@@ -284,7 +306,7 @@ def collect_month_counts(
     return dict(counts)
 
 
-def resolve_entry_date(day_file: Path, pattern: str) -> Optional[datetime.date]:
+def resolve_entry_date(day_file: Path, pattern: str) -> Optional[date]:
     """Infer the date represented by a diary file using the configured pattern."""
     try:
         return datetime.strptime(day_file.name, pattern).date()
@@ -298,29 +320,123 @@ def count_entries(day_file: Path) -> int:
     return sum(1 for line in lines if ENTRY_LINE_PATTERN.match(line))
 
 
-def list_tags(log_dir: Path) -> None:
+def parse_day_entries(day_file: Path, day: Optional[date]) -> List[DiaryEntry]:
+    """Parse structured entries from a diary file."""
+    lines = day_file.read_text(encoding="utf-8").splitlines()
+
+    entries: List[DiaryEntry] = []
+    current_time: Optional[str] = None
+    current_lines: List[str] = []
+    current_tags: Tuple[str, ...] = ()
+
+    for line in lines:
+        if ENTRY_LINE_PATTERN.match(line):
+            if current_time is not None:
+                entries.append(
+                    DiaryEntry(
+                        day=day,
+                        timestamp=current_time,
+                        lines=tuple(current_lines),
+                        tags=current_tags,
+                        source=day_file,
+                    )
+                )
+
+            timestamp, remainder = line.split(": ", 1)
+            tags: Tuple[str, ...] = ()
+            match = TAG_CAPTURE_PATTERN.match(line)
+            if match:
+                tag_text = match.group("tags")
+                tags = tuple(tag_text.split(","))
+                prefix = f"[{tag_text}] "
+                if remainder.startswith(prefix):
+                    remainder = remainder[len(prefix) :]
+
+            current_time = timestamp
+            current_lines = [remainder]
+            current_tags = tags
+        elif current_time is not None:
+            current_lines.append(line)
+
+    if current_time is not None:
+        entries.append(
+            DiaryEntry(
+                day=day,
+                timestamp=current_time,
+                lines=tuple(current_lines),
+                tags=current_tags,
+                source=day_file,
+            )
+        )
+
+    return entries
+
+
+def iter_diary_entries(log_dir: Path, config: SectionProxy) -> Iterable[DiaryEntry]:
+    """Yield entries from every diary file sorted by filename."""
+    if not log_dir.exists():
+        return ()
+
+    day_file_pattern = config.get("DAY_FILE_PATTERN", DEFAULT_SETTINGS["DAY_FILE_PATTERN"])
+
+    for candidate in sorted(log_dir.iterdir()):
+        if not candidate.is_file():
+            continue
+
+        entry_date = resolve_entry_date(candidate, day_file_pattern)
+        if entry_date is None:
+            entry_date = datetime.fromtimestamp(candidate.stat().st_mtime).date()
+
+        for entry in parse_day_entries(candidate, entry_date):
+            yield entry
+
+
+def run_search(log_dir: Path, config: SectionProxy, query: str) -> None:
+    """Search diary entries for the query and print any matches."""
+    if not log_dir.exists():
+        print("No diary entries found yet.")
+        return
+
+    query_norm = query.lower()
+    matches: List[DiaryEntry] = []
+
+    for entry in iter_diary_entries(log_dir, config):
+        haystack = entry.text.lower()
+        tag_text = ",".join(entry.tags).lower()
+        if query_norm in haystack or (tag_text and query_norm in tag_text):
+            matches.append(entry)
+
+    if not matches:
+        print(f"No entries matched '{query}'.")
+        return
+
+    for match in matches:
+        day_label = match.day.isoformat() if match.day else match.source.name
+        tag_block = f"[{','.join(match.tags)}] " if match.tags else ""
+        first_line, *rest = list(match.lines) or [""]
+        print(f"{day_label} {match.timestamp} {tag_block}{first_line}".rstrip())
+        for extra in rest:
+            print(f"    {extra}")
+        print()
+
+    total = len(matches)
+    suffix = "entry" if total == 1 else "entries"
+    print(f"Found {total} {suffix} containing '{query}'.")
+
+
+def list_tags(log_dir: Path, config: SectionProxy) -> None:
     """Print the unique set of tags recorded across all diary entries."""
     if not log_dir.exists():
         print("No diary entries found yet.")
         return
 
-    tags = sorted({tag for path in log_dir.iterdir() if path.is_file() for tag in extract_tags(path)})
+    tags = sorted({tag for entry in iter_diary_entries(log_dir, config) for tag in entry.tags})
     if not tags:
         print("No tags have been recorded yet.")
         return
 
     for tag in tags:
         print(tag)
-
-
-def extract_tags(day_file: Path) -> Tuple[str, ...]:
-    """Return all tags found within a single diary file."""
-    found = []
-    for line in day_file.read_text(encoding="utf-8").splitlines():
-        match = TAG_CAPTURE_PATTERN.match(line)
-        if match:
-            found.extend(match.group("tags").split(","))
-    return tuple(found)
 
 
 def format_entry(entry_text: str, tag: Optional[str]) -> str:
@@ -358,7 +474,11 @@ def main() -> None:
         return
 
     if args.list_tags:
-        list_tags(log_dir)
+        list_tags(log_dir, config)
+        return
+
+    if args.search:
+        run_search(log_dir, config, args.search)
         return
 
     log_dir.mkdir(parents=True, exist_ok=True)

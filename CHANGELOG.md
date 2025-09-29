@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.14.0] - 2025-09-29
+### Added
+- `kaydet --search TEXT` scans diary files and prints matching entries with context.
+
 ## [0.13.0] - 2025-09-29
 ### Added
 - `kaydet --tags` lists every tag you have used across all diary entries.
