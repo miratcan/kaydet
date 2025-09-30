@@ -214,7 +214,13 @@ It's been over two hours since your last Kaydet entry. Capture what you've been 
 
 ## AI Integration (MCP Server)
 
-Kaydet supports the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/), allowing AI assistants like Claude to interact with your diary entries.
+Kaydet supports the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/), allowing MCP-compatible AI assistants to interact with your diary entries using natural language.
+
+**Supported AI Tools:**
+- [Claude Desktop](https://claude.ai/download) - Anthropic's desktop app
+- [Cline](https://github.com/cline/cline) - VS Code AI assistant
+- [Codex](https://github.com/openai/codex) - OpenAI's code assistant
+- Any other MCP-compatible tool
 
 ### Installation
 
@@ -224,7 +230,8 @@ pip install kaydet[mcp]
 
 ### Configuration
 
-Add to your Claude Desktop config (`~/.config/Claude/claude_desktop_config.json`):
+#### For Claude Desktop
+Add to `~/.config/Claude/claude_desktop_config.json`:
 
 ```json
 {
@@ -236,6 +243,22 @@ Add to your Claude Desktop config (`~/.config/Claude/claude_desktop_config.json`
 }
 ```
 
+#### For Cline (VS Code)
+Add to your Cline MCP settings:
+
+```json
+{
+  "mcpServers": {
+    "kaydet": {
+      "command": "kaydet-mcp"
+    }
+  }
+}
+```
+
+#### For Other MCP Tools
+Refer to your tool's documentation for MCP server configuration. Use `kaydet-mcp` as the command.
+
 ### Available Tools
 
 The MCP server exposes these tools to AI assistants:
@@ -245,14 +268,110 @@ The MCP server exposes these tools to AI assistants:
 - **list_tags** - Get all your tags
 - **get_stats** - View entry statistics
 
-### Example Usage
+### Real-World Use Cases
 
-Once configured, you can ask Claude:
+Once configured, you can interact with your diary using natural language:
+
+#### 📊 **Project Retrospectives**
+```
+You: "What did I accomplish on the authentication project last month?"
+
+AI: *Searches #auth entries and summarizes*
+"You worked on the authentication project 12 times last month:
+- Fixed OAuth token refresh bug
+- Implemented 2FA
+- Migrated to JWT tokens
+- Added password reset flow
+Most active week was Sept 15-20 with 5 entries."
+```
+
+#### 🧠 **Learning Pattern Analysis**
+```
+You: "What have I learned about Python testing this year?"
+
+AI: *Searches entries tagged #python #testing*
+"Based on your TIL entries, you've learned:
+- pytest fixtures and parametrization (March)
+- Coverage reporting with pytest-cov (June)
+- Mocking with unittest.mock (August)
+- Property-based testing with Hypothesis (September)"
+```
+
+#### 💪 **Fitness Progress Tracking**
+```
+You: "Am I exercising more this month than last month?"
+
+AI: *Analyzes #fitness entries*
+"This month: 18 fitness entries (avg 4.5/week)
+Last month: 12 fitness entries (avg 3/week)
+You're up 50%! Most consistent activity: running (8 entries)"
+```
+
+#### 🎯 **Productivity Insights**
+```
+You: "What patterns do you see in my work habits?"
+
+AI: *Analyzes #work entries by time and tags*
+"Patterns from your work diary:
+- Most productive hours: 9-11 AM (highest entry density)
+- You tend to do deep work on Tuesdays and Thursdays
+- Bug fixes usually happen in the afternoon
+- You take breaks more consistently when working on #frontend tasks"
+```
+
+#### 💼 **Meeting Follow-ups**
+```
+You: "What action items came out of meetings with the design team?"
+
+AI: *Searches #meeting #design entries*
+"Found 6 design team meetings. Action items mentioned:
+- Finalize color palette for dashboard (Sept 5)
+- Review mobile mockups (Sept 12)
+- Get feedback on new navigation (Sept 19)
+- Schedule user testing session (Sept 26 - still pending)"
+```
+
+#### 🤝 **Personal CRM**
+```
+You: "When was my last interaction with John from Marketing?"
+
+AI: *Searches entries mentioning 'John' with #marketing*
+"Last contact: September 20
+'Quick sync with John from Marketing about Q4 campaign. He'll send
+the brief by Friday. Follow up next week. #marketing #john'"
+```
+
+#### 💡 **Idea Retrieval**
+```
+You: "Show me all the feature ideas I've had for Kaydet"
+
+AI: *Searches #kaydet #idea*
+"You've logged 8 feature ideas for Kaydet:
+- Add encryption for diary files (Sept 2)
+- Export to PDF format (Sept 10)
+- Mobile companion app (Sept 15)
+- Voice-to-text entry (Sept 18)
+..."
+```
+
+#### ✍️ **Quick Entry via AI**
+```
+You: "Add diary entry: Finished the user dashboard redesign.
+Took longer than expected due to responsive layout issues.
+Happy with the final result. #work #frontend #design"
+
+AI: ✅ Entry added to your diary at 14:32
+```
+
+### Simple Commands
+
+You can also use simple one-liners:
 
 - "Add a diary entry: Today I fixed the auth bug #work"
-- "What did I work on for the Apollo project last month?"
-- "Show me all my #fitness entries"
+- "Search my diary for 'Apollo project'"
 - "What are my diary stats for this month?"
+- "List all my tags"
+- "Show me all my #fitness entries from last week"
 
 ### JSON Output
 

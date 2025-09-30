@@ -200,7 +200,13 @@ Son Kaydet girdinizden bu yana iki saatten fazla zaman geçti. `kaydet --editor`
 
 ## Yapay Zeka Entegrasyonu (MCP Sunucusu)
 
-Kaydet, [Model Bağlam Protokolü (MCP)](https://modelcontextprotocol.io/)'nü destekleyerek Claude gibi yapay zeka asistanlarının günlük girdilerinizle etkileşime girmesine olanak tanır.
+Kaydet, [Model Bağlam Protokolü (MCP)](https://modelcontextprotocol.io/)'nü destekleyerek MCP-uyumlu yapay zeka asistanlarının günlük girdilerinizle doğal dil kullanarak etkileşime girmesine olanak tanır.
+
+**Desteklenen Yapay Zeka Araçları:**
+- [Claude Desktop](https://claude.ai/download) - Anthropic'in masaüstü uygulaması
+- [Cline](https://github.com/cline/cline) - VS Code AI asistanı
+- [Codex](https://github.com/openai/codex) - OpenAI'ın kod asistanı
+- Diğer tüm MCP-uyumlu araçlar
 
 ### Kurulum
 
@@ -210,7 +216,8 @@ pip install kaydet[mcp]
 
 ### Yapılandırma
 
-Claude Masaüstü yapılandırmanıza (`~/.config/Claude/claude_desktop_config.json`) ekleyin:
+#### Claude Desktop için
+`~/.config/Claude/claude_desktop_config.json` dosyasına ekleyin:
 
 ```json
 {
@@ -222,6 +229,22 @@ Claude Masaüstü yapılandırmanıza (`~/.config/Claude/claude_desktop_config.j
 }
 ```
 
+#### Cline (VS Code) için
+Cline MCP ayarlarınıza ekleyin:
+
+```json
+{
+  "mcpServers": {
+    "kaydet": {
+      "command": "kaydet-mcp"
+    }
+  }
+}
+```
+
+#### Diğer MCP Araçları için
+MCP sunucu yapılandırması için aracınızın belgelerine bakın. Komut olarak `kaydet-mcp` kullanın.
+
 ### Mevcut Araçlar
 
 MCP sunucusu bu araçları yapay zeka asistanlarına sunar:
@@ -231,14 +254,110 @@ MCP sunucusu bu araçları yapay zeka asistanlarına sunar:
 - **list_tags** - Tüm etiketlerinizi alın
 - **get_stats** - Girdi istatistiklerini görüntüleyin
 
-### Örnek Kullanım
+### Gerçek Dünya Kullanım Senaryoları
 
-Yapılandırıldıktan sonra Claude'a sorabilirsiniz:
+Yapılandırıldıktan sonra, günlüğünüzle doğal dil kullanarak etkileşime geçebilirsiniz:
 
-- "Bir günlük girdisi ekle: Bugün kimlik doğrulama hatasını düzelttim #iş"
-- "Geçen ay Apollo projesi için ne üzerinde çalıştım?"
-- "Tüm #spor girdilerimi göster"
+#### 📊 **Proje Retrospektifleri**
+```
+Siz: "Geçen ay kimlik doğrulama projesi için neler yaptım?"
+
+AI: *#auth etiketli girdileri arar ve özetler*
+"Geçen ay kimlik doğrulama projesi üzerinde 12 kez çalıştınız:
+- OAuth token yenileme hatasını düzelttiniz
+- 2FA uyguladınız
+- JWT token'lara geçiş yaptınız
+- Şifre sıfırlama akışı eklediniz
+En aktif hafta 15-20 Eylül arası 5 girdi ile."
+```
+
+#### 🧠 **Öğrenme Pattern Analizi**
+```
+Siz: "Bu yıl Python testing hakkında neler öğrendim?"
+
+AI: *#python #testing etiketli girdileri arar*
+"TIL girdilerinize göre öğrendikleriniz:
+- pytest fixtures ve parametrization (Mart)
+- pytest-cov ile coverage raporlama (Haziran)
+- unittest.mock ile mocking (Ağustos)
+- Hypothesis ile property-based testing (Eylül)"
+```
+
+#### 💪 **Fitness İlerleme Takibi**
+```
+Siz: "Bu ay geçen aya göre daha fazla egzersiz yapıyor muyum?"
+
+AI: *#spor girdilerini analiz eder*
+"Bu ay: 18 spor girdisi (ort. 4.5/hafta)
+Geçen ay: 12 spor girdisi (ort. 3/hafta)
+%50 artış var! En tutarlı aktivite: koşu (8 girdi)"
+```
+
+#### 🎯 **Verimlilik İçgörüleri**
+```
+Siz: "Çalışma alışkanlıklarımda ne gibi paternler görüyorsun?"
+
+AI: *#iş girdilerini zaman ve etiketlere göre analiz eder*
+"İş günlüğünüzden paternler:
+- En verimli saatler: 09:00-11:00 (en yoğun girdi yoğunluğu)
+- Salı ve Perşembe günleri derin çalışma yapma eğilimindesiniz
+- Bug fix'ler genellikle öğleden sonra oluyor
+- #frontend görevlerinde daha düzenli mola veriyorsunuz"
+```
+
+#### 💼 **Toplantı Takipleri**
+```
+Siz: "Tasarım ekibiyle yapılan toplantılardan çıkan aksiyon maddeleri neler?"
+
+AI: *#toplantı #tasarım girdilerini arar*
+"6 tasarım ekibi toplantısı bulundu. Bahsedilen aksiyon maddeleri:
+- Dashboard için renk paletini tamamla (5 Eylül)
+- Mobil mockup'ları incele (12 Eylül)
+- Yeni navigasyon hakkında geri bildirim al (19 Eylül)
+- Kullanıcı test oturumu planla (26 Eylül - hala beklemede)"
+```
+
+#### 🤝 **Kişisel CRM**
+```
+Siz: "Pazarlamadan Ahmet ile son etkileşimim ne zamandı?"
+
+AI: *'Ahmet' ve #pazarlama içeren girdileri arar*
+"Son iletişim: 20 Eylül
+'Pazarlamadan Ahmet ile Q4 kampanyası hakkında hızlı senkronizasyon.
+Cuma'ya kadar brief'i gönderecek. Önümüzdeki hafta takip et. #pazarlama #ahmet'"
+```
+
+#### 💡 **Fikir Bulma**
+```
+Siz: "Kaydet için aklıma gelen tüm özellikleri göster"
+
+AI: *#kaydet #fikir etiketli girdileri arar*
+"Kaydet için 8 özellik fikri kaydetmişsiniz:
+- Günlük dosyaları için şifreleme ekle (2 Eylül)
+- PDF formatına export (10 Eylül)
+- Mobil yardımcı uygulama (15 Eylül)
+- Sesli girdi özelliği (18 Eylül)
+..."
+```
+
+#### ✍️ **AI ile Hızlı Girdi**
+```
+Siz: "Günlük girdisi ekle: Kullanıcı dashboard yeniden tasarımını bitirdim.
+Responsive layout sorunları yüzünden beklenenden uzun sürdü.
+Sonuçtan memnunum. #iş #frontend #tasarım"
+
+AI: ✅ Günlük girdiniz 14:32'de eklendi
+```
+
+### Basit Komutlar
+
+Tek satırlık komutlar da kullanabilirsiniz:
+
+- "Günlük girdisi ekle: Bugün kimlik doğrulama hatasını düzelttim #iş"
+- "Günlüğümde 'Apollo projesi' ara"
 - "Bu ayki günlük istatistiklerim neler?"
+- "Tüm etiketlerimi listele"
+- "Geçen haftaki tüm #spor girdilerimi göster"
 
 ### JSON Çıktısı
 
