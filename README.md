@@ -12,13 +12,11 @@ plain text files on your own machine. It is designed to disappear into your
 workflow: invoke it for a quick note, drop into your editor for longer
 reflections, or pop open the archive folder when you feel nostalgic.
 
-**[📥 Install Now](#installation)** • **[⚡ Quick Start](#quick-start)** • **[🎬 See It in Action](#demo)**
+**[📥 Install Now](#installation)** • **[⚡ Quick Start](#quick-start)**
 
 ## Demo
 
-<a href="https://asciinema.org/a/Rlcc9GaTQEEfTlUIicvHxm8iC" target="_blank">
-  <img src="https://asciinema.org/a/Rlcc9GaTQEEfTlUIicvHxm8iC.svg" alt="Kaydet Demo" />
-</a>
+<a href="https://asciinema.org/a/Rlcc9GaTQEEfTlUIicvHxm8iC" target="_blank"><img src="https://asciinema.org/a/Rlcc9GaTQEEfTlUIicvHxm8iC.svg" /></a>
 
 
 ## Installation
