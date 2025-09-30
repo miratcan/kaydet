@@ -236,7 +236,7 @@ MCP sunucusu bu araçları yapay zeka asistanlarına sunar:
 Yapılandırıldıktan sonra Claude'a sorabilirsiniz:
 
 - "Bir günlük girdisi ekle: Bugün kimlik doğrulama hatasını düzelttim #iş"
-- "Geçen ay McDonald's projesi için ne üzerinde çalıştım?"
+- "Geçen ay Apollo projesi için ne üzerinde çalıştım?"
 - "Tüm #spor girdilerimi göster"
 - "Bu ayki günlük istatistiklerim neler?"
 
