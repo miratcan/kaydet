@@ -14,15 +14,11 @@ reflections, or pop open the archive folder when you feel nostalgic.
 
 **[📥 Install Now](#installation)** • **[⚡ Quick Start](#quick-start)** • **[🎬 See It in Action](#demo)**
 
-<a href="https://raw.githubusercontent.com/miratcan/kaydet/master/demo.cast" style="display:inline-block;padding:0.6em 1.2em;background:#1f2933;color:#ffffff;text-decoration:none;border-radius:6px;margin-top:0.75em;" title="Download and play the Kaydet terminal session with Asciinema">▶️ See It in Action</a>
-
 ## Demo
 
-<a href="https://raw.githubusercontent.com/miratcan/kaydet/master/demo.cast" title="Play the Kaydet terminal session with Asciinema">
-  <img alt="Kaydet Demo" src="https://raw.githubusercontent.com/miratcan/kaydet/master/assets/demo.gif" />
+<a href="https://asciinema.org/a/Rlcc9GaTQEEfTlUIicvHxm8iC" target="_blank">
+  <img src="https://asciinema.org/a/Rlcc9GaTQEEfTlUIicvHxm8iC.svg" alt="Kaydet Demo" />
 </a>
-
-*Click the animation to download and play the raw Asciinema cast locally*
 
 
 ## Installation
