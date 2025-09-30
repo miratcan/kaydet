@@ -250,7 +250,7 @@ The MCP server exposes these tools to AI assistants:
 Once configured, you can ask Claude:
 
 - "Add a diary entry: Today I fixed the auth bug #work"
-- "What did I work on for the McDonald's project last month?"
+- "What did I work on for the Apollo project last month?"
 - "Show me all my #fitness entries"
 - "What are my diary stats for this month?"
 
