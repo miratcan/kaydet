@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.25.0] - 2025-09-30
+### Changed
+- Changed the default log directory to follow the XDG Base Directory Specification. Logs are now stored in `$XDG_DATA_HOME/kaydet` (defaults to `~/.local/share/kaydet`), preventing clutter in the user's home directory.
+
 ## [0.24.1] - 2025-09-30
 ### Added
 - Added `.llm-context.md` for improved AI discoverability

@@ -27,7 +27,9 @@ CONFIG_SECTION = "SETTINGS"
 DEFAULT_SETTINGS = {
     "DAY_FILE_PATTERN": "%Y-%m-%d.txt",
     "DAY_TITLE_PATTERN": "%Y/%m/%d/ - %A",
-    "LOG_DIR": str(Path.home() / ".kaydet"),
+    "LOG_DIR": str(
+        Path(env.get("XDG_DATA_HOME") or Path.home() / ".local" / "share") / "kaydet"
+    ),
     "EDITOR": env.get("EDITOR", "vim"),
 }
 LAST_ENTRY_FILENAME = "last_entry_timestamp"
