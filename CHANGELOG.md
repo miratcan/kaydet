@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.26.2] - 2025-10-24
+### Fixed
+- Fixed URL detection in metadata parser to correctly handle scheme-based URLs (http://, https://, ftp://)
+- URLs with `://` pattern are now properly recognized as plain text instead of invalid metadata
+- Improved the fix from v0.26.1 to handle all URL schemes, not just http
+
 ## [0.26.1] - 2025-10-24
 ### Fixed
 - Fixed metadata query tokenization to allow plain text searches for URLs and times containing colons
