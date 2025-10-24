@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import sys
 from configparser import ConfigParser
@@ -76,7 +77,7 @@ def test_add_simple_entry(setup_kaydet, mock_datetime_factory):
 
 
 def test_add_entry_with_tags(setup_kaydet, mock_datetime_factory):
-    """Test that an entry with hashtags is mirrored to tag folders."""
+    """Test that an entry with hashtags is captured in the structured index."""
     fake_log_dir = setup_kaydet["fake_log_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
     mock_datetime_factory(datetime(2025, 9, 30, 11, 0, 0))
@@ -93,14 +94,16 @@ def test_add_entry_with_tags(setup_kaydet, mock_datetime_factory):
         in main_log_file.read_text()
     )
 
+    index_path = fake_log_dir / "index.json"
+    assert index_path.exists()
+    index_data = json.loads(index_path.read_text())
+    entry_record = index_data["entries"][0]
+    assert sorted(entry_record["tags"]) == ["project-a", "work"]
+    assert entry_record["timestamp"] == "11:00"
+    assert entry_record["lines"] == [entry_text]
+
     for tag in ["work", "project-a"]:
-        tag_dir = fake_log_dir / tag
-        assert tag_dir.is_dir()
-        tag_log_file = tag_dir / "2025-09-30.txt"
-        assert tag_log_file.exists()
-        content = tag_log_file.read_text()
-        assert "2025/09/30/ - Tuesday" in content
-        assert "11:00: This is a test for #work and #project-a" in content
+        assert not (fake_log_dir / tag).exists()
 
 
 def test_add_entry_with_metadata_tokens(setup_kaydet, mock_datetime_factory):
@@ -135,15 +138,16 @@ def test_add_entry_with_metadata_tokens(setup_kaydet, mock_datetime_factory):
         in day_lines
     )
 
-    urgent_dir = fake_log_dir / "urgent"
-    assert urgent_dir.is_dir()
-    urgent_day = urgent_dir / "2025-09-30.txt"
-    assert urgent_day.exists()
-    urgent_lines = urgent_day.read_text().splitlines()
-    assert (
-        "13:30: Fixed bug | commit:38edf60 pr:76 status:done time:2h | #urgent"
-        in urgent_lines
-    )
+    index_path = fake_log_dir / "index.json"
+    index_data = json.loads(index_path.read_text())
+    record = index_data["entries"][0]
+    assert record["metadata"] == {
+        "commit": "38edf60",
+        "pr": "76",
+        "status": "done",
+        "time": "2h",
+    }
+    assert record["tags"] == ["urgent"]
 
 
 def test_editor_usage(setup_kaydet, mock_datetime_factory):
@@ -307,15 +311,35 @@ def test_search_with_metadata_filters(setup_kaydet, capsys, mock_datetime_factor
 
 
 def test_tags_command(setup_kaydet, capsys):
-    """Test the --tags command output."""
+    """Test the --tags command output is sourced from the index."""
     fake_log_dir = setup_kaydet["fake_log_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
     fake_log_dir.mkdir(exist_ok=True)
 
-    (fake_log_dir / "work").mkdir()
-    (fake_log_dir / "personal").mkdir()
-    (fake_log_dir / "project-a").mkdir()
-    (fake_log_dir / "a-file.txt").touch()
+    index_data = {
+        "version": 1,
+        "entries": [
+            {
+                "id": "entry-1",
+                "day": "2025-10-01",
+                "timestamp": "09:00",
+                "lines": ["First entry"],
+                "tags": ["work", "project-a"],
+                "metadata": {},
+                "source": "2025-10-01.txt",
+            },
+            {
+                "id": "entry-2",
+                "day": "2025-10-02",
+                "timestamp": "15:00",
+                "lines": ["Second entry"],
+                "tags": ["personal"],
+                "metadata": {},
+                "source": "2025-10-02.txt",
+            },
+        ],
+    }
+    (fake_log_dir / "index.json").write_text(json.dumps(index_data))
 
     monkeypatch.setattr(sys, "argv", ["kaydet", "--tags"])
 
@@ -329,7 +353,7 @@ def test_tags_command(setup_kaydet, capsys):
 
 
 def test_doctor_command(setup_kaydet, capsys):
-    """Test the --doctor command rebuilds tag archives correctly."""
+    """Test the --doctor command rebuilds the index and removes tag folders."""
     fake_log_dir = setup_kaydet["fake_log_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
     fake_log_dir.mkdir(exist_ok=True)
@@ -351,28 +375,23 @@ def test_doctor_command(setup_kaydet, capsys):
     captured = capsys.readouterr()
     output = captured.out
 
-    assert "Rebuilt tag archives for 2 tags." in output
-    assert "#home: 1" in output
-    assert "#work: 2" in output
+    assert (
+        "Rebuilt search index for 3 entries. Removed 1 legacy tag folder(s)."
+        in output
+    )
+    assert "Tags: #home: 1, #work: 2" in output
     assert not orphaned_tag_dir.exists()
 
-    work_dir = fake_log_dir / "work"
-    home_dir = fake_log_dir / "home"
-    assert work_dir.is_dir()
-    assert home_dir.is_dir()
-
-    work_log = work_dir / "2025-10-10.txt"
-    home_log = home_dir / "2025-10-10.txt"
-    assert work_log.exists()
-    assert home_log.exists()
-
-    work_content = work_log.read_text()
-    home_content = home_log.read_text()
-
-    assert "10:00: A task for #work." in work_content
-    assert "12:00: Another #work thing to do." in work_content
-    assert "11:00: A personal note for #home." in home_content
-    assert "A personal note for #home." not in work_content
+    index_path = fake_log_dir / "index.json"
+    assert index_path.exists()
+    index_data = json.loads(index_path.read_text())
+    assert index_data["version"] == 1
+    tags = [
+        tag
+        for entry in index_data["entries"]
+        for tag in entry.get("tags", [])
+    ]
+    assert sorted(tags) == ["home", "work", "work"]
 
 
 def test_reminder_no_previous_entries(setup_kaydet, capsys):
@@ -437,7 +456,7 @@ def test_folder_command_opens_main_log_dir(setup_kaydet, mocker):
 
 
 def test_folder_command_opens_tag_dir(setup_kaydet, mocker):
-    """Test that `kaydet --folder TAG` opens the correct tag directory."""
+    """Test that `kaydet --folder TAG` informs users about index usage."""
     fake_log_dir = setup_kaydet["fake_log_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
     mock_startfile = mocker.patch("kaydet.cli.startfile")
@@ -450,7 +469,7 @@ def test_folder_command_opens_tag_dir(setup_kaydet, mocker):
 
     cli.main()
 
-    mock_startfile.assert_called_once_with(str(tag_dir))
+    mock_startfile.assert_not_called()
 
 
 def test_folder_command_non_existent_tag(setup_kaydet, capsys, mocker):
@@ -464,7 +483,10 @@ def test_folder_command_non_existent_tag(setup_kaydet, capsys, mocker):
 
     mock_startfile.assert_not_called()
     captured = capsys.readouterr()
-    assert "No tag folder found for '#non-existent'." in captured.out
+    assert (
+        "Tag folders are no longer maintained. "
+        "Search for '#non-existent' instead."
+    ) in captured.out
 
 
 def test_read_diary_with_bad_encoding(
@@ -599,9 +621,8 @@ def test_legacy_tag_parsing(setup_kaydet, capsys):
     captured = capsys.readouterr()
     output = captured.out
 
-    assert "Rebuilt tag archives for 2 tags." in output
-    assert "#project: 1" in output
-    assert "#work: 1" in output
+    assert "Rebuilt search index for 1 entry." in output
+    assert "Tags: #project: 1, #work: 1" in output
 
 
 def test_search_no_results(setup_kaydet, capsys):
@@ -747,8 +768,8 @@ def test_doctor_with_untagged_entries(setup_kaydet, capsys):
 
     captured = capsys.readouterr()
     # Assert that it completes successfully and only rebuilds the tag that exists
-    assert "Rebuilt tag archives for 1 tags." in captured.out
-    assert "#work: 1" in captured.out
+    assert "Rebuilt search index for 2 entries." in captured.out
+    assert "Tags: #work: 1" in captured.out
 
 
 def test_stats_ignores_directories(
