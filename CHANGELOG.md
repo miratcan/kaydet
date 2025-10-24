@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.26.3] - 2025-10-24
+### Added
+- Added `--version` CLI flag to print the installed kaydet version.
+
+### Changed
+- Clarified CLI help text and examples to show the correct way to pass metadata tokens (`status:done`) and tags (`#project-x`) as separate arguments.
+
 ## [0.26.2] - 2025-10-24
 ### Fixed
 - Fixed URL detection in metadata parser to correctly handle scheme-based URLs (http://, https://, ftp://)

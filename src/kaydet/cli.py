@@ -25,7 +25,7 @@ import shlex
 
 from startfile import startfile
 
-from . import __description__
+from . import __description__, __version__
 
 CONFIG_SECTION = "SETTINGS"
 DEFAULT_SETTINGS = {
@@ -549,6 +549,7 @@ def parse_args(config_path: Path) -> argparse.Namespace:
             You can configure this by editing: {config_path}
 
               $ kaydet 'I am feeling grateful now.'
+              $ kaydet "Fixed issue" status:done time:45m #work
               $ kaydet \"When I'm typing this I felt that I need an editor\" --editor
             """
         ).strip(),
@@ -560,8 +561,9 @@ def parse_args(config_path: Path) -> argparse.Namespace:
         nargs="*",
         metavar="Entry",
         help=(
-            "Your entry to be saved. If not given, the configured editor will be "
-            "opened for a longer note."
+            "Entry content. Add metadata tokens (status:done) or tags (#project-x) "
+            "as separate arguments after the message. If omitted, the configured "
+            "editor opens for a longer note."
         ),
     )
     parser.add_argument(
@@ -616,6 +618,12 @@ def parse_args(config_path: Path) -> argparse.Namespace:
         choices=["text", "json"],
         default="text",
         help="Output format for search, tags, and stats commands (default: text).",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
+        help="Print the current kaydet version and exit.",
     )
     return parser.parse_args()
 
