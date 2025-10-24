@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from kaydet import cli
+from kaydet import __version__ as package_version, cli
 
 
 @pytest.fixture
@@ -198,6 +198,19 @@ def test_stats_command(setup_kaydet, capsys, mock_datetime_factory):
     assert " 1[ 3]" in output
     assert "15[ 5]" in output
     assert "Total entries this month: 8" in output
+
+
+def test_version_flag(setup_kaydet, capsys):
+    """Ensure --version reports the current kaydet version."""
+    monkeypatch = setup_kaydet["monkeypatch"]
+    monkeypatch.setattr(sys, "argv", ["kaydet", "--version"])
+
+    with pytest.raises(SystemExit) as exc:
+        cli.main()
+
+    assert exc.value.code == 0
+    captured = capsys.readouterr()
+    assert f"kaydet {package_version}" in captured.out
 
 
 def test_search_command(setup_kaydet, capsys):
