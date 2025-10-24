@@ -64,65 +64,67 @@ pip install "git+https://github.com/miratcan/kaydet.git#egg=kaydet[mcp]"
 
 ## Use Cases
 
-Beyond a simple diary, `kaydet`'s combination of fast CLI access, timestamps, and powerful tagging makes it a versatile tool for various logging needs.
+Kaydet's structured metadata, hashtagging, and instant search make it useful far beyond a basic diary.
 
-### 💼 Work Log
-Track tasks, progress, and meeting notes. Use tags to categorize by project or client.
+### 💼 Work Log & Git Notes
+Keep a running changelog for your projects. Add metadata for commits, PRs, or status updates so you can pivot on them later.
 
 ```bash
-kaydet "Fixed the authentication bug on the staging server. #project-apollo"
-kaydet "Meeting with the design team about the new UI. #meeting #project-apollo"
+kaydet "Fixed staging authentication bug" commit:38edf60 pr:76 status:done time:2h
+kaydet "Reviewed onboarding flow copy" status:wip project:kaydet
+
+# Later
+kaydet search commit:38edf60
+kaydet search "status:done project:kaydet"
 ```
 
 ### 📚 Personal Knowledge Base (Today I Learned)
-Quickly save new commands, code snippets, or interesting facts you learn.
+Capture commands, code snippets, or references and tag them for future discovery.
 
 ```bash
-kaydet "TIL: `pytest --cov-report=html` generates a browsable coverage report. #python #testing"
+kaydet "TIL: `pytest --cov-report=html` generates a browsable coverage report." topic:testing stack:python #til
+kaydet search "topic:testing"
 ```
 
-### 💪 Habit and Fitness Tracker
-Log workouts, daily habits, or any other activity you want to track over time.
+### ⏱️ Time & Energy Tracking
+Structure your day with explicit durations or effort levels and surface them with numeric searches.
 
 ```bash
-kaydet "Completed 5k run in 28 minutes. #fitness #running"
-kaydet "Read 20 pages of 'The Pragmatic Programmer'. #habit #reading"
+kaydet "Deep work on analytics ETL" time:2.5h intensity:high project:valocom
+kaydet "Pairing session with Emre" time:1.5h intensity:medium project:kaydet
+
+# Find the long sessions
+kaydet search "time:>2"
 ```
 
-### ⏱️ Simple Time Tracking
-Log when you start and stop tasks to get a rough idea of time spent.
+### 💡 Idea & Research Log
+Jot down ideas or research findings along with context, so you can filter them when planning.
 
 ```bash
-kaydet "START: Refactoring the user authentication module. #project-apollo"
-kaydet "STOP: Refactoring the user authentication module. #project-apollo"
+kaydet "Prototype encrypted export flow" area:security priority:high #idea
+kaydet "Read Stripe's migration playbook" area:payments source:stripe-docs #research
+
+kaydet search "area:security"
 ```
 
-### 💡 Idea Catcher
-Instantly capture ideas without breaking your workflow in the terminal.
+### 😊 Mood & Wellness Journal
+Track your wellbeing with tags and metadata that make reflective searches easy.
 
 ```bash
-kaydet "Idea for a new feature: add encryption for diary files. #kaydet #idea"
+kaydet "Morning run felt amazing" mood:energized sleep:7h #wellness
+kaydet "Afternoon slump before standup" mood:tired caffeine:2 cups #mood
+
+kaydet search "mood:energized"
 ```
 
-### 😊 Mood Journal
-Quickly log how you're feeling throughout the day. Over time, you can search your `#mood` tags to see patterns.
+### 💰 Lightweight Expense Tracker
+Log expenses on the go with structured fields you can later parse or export.
 
 ```bash
-kaydet "Feeling productive and focused today. ✨ #mood"
-```
+kaydet "Lunch with client" amount:650 currency:TRY client:bbrain billable:yes #expense
+kaydet "Domain renewal" amount:120 currency:USD project:kaydet billable:no
 
-### 💰 Simple Expense Tracker
-Log business expenses or mileage on the go. The plain text format makes it easy to process later.
-
-```bash
-kaydet "Lunch with client: 650.00 TL #expense #client-a"
-```
-
-### 🤝 Personal CRM
-Keep track of interactions with professional or personal contacts.
-
-```bash
-kaydet "Called Ahmet Yılmaz to discuss the proposal. He will follow up by Friday. #ahmet-yılmaz"
+kaydet search "billable:yes"
 ```
 
 ## Highlights
@@ -146,13 +148,14 @@ kaydet --editor
 # Open the folder that keeps all diary files
 kaydet --folder
 
-# Quick tag housekeeping
-kaydet --folder family   # open
-kaydet --tags            # list
-kaydet --doctor          # rebuild tag archives
+# Quick tag & metadata housekeeping
+kaydet --tags            # list tags from the index
+kaydet --doctor          # rebuild the search index
 
 # Search past entries for a word or tag fragment
 kaydet --search gratitude
+kaydet --search "status:done"
+kaydet --search "time:>1"
 ```
 
 Example `kaydet --stats` output:
@@ -171,11 +174,11 @@ prefixed with the current time. Opening an existing daily file will append a new
 section; the first entry of the day creates the file with a heading for easy
 navigating.
 
-Add inline hashtags (for example `#family`) to categorize notes — Kaydet keeps
-them inline, mirrors the entry into a per-tag folder (for example
-`~/.kaydet/family/`), lets you open tag folders directly via `kaydet --folder
-family`, shows the tags in `kaydet --tags`, makes them searchable via `kaydet
---search`, and can backfill existing journals with `kaydet --doctor`.
+Add inline hashtags (for example `#family`) or structured metadata (`project:valocom`,
+`time:45m`) to enrich your notes. Kaydet stores everything in the daily file,
+indexes it for instant search, lists tags with `kaydet --tags`, and rebuilds the
+index with `kaydet --doctor`. The `kaydet --folder` command opens your main log
+directory so you can browse or sync the raw files whenever you like.
 
 ## Configuration
 Kaydet stores its settings in `~/.config/kaydet/config.ini` (or the location
