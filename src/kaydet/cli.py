@@ -1,4 +1,4 @@
-"""Command-line interface for the kaydet diary application."""
+"Command-line interface for the kaydet diary application."
 
 from __future__ import annotations
 
@@ -7,9 +7,9 @@ import calendar
 import json
 import re
 import shutil
+import sqlite3
 import subprocess
 from collections import defaultdict
-import hashlib
 from configparser import ConfigParser, SectionProxy
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -23,9 +23,12 @@ import fnmatch
 import math
 import shlex
 
+import hashlib
+import shortuuid
 from startfile import startfile
 
 from . import __description__, __version__
+from . import database
 
 CONFIG_SECTION = "SETTINGS"
 DEFAULT_SETTINGS = {
@@ -38,57 +41,47 @@ DEFAULT_SETTINGS = {
 }
 LAST_ENTRY_FILENAME = "last_entry_timestamp"
 REMINDER_THRESHOLD = timedelta(hours=2)
-ENTRY_LINE_PATTERN = re.compile(r"^\d{2}:\d{2}: ")
-LEGACY_TAG_PATTERN = re.compile(r"^\[(?P<tags>[a-z-]+(?:,[a-z-]+)*)\]\s*")
+ENTRY_LINE_PATTERN = re.compile(r"^(?:([a-zA-Z0-9_-]{22}):)?(\d{2}:\d{2}): (.*)")
+LEGACY_TAG_PATTERN = re.compile(r"^[\[(](?P<tags>[a-z-]+(?:,[a-z-]+)*)[\])]\s*")
 HASHTAG_PATTERN = re.compile(r"#([a-z-]+)")
 TAG_PATTERN = re.compile(r"^[a-z-]+$")
-KEY_VALUE_PATTERN = re.compile(r"^(?P<key>[a-z][a-z0-9_-]*):(?P<value>.+)$")
+KEY_VALUE_PATTERN = re.compile(r"^(?P<key>[a-z][a-z0-9_-]*):(?P<value>.+)")
 NUMERIC_PATTERN = re.compile(r"^[-+]?\d+(?:\.\d+)?$")
-INDEX_FILENAME = "index.json"
-INDEX_VERSION = 1
+INDEX_FILENAME = "index.db"
 
 
 def normalize_tag(tag: str) -> Optional[str]:
     """Normalize a tag token by stripping markers and lowercasing."""
-
     cleaned = tag.strip().lstrip("#").lower()
     return cleaned if cleaned else None
 
 
 def parse_metadata_token(token: str) -> Optional[Tuple[str, str]]:
     """Return a (key, value) pair if the token is a metadata declaration."""
-
     match = KEY_VALUE_PATTERN.match(token)
     if not match:
         return None
     key = match.group("key").lower()
     value = match.group("value").strip()
-    if not value:
-        return None
-    # Reject URLs: value starting with // indicates a URL scheme (http://, ftp://, etc.)
-    if value.startswith("//"):
+    if not value or value.startswith("//"):
         return None
     return key, value
 
 
 def parse_numeric_value(raw_value: str) -> Optional[float]:
     """Convert a metadata value to a numeric representation when possible."""
-
     value = raw_value.strip().lower()
-
     if value.endswith("h") and NUMERIC_PATTERN.match(value[:-1]):
         return float(value[:-1])
     if value.endswith("m") and NUMERIC_PATTERN.match(value[:-1]):
         return float(value[:-1]) / 60.0
     if NUMERIC_PATTERN.match(value):
         return float(value)
-
     return None
 
 
 def build_numeric_metadata(metadata: Dict[str, str]) -> Dict[str, float]:
     """Return numeric representations for metadata values when available."""
-
     numeric: Dict[str, float] = {}
     for key, value in metadata.items():
         converted = parse_numeric_value(value)
@@ -101,27 +94,18 @@ def partition_entry_tokens(
     tokens: Iterable[str],
 ) -> Tuple[List[str], Dict[str, str], List[str]]:
     """Split CLI tokens into message text, metadata, and explicit tags."""
-
     message_tokens: List[str] = []
     metadata: Dict[str, str] = {}
     explicit_tags: List[str] = []
-
     for token in tokens:
-        tag = None
         if token.startswith("#"):
-            tag = normalize_tag(token)
-        if tag:
-            explicit_tags.append(tag)
-            continue
-
-        parsed = parse_metadata_token(token)
-        if parsed:
+            if tag := normalize_tag(token):
+                explicit_tags.append(tag)
+        elif parsed := parse_metadata_token(token):
             key, value = parsed
             metadata[key] = value
-            continue
-
-        message_tokens.append(token)
-
+        else:
+            message_tokens.append(token)
     return message_tokens, metadata, explicit_tags
 
 
@@ -132,18 +116,12 @@ def format_entry_header(
     extra_tag_markers: Iterable[str],
 ) -> str:
     """Format the first line of a diary entry for storage."""
-
     base = f"{timestamp}: {message}" if message else f"{timestamp}:"
     segments = [base.rstrip()]
-
     if metadata:
-        metadata_text = " ".join(f"{key}:{value}" for key, value in metadata.items())
-        segments.append(metadata_text)
-
-    tag_markers = [f"#{tag}" for tag in extra_tag_markers if tag]
-    if tag_markers:
-        segments.append(" ".join(tag_markers))
-
+        segments.append(" ".join(f"{k}:{v}" for k, v in metadata.items()))
+    if extra_tag_markers:
+        segments.append(" ".join(f"#{t}" for t in extra_tag_markers if t))
     return " | ".join(segments)
 
 
@@ -151,34 +129,22 @@ def parse_stored_entry_remainder(
     remainder: str,
 ) -> Tuple[str, Dict[str, str], List[str]]:
     """Parse the message, metadata, and explicit tags from a stored line."""
-
     metadata: Dict[str, str] = {}
     explicit_tags: List[str] = []
-
     if "|" not in remainder:
         return remainder.rstrip(), metadata, explicit_tags
-
     parts = [part.strip() for part in remainder.split("|")]
     message = parts[0] if parts else remainder.rstrip()
-
     for segment in parts[1:]:
-        if not segment:
-            continue
         for token in segment.split():
-            tag = None
             if token.startswith("#"):
-                tag = normalize_tag(token)
-            if tag:
-                explicit_tags.append(tag)
-                continue
-
-            parsed = parse_metadata_token(token)
-            if parsed:
+                if tag := normalize_tag(token):
+                    explicit_tags.append(tag)
+            elif parsed := parse_metadata_token(token):
                 key, value = parsed
                 metadata[key] = value
             else:
                 message = f"{message} {token}".strip()
-
     return message, metadata, explicit_tags
 
 
@@ -186,178 +152,52 @@ def tokenize_query(
     query: str,
 ) -> Tuple[List[str], List[Tuple[str, str]], List[str]]:
     """Split a search query into text terms, metadata filters, and tag filters."""
-
     try:
         tokens = shlex.split(query)
     except ValueError:
         tokens = query.split()
-
     text_terms: List[str] = []
     metadata_filters: List[Tuple[str, str]] = []
     tag_filters: List[str] = []
-
     for token in tokens:
         if not token:
             continue
-
         if token.startswith("#"):
-            tag = normalize_tag(token)
-            if tag:
+            if tag := normalize_tag(token):
                 tag_filters.append(tag)
-            continue
-
-        parsed = parse_metadata_token(token)
-        if parsed:
-            key, value = parsed
-            metadata_filters.append((key, value))
-            continue
-
-        text_terms.append(token.lower())
-
+        elif parsed := parse_metadata_token(token):
+            metadata_filters.append(parsed)
+        else:
+            text_terms.append(token.lower())
     return text_terms, metadata_filters, tag_filters
 
 
 def parse_range_expression(expression: str) -> Optional[Tuple[Optional[float], Optional[float]]]:
     """Parse a range expression like ``1..3`` into numeric bounds."""
-
     if ".." not in expression:
         return None
-
     lower_raw, upper_raw = expression.split("..", 1)
     lower = parse_numeric_value(lower_raw) if lower_raw.strip() else None
     upper = parse_numeric_value(upper_raw) if upper_raw.strip() else None
-
-    if lower_raw.strip() and lower is None:
+    if (lower_raw.strip() and lower is None) or (upper_raw.strip() and upper is None):
         return None
-    if upper_raw.strip() and upper is None:
-        return None
-
     return lower, upper
 
 
 def parse_comparison_expression(expression: str) -> Optional[Tuple[str, float]]:
     """Parse comparison expressions like ``>=2`` or ``<5``."""
-
     for operator in (">=", "<=", ">", "<"):
         if expression.startswith(operator):
             remainder = expression[len(operator) :].strip()
-            numeric = parse_numeric_value(remainder)
-            if numeric is None:
-                return None
-            return operator, numeric
+            if (numeric := parse_numeric_value(remainder)) is not None:
+                return operator, numeric
     return None
-
-
-def metadata_filter_matches(
-    entry: DiaryEntry, key: str, expression: str
-) -> bool:
-    """Evaluate whether the entry satisfies the metadata expression."""
-
-    value = entry.metadata.get(key)
-    if value is None:
-        return False
-
-    value_lower = value.lower()
-    expression_lower = expression.lower()
-
-    comparison = parse_comparison_expression(expression_lower)
-    if comparison:
-        numeric_value = entry.metadata_numbers.get(key)
-        if numeric_value is None:
-            return False
-        operator, operand = comparison
-        if operator == ">=":
-            return numeric_value >= operand
-        if operator == ">":
-            return numeric_value > operand
-        if operator == "<=":
-            return numeric_value <= operand
-        if operator == "<":
-            return numeric_value < operand
-
-    range_bounds = parse_range_expression(expression_lower)
-    if range_bounds:
-        numeric_value = entry.metadata_numbers.get(key)
-        if numeric_value is None:
-            return False
-        lower, upper = range_bounds
-        if lower is not None and numeric_value < lower:
-            return False
-        if upper is not None and numeric_value > upper:
-            return False
-        return True
-
-    if any(char in expression_lower for char in "*?["):
-        return fnmatch.fnmatch(value_lower, expression_lower)
-
-    numeric_expression = parse_numeric_value(expression_lower)
-    if numeric_expression is not None:
-        numeric_value = entry.metadata_numbers.get(key)
-        if numeric_value is None:
-            return False
-        return math.isclose(numeric_value, numeric_expression, rel_tol=1e-9)
-
-    return value_lower == expression_lower
-
-
-def entry_matches(
-    entry: DiaryEntry,
-    query_norm: str,
-    text_terms: List[str],
-    metadata_filters: List[Tuple[str, str]],
-    tag_filters: List[str],
-    use_advanced: bool,
-) -> bool:
-    """Determine whether the entry matches the provided query filters."""
-
-    haystack = entry.text.lower()
-    tag_text = " ".join(entry.tags).lower()
-    metadata_text = " ".join(
-        f"{key}:{value}" for key, value in entry.metadata.items()
-    ).lower()
-
-    if use_advanced:
-        for key, expression in metadata_filters:
-            if not metadata_filter_matches(entry, key, expression):
-                return False
-
-        for pattern in tag_filters:
-            if not any(fnmatch.fnmatch(tag, pattern) for tag in entry.tags):
-                return False
-
-        for term in text_terms:
-            if not (
-                term in haystack
-                or term in tag_text
-                or term in metadata_text
-            ):
-                return False
-
-        return True
-
-    if query_norm in haystack:
-        return True
-    if tag_text and query_norm in tag_text:
-        return True
-    if metadata_text and query_norm in metadata_text:
-        return True
-
-    return False
-
-
-def read_diary_lines(path: Path) -> List[str]:
-    """Return diary file lines, tolerating non-UTF8 bytes by replacing them."""
-    try:
-        text = path.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
-        text = path.read_text(encoding="utf-8", errors="replace")
-    return text.splitlines()
 
 
 @dataclass(frozen=True)
 class DiaryEntry:
     """Structured view of a diary entry loaded from disk."""
-
+    uuid: str
     day: Optional[date]
     timestamp: str
     lines: Tuple[str, ...]
@@ -373,6 +213,7 @@ class DiaryEntry:
     def to_dict(self) -> dict:
         """Convert entry to dictionary for JSON serialization."""
         return {
+            "uuid": self.uuid,
             "date": self.day.isoformat() if self.day else None,
             "timestamp": self.timestamp,
             "text": self.text,
@@ -382,287 +223,127 @@ class DiaryEntry:
         }
 
 
-def get_index_path(log_dir: Path) -> Path:
-    """Return the path to the structured index file for the log directory."""
-
-    return log_dir / INDEX_FILENAME
-
-
-def load_index_data(log_dir: Path) -> Optional[dict]:
-    """Load the persisted index for the diary if available."""
-
-    index_file = get_index_path(log_dir)
-    if not index_file.exists():
-        return None
-
+def read_diary_lines(path: Path) -> List[str]:
+    """Return diary file lines, tolerating non-UTF8 bytes by replacing them."""
     try:
-        data = json.loads(index_file.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
-
-    if data.get("version") != INDEX_VERSION:
-        return None
-
-    if "entries" not in data or not isinstance(data["entries"], list):
-        return None
-
-    return data
+        return path.read_text(encoding="utf-8").splitlines()
+    except UnicodeDecodeError:
+        return path.read_text(encoding="utf-8", errors="replace").splitlines()
 
 
-def save_index_data(log_dir: Path, data: dict) -> None:
-    """Persist the supplied index data to disk."""
-
-    index_file = get_index_path(log_dir)
-    index_file.parent.mkdir(parents=True, exist_ok=True)
-    index_file.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+def count_entries(day_file: Path) -> int:
+    """Count timestamped diary entries inside a daily file."""
+    lines = read_diary_lines(day_file)
+    return sum(1 for line in lines if ENTRY_LINE_PATTERN.match(line))
 
 
-def compute_entry_id(
-    source_identifier: str, timestamp: str, lines: Iterable[str], metadata: Dict[str, str]
-) -> str:
-    """Return a stable identifier for an entry for indexing purposes."""
+def parse_day_entries(day_file: Path, day: Optional[date]) -> List[DiaryEntry]:
+    """Parse structured entries from a diary file, supporting both UUID and legacy formats."""
+    lines = read_diary_lines(day_file)
+    entries: List[DiaryEntry] = []
+    current_uuid: Optional[str] = None
+    current_time: Optional[str] = None
+    current_lines: List[str] = []
+    current_legacy_tags: List[str] = []
+    current_metadata: Dict[str, str] = {}
+    current_explicit_tags: List[str] = []
 
-    hasher = hashlib.sha1()
-    hasher.update(source_identifier.encode("utf-8"))
-    hasher.update(b"|")
-    hasher.update(timestamp.encode("utf-8"))
-    hasher.update(b"|")
-    for line in lines:
-        hasher.update(line.encode("utf-8"))
-        hasher.update(b"\n")
-
-    if metadata:
-        for key in sorted(metadata):
-            hasher.update(key.encode("utf-8"))
-            hasher.update(b"=")
-            hasher.update(metadata[key].encode("utf-8"))
-            hasher.update(b"\0")
-
-    digest = hasher.hexdigest()[:16]
-    return f"{source_identifier}:{timestamp}:{digest}"
-
-
-def diary_entry_to_index_record(entry: DiaryEntry, log_dir: Path) -> dict:
-    """Convert a ``DiaryEntry`` to a serializable record for the index."""
-
-    try:
-        relative_source = entry.source.relative_to(log_dir).as_posix()
-    except ValueError:
-        relative_source = entry.source.name
-
-    lines = list(entry.lines)
-    metadata = dict(entry.metadata)
-    entry_id = compute_entry_id(relative_source, entry.timestamp, lines, metadata)
-
-    return {
-        "id": entry_id,
-        "day": entry.day.isoformat() if entry.day else None,
-        "timestamp": entry.timestamp,
-        "lines": lines,
-        "tags": list(entry.tags),
-        "metadata": metadata,
-        "source": relative_source,
-    }
-
-
-def build_index_from_entries(
-    entries: Iterable[DiaryEntry], log_dir: Path
-) -> dict:
-    """Build a structured index representation from diary entries."""
-
-    records = [diary_entry_to_index_record(entry, log_dir) for entry in entries]
-    records.sort(key=lambda record: (
-        record.get("day") or "",
-        record.get("timestamp") or "",
-        record.get("id") or "",
-    ))
-    return {"version": INDEX_VERSION, "entries": records}
-
-
-def ensure_index_data(log_dir: Path, config: SectionProxy) -> dict:
-    """Ensure an index exists, rebuilding from source files when necessary."""
-
-    data = load_index_data(log_dir)
-    if data is not None:
-        return data
-
-    entries = list(iter_diary_entries(log_dir, config))
-    data = build_index_from_entries(entries, log_dir)
-    save_index_data(log_dir, data)
-    return data
-
-
-def append_index_entry(log_dir: Path, entry: DiaryEntry) -> None:
-    """Append a new entry to the on-disk index."""
-
-    data = load_index_data(log_dir)
-    if data is None or data.get("version") != INDEX_VERSION:
-        data = {"version": INDEX_VERSION, "entries": []}
-
-    record = diary_entry_to_index_record(entry, log_dir)
-    data.setdefault("entries", []).append(record)
-    save_index_data(log_dir, data)
-
-
-def iter_index_entries(
-    log_dir: Path, config: SectionProxy
-) -> Iterable[DiaryEntry]:
-    """Yield ``DiaryEntry`` objects sourced from the persistent index."""
-
-    data = ensure_index_data(log_dir, config)
-    for record in data.get("entries", []):
-        day_value = record.get("day")
-        entry_day = date.fromisoformat(day_value) if day_value else None
-        lines = tuple(record.get("lines", []))
-        tags = tuple(record.get("tags", []))
-        metadata = dict(record.get("metadata", {}))
-        source_name = record.get("source") or ""
-        source_path = log_dir / source_name if source_name else log_dir
-
-        yield DiaryEntry(
-            day=entry_day,
-            timestamp=record.get("timestamp", "00:00"),
-            lines=lines,
-            tags=tags,
-            metadata=metadata,
-            metadata_numbers=build_numeric_metadata(metadata),
-            source=source_path,
+    def finalize_entry():
+        if current_time is None:
+            return
+        # Generate deterministic UUID for legacy entries
+        if current_uuid:
+            entry_uuid = current_uuid
+        else:
+            # Create deterministic UUID from file path, timestamp, and first line
+            first_line = current_lines[0] if current_lines else ""
+            seed = f"{day_file.name}:{current_time}:{first_line}"
+            hash_digest = hashlib.sha256(seed.encode()).hexdigest()
+            # Use first 22 chars of hash as deterministic UUID
+            entry_uuid = hash_digest[:22]
+        combined_tags = current_legacy_tags + current_explicit_tags
+        tags = deduplicate_tags(combined_tags, current_lines)
+        entries.append(
+            DiaryEntry(
+                uuid=entry_uuid,
+                day=day,
+                timestamp=current_time,
+                lines=tuple(current_lines),
+                tags=tags,
+                metadata=dict(current_metadata),
+                metadata_numbers=build_numeric_metadata(current_metadata),
+                source=day_file,
+            )
         )
 
+    for line in lines:
+        match = ENTRY_LINE_PATTERN.match(line)
+        if match:
+            finalize_entry()
+            uuid_part, time_part, remainder = match.groups()
+            current_uuid = uuid_part
+            current_time = time_part.strip(":")
+            
+            legacy_match = LEGACY_TAG_PATTERN.match(remainder)
+            if legacy_match:
+                current_legacy_tags = legacy_match.group("tags").split(",")
+                remainder = remainder[legacy_match.end() :]
+            else:
+                current_legacy_tags = []
 
-def rebuild_index(log_dir: Path, config: SectionProxy) -> dict:
-    """Rebuild and persist the search index from the diary files."""
-
-    entries = list(iter_diary_entries(log_dir, config))
-    data = build_index_from_entries(entries, log_dir)
-    save_index_data(log_dir, data)
-    return data
-
-
-def parse_args(config_path: Path) -> argparse.Namespace:
-    """Parse CLI arguments."""
-    parser = argparse.ArgumentParser(
-        prog="kaydet",
-        description=__description__,
-        epilog=dedent(
-            f"""
-            You can configure this by editing: {config_path}
-
-              $ kaydet 'I am feeling grateful now.'
-              $ kaydet "Fixed issue" status:done time:45m #work
-              $ kaydet \"When I'm typing this I felt that I need an editor\" --editor
-            """
-        ).strip(),
-        formatter_class=argparse.RawTextHelpFormatter,
-    )
-    parser.add_argument(
-        "entry",
-        type=str,
-        nargs="*",
-        metavar="Entry",
-        help=(
-            "Entry content. Add metadata tokens (status:done) or tags (#project-x) "
-            "as separate arguments after the message. If omitted, the configured "
-            "editor opens for a longer note."
-        ),
-    )
-    parser.add_argument(
-        "--editor",
-        "-e",
-        dest="use_editor",
-        action="store_true",
-        help="Force opening the configured editor, even when an entry is provided.",
-    )
-    parser.add_argument(
-        "--folder",
-        "-f",
-        dest="open_folder",
-        nargs="?",
-        const="",
-        metavar="TAG",
-        help="Open the main log directory or, if TAG is given, the tag folder.",
-    )
-    parser.add_argument(
-        "--reminder",
-        dest="reminder",
-        action="store_true",
-        help="Print a reminder if it has been more than two hours since the last entry.",
-    )
-    parser.add_argument(
-        "--stats",
-        dest="stats",
-        action="store_true",
-        help="Show a calendar for the current month with daily entry counts.",
-    )
-    parser.add_argument(
-        "--tags",
-        dest="list_tags",
-        action="store_true",
-        help="List every tag you have used so far and exit.",
-    )
-    parser.add_argument(
-        "--search",
-        dest="search",
-        metavar="TEXT",
-        help="Search diary entries for the given text and exit.",
-    )
-    parser.add_argument(
-        "--doctor",
-        dest="doctor",
-        action="store_true",
-        help="Rebuild the search index from existing entries and exit.",
-    )
-    parser.add_argument(
-        "--format",
-        dest="output_format",
-        choices=["text", "json"],
-        default="text",
-        help="Output format for search, tags, and stats commands (default: text).",
-    )
-    parser.add_argument(
-        "--version",
-        action="version",
-        version=f"%(prog)s {__version__}",
-        help="Print the current kaydet version and exit.",
-    )
-    return parser.parse_args()
+            remainder = remainder.lstrip()
+            message_line, parsed_metadata, explicit_tags = parse_stored_entry_remainder(remainder)
+            current_lines = [message_line]
+            current_metadata = parsed_metadata
+            current_explicit_tags = explicit_tags
+        elif current_time is not None:
+            current_lines.append(line)
+    finalize_entry()
+    return entries
 
 
-def get_entry(
-    args: argparse.Namespace, config: SectionProxy
-) -> Tuple[str, Dict[str, str], Tuple[str, ...]]:
-    """Resolve entry content, metadata, and tags from CLI arguments or an editor."""
-
-    tokens = list(args.entry or [])
-    message_tokens, metadata, explicit_tags = partition_entry_tokens(tokens)
-
-    message_text = " ".join(message_tokens)
-    should_open_editor = args.use_editor or (
-        not message_text and not metadata and not explicit_tags
-    )
-
-    if should_open_editor:
-        entry_text = open_editor(message_text, config["EDITOR"])
-    else:
-        entry_text = message_text
-
-    return entry_text, metadata, tuple(explicit_tags)
+def deduplicate_tags(
+    initial_tags: Iterable[str],
+    lines: Iterable[str],
+) -> Tuple[str, ...]:
+    """Return unique lowercase tags."""
+    seen: List[str] = []
+    def register(tag: str):
+        if (tag_lower := tag.lower()) and tag_lower not in seen:
+            seen.append(tag_lower)
+    for tag in initial_tags:
+        register(tag)
+    for line in lines:
+        for tag in HASHTAG_PATTERN.findall(line):
+            register(tag)
+    return tuple(seen)
 
 
-def open_editor(initial_text: str, editor_command: str) -> str:
-    """Open a temporary file with the configured editor and return its contents."""
-    fd, tmp_path = mkstemp()
-    temp_file = Path(tmp_path)
+def extract_tags_from_text(entry_text: str) -> Tuple[str, ...]:
+    """Return all unique hashtags present in the entry text."""
+    if not entry_text:
+        return ()
+    return deduplicate_tags([], entry_text.splitlines() or [entry_text])
+
+
+def iter_diary_entries(log_dir: Path, config: SectionProxy) -> Iterable[DiaryEntry]:
+    """Yield entries from every diary file sorted by filename."""
+    if not log_dir.exists():
+        return
+    day_file_pattern = config.get("DAY_FILE_PATTERN", DEFAULT_SETTINGS["DAY_FILE_PATTERN"])
+    for candidate in sorted(log_dir.glob("*.txt")):
+        if not candidate.is_file():
+            continue
+        entry_date = resolve_entry_date(candidate, day_file_pattern)
+        yield from parse_day_entries(candidate, entry_date)
+
+
+def resolve_entry_date(day_file: Path, pattern: str) -> Optional[date]:
+    """Infer the date represented by a diary file using the configured pattern."""
     try:
-        with fdopen(fd, "w", encoding="utf-8") as handle:
-            handle.write(initial_text)
-        subprocess.call([editor_command, str(temp_file)])
-        return temp_file.read_text(encoding="utf-8")
-    finally:
-        try:
-            remove(temp_file)
-        except OSError:
-            pass
+        return datetime.strptime(day_file.name, pattern).date()
+    except ValueError:
+        return None
 
 
 def get_config() -> Tuple[SectionProxy, Path, Path]:
@@ -670,30 +351,57 @@ def get_config() -> Tuple[SectionProxy, Path, Path]:
     config_root = Path(env.get("XDG_CONFIG_HOME") or Path.home() / ".config")
     config_dir = config_root / "kaydet"
     config_dir.mkdir(parents=True, exist_ok=True)
-
     parser = ConfigParser(interpolation=None)
     config_path = config_dir / "config.ini"
-
     if config_path.exists():
         parser.read(config_path, encoding="utf-8")
-
-    updated = False
     if CONFIG_SECTION not in parser:
-        parser[CONFIG_SECTION] = DEFAULT_SETTINGS.copy()
-        updated = True
-
+        parser[CONFIG_SECTION] = {}
     section = parser[CONFIG_SECTION]
+    updated = False
     for key, value in DEFAULT_SETTINGS.items():
-        current = section.get(key)
-        if current is None or current.strip() == "":
+        if not section.get(key):
             section[key] = value
             updated = True
-
     if updated:
         with config_path.open("w", encoding="utf-8") as config_file:
             parser.write(config_file)
-
     return section, config_path, config_dir
+
+
+def get_entry(
+    args: argparse.Namespace,
+    config: SectionProxy,
+) -> Tuple[str, Dict[str, str], Tuple[str, ...]]:
+    """Resolve entry content, metadata, and tags from CLI arguments or an editor."""
+    tokens = list(args.entry or [])
+    message_tokens, metadata, explicit_tags = partition_entry_tokens(tokens)
+    message_text = " ".join(message_tokens)
+    if args.use_editor or not (message_text or metadata or explicit_tags):
+        editor_text = open_editor(message_text, config["EDITOR"])
+        # Editor text is returned as-is; metadata and tags can be embedded with # and key:value
+        return editor_text, {}, ()
+    return message_text, metadata, tuple(explicit_tags)
+
+
+def open_editor(initial_text: str, editor_command: str) -> str:
+    """Open a temporary file with the configured editor and return its contents."""
+    fd, tmp_path = mkstemp()
+    try:
+        with fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(initial_text)
+        subprocess.call(shlex.split(editor_command) + [str(tmp_path)])
+        return Path(tmp_path).read_text(encoding="utf-8")
+    finally:
+        try:
+            remove(tmp_path)
+        except OSError:
+            pass
+
+
+def save_last_entry_timestamp(config_dir: Path, moment: datetime) -> None:
+    """Persist the provided timestamp for subsequent reminder checks."""
+    (config_dir / LAST_ENTRY_FILENAME).write_text(moment.isoformat(), encoding="utf-8")
 
 
 def load_last_entry_timestamp(
@@ -711,19 +419,13 @@ def load_last_entry_timestamp(
     latest_mtime: Optional[float] = None
     if log_dir.exists():
         for candidate in log_dir.iterdir():
-            if candidate.is_file():
+            if candidate.is_file() and candidate.suffix == ".txt":
                 mtime = candidate.stat().st_mtime
                 if latest_mtime is None or mtime > latest_mtime:
                     latest_mtime = mtime
     if latest_mtime is None:
         return None
     return datetime.fromtimestamp(latest_mtime)
-
-
-def save_last_entry_timestamp(config_dir: Path, moment: datetime) -> None:
-    """Persist the provided timestamp for subsequent reminder checks."""
-    record_path = config_dir / LAST_ENTRY_FILENAME
-    record_path.write_text(moment.isoformat(), encoding="utf-8")
 
 
 def maybe_show_reminder(
@@ -745,58 +447,245 @@ def maybe_show_reminder(
         )
 
 
-def ensure_day_file(
-    log_dir: Path, now: datetime, config: SectionProxy
-) -> Path:
-    """Ensure the daily file exists and return its path."""
-    log_dir.mkdir(parents=True, exist_ok=True)
-
-    file_name = now.strftime(config["DAY_FILE_PATTERN"])
-    day_file = log_dir / file_name
-
-    if not day_file.exists():
-        title = now.strftime(config["DAY_TITLE_PATTERN"])
-        with day_file.open("w", encoding="utf-8") as handle:
-            handle.write(f"{title}\n")
-            handle.write("-" * (len(title) - 1))
-            handle.write("\n")
-
-    return day_file
-
-
 def append_entry(
     day_file: Path,
+    uuid: str,
     timestamp: str,
     entry_text: str,
     metadata: Dict[str, str],
     explicit_tags: Iterable[str],
-) -> Tuple[str, Tuple[str, ...], Tuple[str, ...]]:
-    """Append a timestamped entry and return stored lines and tags."""
-
+) -> Tuple[str, ...]:
+    """Append a timestamped entry with a UUID and return all tags."""
     message_lines = entry_text.splitlines() or [entry_text]
     first_line = message_lines[0] if message_lines else ""
     extra_lines = tuple(message_lines[1:])
-
     embedded_tags = extract_tags_from_text(entry_text)
-    embedded_set = set(embedded_tags)
-
-    unique_explicit: List[str] = []
-    for tag in explicit_tags:
-        normalized = tag.lower()
-        if normalized and normalized not in unique_explicit:
-            unique_explicit.append(normalized)
-
-    extra_tag_markers = [tag for tag in unique_explicit if tag not in embedded_set]
+    unique_explicit = sorted(list(set(t.lower() for t in explicit_tags if t)))
+    extra_tag_markers = [t for t in unique_explicit if t not in set(embedded_tags)]
     all_tags = deduplicate_tags(unique_explicit, message_lines)
-
-    header_line = format_entry_header(timestamp, first_line, metadata, extra_tag_markers)
+    
+    formatted_header = format_entry_header(timestamp, first_line, metadata, extra_tag_markers)
+    header_line = f"{uuid}:{formatted_header}"
 
     with day_file.open("a", encoding="utf-8") as handle:
         handle.write(f"{header_line}\n")
         for line in extra_lines:
             handle.write(f"{line}\n")
+    return all_tags
 
-    return header_line, extra_lines, all_tags
+
+def run_search(
+    db: sqlite3.Connection,
+    log_dir: Path,
+    config: SectionProxy,
+    query: str,
+    output_format: str = "text",
+) -> None:
+    """Search diary entries using the SQLite index and print any matches."""
+    # Check if database is empty and auto-rebuild if needed
+    cursor = db.cursor()
+    cursor.execute("SELECT COUNT(*) FROM entries")
+    entry_count = cursor.fetchone()[0]
+
+    if entry_count == 0 and log_dir.exists():
+        # Check if there are any .txt files to index
+        txt_files = list(log_dir.glob("*.txt"))
+        if txt_files:
+            print("Search index is empty. Rebuilding from existing files...")
+            run_doctor(db, log_dir, config)
+            print()  # Add spacing after doctor output
+
+    text_terms, metadata_filters, tag_filters = tokenize_query(query)
+    if not any([text_terms, metadata_filters, tag_filters]):
+        print("Search query is empty.")
+        return
+
+    params: List[str | float] = []
+    from_clauses = ["entries e"]
+    where_clauses: List[str] = []
+
+    for i, term in enumerate(text_terms):
+        from_clauses.append(f"JOIN words w{i} ON e.id = w{i}.entry_id")
+        where_clauses.append(f"w{i}.word LIKE ?")
+        params.append(f"%{term}%")
+    for i, tag in enumerate(tag_filters):
+        from_clauses.append(f"JOIN tags t{i} ON e.id = t{i}.entry_id")
+        where_clauses.append(f"t{i}.tag_name = ?")
+        params.append(tag)
+    for i, (key, expression) in enumerate(metadata_filters):
+        from_clauses.append(f"JOIN metadata m{i} ON e.id = m{i}.entry_id")
+        where_clauses.append(f"m{i}.meta_key = ?")
+        params.append(key)
+        if comp := parse_comparison_expression(expression):
+            op, val = comp
+            where_clauses.append(f"m{i}.numeric_value {op} ?")
+            params.append(val)
+        elif rng := parse_range_expression(expression):
+            lower, upper = rng
+            if lower is not None:
+                where_clauses.append(f"m{i}.numeric_value >= ?")
+                params.append(lower)
+            if upper is not None:
+                where_clauses.append(f"m{i}.numeric_value <= ?")
+                params.append(upper)
+        elif any(c in expression for c in "*?["):
+            where_clauses.append(f"m{i}.meta_value GLOB ?")
+            params.append(expression)
+        else:
+            where_clauses.append(f"m{i}.meta_value = ?")
+            params.append(expression)
+
+    sql_query = f'SELECT DISTINCT e.source_file, e.entry_uuid FROM {" ".join(from_clauses)} WHERE {" AND ".join(where_clauses)} ORDER BY e.source_file, e.id'
+
+    cursor = db.cursor()
+    try:
+        cursor.execute(sql_query, params)
+        locations = cursor.fetchall()
+    except sqlite3.OperationalError as e:
+        print(f"Database query failed: {e}")
+        return
+
+    if not locations:
+        print(f"No entries matched '{query}'.")
+        return
+
+    file_map = defaultdict(list)
+    for source_file, uuid in locations:
+        file_map[source_file].append(uuid)
+
+    matches: List[DiaryEntry] = []
+    day_file_pattern = config.get("DAY_FILE_PATTERN", DEFAULT_SETTINGS["DAY_FILE_PATTERN"])
+    for source_file, uuids in file_map.items():
+        full_path = log_dir / source_file
+        if not full_path.exists():
+            continue
+        entry_date = resolve_entry_date(full_path, day_file_pattern)
+        entries_in_file = parse_day_entries(full_path, entry_date)
+        entry_map = {entry.uuid: entry for entry in entries_in_file}
+        for uuid in uuids:
+            if uuid in entry_map:
+                matches.append(entry_map[uuid])
+
+    matches.sort(key=lambda e: (e.day or date.min, e.timestamp))
+
+    if output_format == "json":
+        print(json.dumps({"query": query, "matches": [m.to_dict() for m in matches], "total": len(matches)}, indent=2, ensure_ascii=False))
+    else:
+        for match in matches:
+            day_label = match.day.isoformat() if match.day else match.source.name
+            first_line, *rest = list(match.lines) or [""]
+
+            # Build header with metadata and tags
+            parts = [f"{day_label} {match.timestamp} {first_line}".rstrip()]
+            if match.metadata:
+                metadata_str = " ".join(f"{k}:{v}" for k, v in match.metadata.items())
+                parts.append(metadata_str)
+            if match.tags:
+                tags_str = " ".join(f"#{tag}" for tag in match.tags)
+                parts.append(tags_str)
+
+            header = " | ".join(parts) if len(parts) > 1 else parts[0]
+            print(header)
+            for extra in rest:
+                print(f"    {extra}")
+            print()
+        print(f"\nFound {len(matches)} {'entry' if len(matches) == 1 else 'entries'} containing '{query}'.")
+
+
+def list_tags(db: sqlite3.Connection, output_format: str = "text") -> None:
+    """Print the unique set of tags recorded in the database."""
+    cursor = db.cursor()
+    cursor.execute("SELECT DISTINCT tag_name FROM tags ORDER BY tag_name")
+    tags = [row[0] for row in cursor.fetchall()]
+    if not tags:
+        if output_format == "json":
+            print(json.dumps({"tags": []}))
+        else:
+            print("No tags have been recorded yet.")
+        return
+    if output_format == "json":
+        print(json.dumps({"tags": tags}, indent=2))
+    else:
+        print("\n".join(tags))
+
+
+def run_doctor(db: sqlite3.Connection, log_dir: Path, config: SectionProxy) -> None:
+    """Rebuild the SQLite index from all existing diary files."""
+    print("Rebuilding search index from diary files... This may take a moment.")
+    for table in ["entries", "tags", "words", "metadata"]:
+        db.execute(f"DELETE FROM {table}")
+    db.commit()
+
+    total_entries = 0
+    for entry in iter_diary_entries(log_dir, config):
+        words = extract_words_from_text(entry.text)
+        full_metadata = {
+            key: (value, num_value)
+            for key, num_value in entry.metadata_numbers.items()
+            if (value := entry.metadata.get(key)) is not None
+        }
+        database.add_entry(
+            db=db,
+            entry_uuid=entry.uuid,
+            source_file=entry.source.name,
+            timestamp=entry.timestamp,
+            tags=entry.tags,
+            words=words,
+            metadata=full_metadata,
+        )
+        total_entries += 1
+
+    if log_dir.exists():
+        for child in log_dir.iterdir():
+            if child.is_dir() and TAG_PATTERN.fullmatch(child.name):
+                shutil.rmtree(child)
+
+    print(f"Rebuilt search index for {total_entries} {'entry' if total_entries == 1 else 'entries'}.")
+
+    # Print tag statistics
+    cursor = db.cursor()
+    cursor.execute("""
+        SELECT tag_name, COUNT(*) as count
+        FROM tags
+        GROUP BY tag_name
+        ORDER BY tag_name
+    """)
+    tag_stats = cursor.fetchall()
+    if tag_stats:
+        tag_list = ", ".join(f"#{tag}: {count}" for tag, count in tag_stats)
+        print(f"Tags: {tag_list}")
+
+
+def extract_words_from_text(text: str) -> List[str]:
+    """Extracts and normalizes words from a string for full-text indexing."""
+    return re.sub(r"[^\w\s]", "", text).lower().split()
+
+
+def collect_month_counts(
+    log_dir: Path, config: SectionProxy, year: int, month: int
+) -> Dict[int, int]:
+    """Return a mapping of day number to entry count for the given month."""
+    counts: Dict[int, int] = defaultdict(int)
+    day_file_pattern = config.get(
+        "DAY_FILE_PATTERN", DEFAULT_SETTINGS["DAY_FILE_PATTERN"]
+    )
+
+    for candidate in sorted(log_dir.iterdir()):
+        if not candidate.is_file():
+            continue
+
+        entry_date = resolve_entry_date(candidate, day_file_pattern)
+        if entry_date is None:
+            entry_date = datetime.fromtimestamp(
+                candidate.stat().st_mtime
+            ).date()
+
+        if entry_date.year != year or entry_date.month != month:
+            continue
+
+        counts[entry_date.day] += count_entries(candidate)
+
+    return dict(counts)
 
 
 def show_calendar_stats(
@@ -855,375 +744,73 @@ def show_calendar_stats(
             print(f"\nTotal entries this month: {total_entries}")
 
 
-def collect_month_counts(
-    log_dir: Path, config: SectionProxy, year: int, month: int
-) -> Dict[int, int]:
-    """Return a mapping of day number to entry count for the given month."""
-    counts: Dict[int, int] = defaultdict(int)
-    day_file_pattern = config.get(
-        "DAY_FILE_PATTERN", DEFAULT_SETTINGS["DAY_FILE_PATTERN"]
-    )
-
-    for candidate in sorted(log_dir.iterdir()):
-        if not candidate.is_file():
-            continue
-
-        entry_date = resolve_entry_date(candidate, day_file_pattern)
-        if entry_date is None:
-            entry_date = datetime.fromtimestamp(
-                candidate.stat().st_mtime
-            ).date()
-
-        if entry_date.year != year or entry_date.month != month:
-            continue
-
-        counts[entry_date.day] += count_entries(candidate)
-
-    return dict(counts)
-
-
-def resolve_entry_date(day_file: Path, pattern: str) -> Optional[date]:
-    """Infer the date represented by a diary file using the configured pattern."""
-    try:
-        return datetime.strptime(day_file.name, pattern).date()
-    except ValueError:
-        return None
-
-
-def count_entries(day_file: Path) -> int:
-    """Count timestamped diary entries inside a daily file."""
-    lines = read_diary_lines(day_file)
-    return sum(1 for line in lines if ENTRY_LINE_PATTERN.match(line))
-
-
-def parse_day_entries(day_file: Path, day: Optional[date]) -> List[DiaryEntry]:
-    """Parse structured entries from a diary file."""
-    lines = read_diary_lines(day_file)
-
-    entries: List[DiaryEntry] = []
-    current_time: Optional[str] = None
-    current_lines: List[str] = []
-    current_legacy_tags: List[str] = []
-    current_metadata: Dict[str, str] = {}
-    current_explicit_tags: List[str] = []
-
-    for line in lines:
-        if ENTRY_LINE_PATTERN.match(line):
-            if current_time is not None:
-                combined_initial_tags = current_legacy_tags + current_explicit_tags
-                tags = deduplicate_tags(combined_initial_tags, current_lines)
-                entries.append(
-                    DiaryEntry(
-                        day=day,
-                        timestamp=current_time,
-                        lines=tuple(current_lines),
-                        tags=tags,
-                        metadata=dict(current_metadata),
-                        metadata_numbers=build_numeric_metadata(current_metadata),
-                        source=day_file,
-                    )
-                )
-
-            timestamp, remainder = line.split(": ", 1)
-            legacy_tags: List[str] = []
-            match = LEGACY_TAG_PATTERN.match(remainder)
-            if match:
-                legacy_tags.extend(match.group("tags").split(","))
-                remainder = remainder[match.end() :]
-
-            remainder = remainder.lstrip()
-            message_line, parsed_metadata, explicit_tags = parse_stored_entry_remainder(
-                remainder
-            )
-
-            current_time = timestamp
-            current_lines = [message_line]
-            current_legacy_tags = legacy_tags
-            current_metadata = parsed_metadata
-            current_explicit_tags = explicit_tags
-        elif current_time is not None:
-            current_lines.append(line)
-
-    if current_time is not None:
-        combined_initial_tags = current_legacy_tags + current_explicit_tags
-        tags = deduplicate_tags(combined_initial_tags, current_lines)
-        entries.append(
-            DiaryEntry(
-                day=day,
-                timestamp=current_time,
-                lines=tuple(current_lines),
-                tags=tags,
-                metadata=dict(current_metadata),
-                metadata_numbers=build_numeric_metadata(current_metadata),
-                source=day_file,
-            )
-        )
-
-    return entries
-
-
-def deduplicate_tags(
-    initial_tags: Iterable[str], lines: Iterable[str]
-) -> Tuple[str, ...]:
-    """Return unique lowercase tags extracted from legacy markers and hashtags.
-
-    >>> deduplicate_tags(['Work'], ['Focus #Idea', 'Next steps #work'])
-    ('work', 'idea')
-    >>> deduplicate_tags([], ['No tags here'])
-    ()
-    """
-    seen: List[str] = []
-
-    def register(tag: str) -> None:
-        tag_lower = tag.lower()
-        if tag_lower and tag_lower not in seen:
-            seen.append(tag_lower)
-
-    for tag in initial_tags:
-        register(tag)
-
-    for line in lines:
-        for tag in HASHTAG_PATTERN.findall(line):
-            register(tag)
-
-    return tuple(seen)
-
-
-def extract_tags_from_text(entry_text: str) -> Tuple[str, ...]:
-    """Return all unique hashtags present in the entry text.
-
-    >>> extract_tags_from_text("Dinner out #family #friends")
-    ('family', 'friends')
-    >>> extract_tags_from_text("Planning #projects\nNotes #ideas #projects")
-    ('projects', 'ideas')
-    >>> extract_tags_from_text("Just text")
-    ()
-    """
-
-    if not entry_text:
-        return ()
-
-    lines = entry_text.splitlines() or [entry_text]
-    return deduplicate_tags([], lines)
-
-
-def iter_diary_entries(
-    log_dir: Path, config: SectionProxy
-) -> Iterable[DiaryEntry]:
-    """Yield entries from every diary file sorted by filename."""
-    if not log_dir.exists():
-        return ()
-
-    day_file_pattern = config.get(
-        "DAY_FILE_PATTERN", DEFAULT_SETTINGS["DAY_FILE_PATTERN"]
-    )
-
-    for candidate in sorted(log_dir.iterdir()):
-        if not candidate.is_file():
-            continue
-
-        entry_date = resolve_entry_date(candidate, day_file_pattern)
-        if entry_date is None:
-            entry_date = datetime.fromtimestamp(
-                candidate.stat().st_mtime
-            ).date()
-
-        for entry in parse_day_entries(candidate, entry_date):
-            yield entry
-
-
-def run_search(
-    log_dir: Path,
-    config: SectionProxy,
-    query: str,
-    output_format: str = "text",
-) -> None:
-    """Search diary entries for the query and print any matches."""
-    if not log_dir.exists():
-        if output_format == "json":
-            print(json.dumps({"error": "No diary entries found yet."}))
-        else:
-            print("No diary entries found yet.")
-        return
-
-    query_norm = query.lower()
-    text_terms, metadata_filters, tag_filters = tokenize_query(query)
-    use_advanced = bool(metadata_filters or tag_filters)
-    matches: List[DiaryEntry] = []
-
-    for entry in iter_index_entries(log_dir, config):
-        if entry_matches(
-            entry,
-            query_norm,
-            text_terms,
-            metadata_filters,
-            tag_filters,
-            use_advanced,
-        ):
-            matches.append(entry)
-
-    if not matches:
-        if output_format == "json":
-            print(json.dumps({"query": query, "matches": [], "total": 0}))
-        else:
-            print(f"No entries matched '{query}'.")
-        return
-
-    if output_format == "json":
-        result = {
-            "query": query,
-            "matches": [match.to_dict() for match in matches],
-            "total": len(matches),
-        }
-        print(json.dumps(result, indent=2))
-    else:
-        for match in matches:
-            day_label = (
-                match.day.isoformat() if match.day else match.source.name
-            )
-            first_line, *rest = list(match.lines) or [""]
-
-            followup_text = " ".join(match.lines[1:])
-            extra_tags = []
-            for tag in match.tags:
-                marker = f"#{tag}"
-                if marker not in first_line and marker not in followup_text:
-                    extra_tags.append(marker)
-
-            segments = [f"{day_label} {match.timestamp} {first_line}".rstrip()]
-
-            if match.metadata:
-                metadata_text = " ".join(
-                    f"{key}:{value}" for key, value in match.metadata.items()
-                )
-                segments.append(metadata_text)
-
-            if extra_tags:
-                segments.append(" ".join(extra_tags))
-
-            print(" | ".join(segment for segment in segments if segment))
-            for extra in rest:
-                print(f"    {extra}")
-            print()
-
-        total = len(matches)
-        suffix = "entry" if total == 1 else "entries"
-        print(f"Found {total} {suffix} containing '{query}'.")
-
-
-def list_tags(
-    log_dir: Path, config: SectionProxy, output_format: str = "text"
-) -> None:
-    """Print the unique set of tags recorded across all diary entries."""
-    if not log_dir.exists():
-        if output_format == "json":
-            print(json.dumps({"error": "No diary entries found yet."}))
-        else:
-            print("No diary entries found yet.")
-        return
-
-    data = ensure_index_data(log_dir, config)
-    tags = sorted(
-        {
-            tag
-            for record in data.get("entries", [])
-            for tag in record.get("tags", [])
-        }
-    )
-    if not tags:
-        if output_format == "json":
-            print(json.dumps({"tags": []}))
-        else:
-            print("No tags have been recorded yet.")
-        return
-
-    if output_format == "json":
-        print(json.dumps({"tags": tags}, indent=2))
-    else:
-        for tag in tags:
-            print(tag)
-
-
-def run_doctor(log_dir: Path, config: SectionProxy) -> None:
-    """Rebuild the structured index and clean up legacy tag folders."""
-    if not log_dir.exists():
-        print("Log directory does not exist yet; nothing to rebuild.")
-        return
-
-    removed = 0
-    for child in list(log_dir.iterdir()):
-        if child.is_dir() and TAG_PATTERN.fullmatch(child.name):
-            shutil.rmtree(child)
-            removed += 1
-
-    data = rebuild_index(log_dir, config)
-    total_entries = len(data.get("entries", []))
-
-    if total_entries == 0:
-        message = "No diary entries found; index cleared."
-        if removed:
-            message = (
-                f"Removed {removed} legacy tag folder(s). "
-                + message
-            )
-        print(message)
-        return
-
-    tag_counts: Dict[str, int] = defaultdict(int)
-    for record in data.get("entries", []):
-        for tag in record.get("tags", []):
-            tag_counts[tag] += 1
-
-    summary = (
-        "No tags recorded."
-        if not tag_counts
-        else ", ".join(
-            f"#{tag}: {count}" for tag, count in sorted(tag_counts.items())
-        )
-    )
-
-    entry_word = "entry" if total_entries == 1 else "entries"
-    message = f"Rebuilt search index for {total_entries} {entry_word}."
-    if removed:
-        message += f" Removed {removed} legacy tag folder(s)."
-    if summary:
-        message += f" Tags: {summary}"
-    print(message)
-
+def ensure_day_file(log_dir: Path, now: datetime, config: SectionProxy) -> Path:
+    """Ensure the daily file exists and return its path."""
+    log_dir.mkdir(parents=True, exist_ok=True)
+    file_name = now.strftime(config["DAY_FILE_PATTERN"])
+    day_file = log_dir / file_name
+    if not day_file.exists():
+        title = now.strftime(config["DAY_TITLE_PATTERN"])
+        with day_file.open("w", encoding="utf-8") as handle:
+            handle.write(f"{title}\n")
+            handle.write("-" * (len(title) - 1))
+            handle.write("\n")
+    return day_file
 
 def main() -> None:
     """Application entry point for the kaydet CLI."""
     config, config_path, config_dir = get_config()
-
-    args = parse_args(config_path)
+    parser = argparse.ArgumentParser(
+        prog="kaydet",
+        description=__description__,
+        epilog=dedent(
+            f"""You can configure this by editing: {config_path}\n\n"""
+            "  $ kaydet 'I am feeling grateful now.'\n"
+            "  $ kaydet \"Fixed issue\" status:done time:45m #work\n"
+            "  $ kaydet --editor"""
+        ),
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
+    parser.add_argument("entry", type=str, nargs="*", metavar="Entry", help="Entry content.")
+    parser.add_argument("--editor", "-e", dest="use_editor", action="store_true", help="Force opening editor.")
+    parser.add_argument("--folder", "-f", dest="open_folder", nargs="?", const="", metavar="TAG", help="Open log directory.")
+    parser.add_argument("--reminder", dest="reminder", action="store_true", help="Show reminder.")
+    parser.add_argument("--stats", dest="stats", action="store_true", help="Show calendar stats.")
+    parser.add_argument("--tags", dest="list_tags", action="store_true", help="List all tags.")
+    parser.add_argument("--search", dest="search", metavar="TEXT", help="Search entries.")
+    parser.add_argument("--doctor", dest="doctor", action="store_true", help="Rebuild search index.")
+    parser.add_argument("--format", dest="output_format", choices=["text", "json"], default="text", help="Output format.")
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}", help="Show version.")
+    args = parser.parse_args()
 
     log_dir = Path(config["LOG_DIR"]).expanduser()
-
     now = datetime.now()
 
     if args.reminder:
         maybe_show_reminder(config_dir, log_dir, now)
         return
-
-    if args.stats:
+    elif args.stats:
         show_calendar_stats(log_dir, config, now, args.output_format)
         return
-
-    if args.list_tags:
-        list_tags(log_dir, config, args.output_format)
-        return
-
-    if args.search:
-        run_search(log_dir, config, args.search, args.output_format)
-        return
-
-    if args.doctor:
-        run_doctor(log_dir, config)
-        return
-
-    log_dir.mkdir(parents=True, exist_ok=True)
-
-    if args.open_folder is not None:
+    elif args.list_tags:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        db_path = log_dir / INDEX_FILENAME
+        db = database.get_db_connection(db_path)
+        database.initialize_database(db)
+        list_tags(db, args.output_format)
+    elif args.search:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        db_path = log_dir / INDEX_FILENAME
+        db = database.get_db_connection(db_path)
+        database.initialize_database(db)
+        run_search(db, log_dir, config, args.search, args.output_format)
+    elif args.doctor:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        db_path = log_dir / INDEX_FILENAME
+        db = database.get_db_connection(db_path)
+        database.initialize_database(db)
+        run_doctor(db, log_dir, config)
+    elif args.open_folder is not None:
         if args.open_folder == "":
             startfile(str(log_dir))
         else:
@@ -1233,32 +820,42 @@ def main() -> None:
                 f"Search for '#{tag_name}' instead."
             )
         return
+    else:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        db_path = log_dir / INDEX_FILENAME
+        db = database.get_db_connection(db_path)
+        database.initialize_database(db)
 
-    day_file = ensure_day_file(log_dir, now, config)
+        day_file = ensure_day_file(log_dir, now, config)
+        raw_entry, metadata, explicit_tags = get_entry(args, config)
+        entry_body = raw_entry.strip()
+        if not entry_body and not metadata and not explicit_tags:
+            print("Nothing to save.")
+            return
 
-    raw_entry, metadata, explicit_tags = get_entry(args, config)
-    entry_body = raw_entry.strip()
+        entry_uuid = shortuuid.uuid()
+        timestamp = now.strftime("%H:%M")
 
-    if not entry_body and not metadata and not explicit_tags:
-        print("Nothing to save.")
-        return
-
-    timestamp = now.strftime("%H:%M")
-    header_line, extra_lines, tags = append_entry(
-        day_file, timestamp, entry_body, metadata, explicit_tags
-    )
-    save_last_entry_timestamp(config_dir, now)
-
-    entry_lines = tuple(entry_body.splitlines() or [entry_body])
-    indexed_entry = DiaryEntry(
-        day=now.date(),
-        timestamp=timestamp,
-        lines=entry_lines,
-        tags=tags,
-        metadata=dict(metadata),
-        metadata_numbers=build_numeric_metadata(metadata),
-        source=day_file,
-    )
-    append_index_entry(log_dir, indexed_entry)
-
-    print("Entry added to:", day_file)
+        tags = append_entry(
+            day_file=day_file,
+            uuid=entry_uuid,
+            timestamp=timestamp,
+            entry_text=entry_body,
+            metadata=metadata,
+            explicit_tags=explicit_tags,
+        )
+        save_last_entry_timestamp(config_dir, now)
+        
+        words = extract_words_from_text(entry_body)
+        full_metadata = {k: (v, parse_numeric_value(v)) for k, v in metadata.items()}
+        
+        database.add_entry(
+            db=db,
+            entry_uuid=entry_uuid,
+            source_file=day_file.name,
+            timestamp=timestamp,
+            tags=tags,
+            words=words,
+            metadata=full_metadata,
+        )
+        print("Entry added to:", day_file)
