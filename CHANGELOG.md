@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.26.1] - 2025-10-24
+### Fixed
+- Fixed metadata query tokenization to allow plain text searches for URLs and times containing colons
+- Queries like `--search "http://example.com"` and `--search "12:30"` now correctly match entry text instead of being treated as invalid metadata filters
+- The tokenizer now uses strict pattern matching (`KEY_VALUE_PATTERN`) to distinguish valid metadata keys (must start with a lowercase letter) from arbitrary colon-containing text
+
 ## [0.26.0] - 2025-10-24
 ### Added
 - Added structured metadata support with key-value syntax (e.g., `commit:38edf60 pr:76 time:2h status:done`)

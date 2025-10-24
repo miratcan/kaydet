@@ -796,3 +796,58 @@ def test_stats_ignores_directories(
 def test_extract_tags_empty_string():
     """Test the pure function extract_tags_from_text with an empty string."""
     assert cli.extract_tags_from_text("") == ()
+
+
+def test_search_with_colon_containing_text(setup_kaydet, capsys, mock_datetime_factory):
+    """Test that URLs and times with colons are searchable as plain text."""
+    fake_log_dir = setup_kaydet["fake_log_dir"]
+    monkeypatch = setup_kaydet["monkeypatch"]
+    fake_log_dir.mkdir(exist_ok=True)
+
+    # Create entries with URLs and times
+    mock_datetime_factory(datetime(2025, 10, 24, 9, 0, 0))
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["kaydet", "Check out http://example.com for details"],
+    )
+    cli.main()
+
+    mock_datetime_factory(datetime(2025, 10, 24, 12, 30, 0))
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["kaydet", "Meeting at 12:30 with the team"],
+    )
+    cli.main()
+
+    mock_datetime_factory(datetime(2025, 10, 24, 14, 0, 0))
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["kaydet", "Deployed fix", "commit:38edf60"],
+    )
+    cli.main()
+
+    # Search for URL - should match as plain text
+    monkeypatch.setattr(sys, "argv", ["kaydet", "--search", "http://example.com"])
+    cli.main()
+    output = capsys.readouterr().out
+    assert "http://example.com" in output
+    assert "Meeting" not in output
+
+    # Search for time - should match as plain text
+    monkeypatch.setattr(sys, "argv", ["kaydet", "--search", "12:30"])
+    cli.main()
+    output = capsys.readouterr().out
+    assert "12:30" in output
+    assert "http://example.com" not in output
+
+    # Search for valid metadata should still work
+    monkeypatch.setattr(sys, "argv", ["kaydet", "--search", "commit:38edf60"])
+    cli.main()
+    output = capsys.readouterr().out
+    assert "Deployed fix" in output
+    assert "commit:38edf60" in output
+    assert "Meeting" not in output
+    assert "http://example.com" not in output
