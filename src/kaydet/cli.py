@@ -9,6 +9,7 @@ import re
 import shutil
 import subprocess
 from collections import defaultdict
+import hashlib
 from configparser import ConfigParser, SectionProxy
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -43,6 +44,8 @@ HASHTAG_PATTERN = re.compile(r"#([a-z-]+)")
 TAG_PATTERN = re.compile(r"^[a-z-]+$")
 KEY_VALUE_PATTERN = re.compile(r"^(?P<key>[a-z][a-z0-9_-]*):(?P<value>.+)$")
 NUMERIC_PATTERN = re.compile(r"^[-+]?\d+(?:\.\d+)?$")
+INDEX_FILENAME = "index.json"
+INDEX_VERSION = 1
 
 
 def normalize_tag(tag: str) -> Optional[str]:
@@ -377,6 +380,163 @@ class DiaryEntry:
         }
 
 
+def get_index_path(log_dir: Path) -> Path:
+    """Return the path to the structured index file for the log directory."""
+
+    return log_dir / INDEX_FILENAME
+
+
+def load_index_data(log_dir: Path) -> Optional[dict]:
+    """Load the persisted index for the diary if available."""
+
+    index_file = get_index_path(log_dir)
+    if not index_file.exists():
+        return None
+
+    try:
+        data = json.loads(index_file.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+    if data.get("version") != INDEX_VERSION:
+        return None
+
+    if "entries" not in data or not isinstance(data["entries"], list):
+        return None
+
+    return data
+
+
+def save_index_data(log_dir: Path, data: dict) -> None:
+    """Persist the supplied index data to disk."""
+
+    index_file = get_index_path(log_dir)
+    index_file.parent.mkdir(parents=True, exist_ok=True)
+    index_file.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def compute_entry_id(
+    source_identifier: str, timestamp: str, lines: Iterable[str], metadata: Dict[str, str]
+) -> str:
+    """Return a stable identifier for an entry for indexing purposes."""
+
+    hasher = hashlib.sha1()
+    hasher.update(source_identifier.encode("utf-8"))
+    hasher.update(b"|")
+    hasher.update(timestamp.encode("utf-8"))
+    hasher.update(b"|")
+    for line in lines:
+        hasher.update(line.encode("utf-8"))
+        hasher.update(b"\n")
+
+    if metadata:
+        for key in sorted(metadata):
+            hasher.update(key.encode("utf-8"))
+            hasher.update(b"=")
+            hasher.update(metadata[key].encode("utf-8"))
+            hasher.update(b"\0")
+
+    digest = hasher.hexdigest()[:16]
+    return f"{source_identifier}:{timestamp}:{digest}"
+
+
+def diary_entry_to_index_record(entry: DiaryEntry, log_dir: Path) -> dict:
+    """Convert a ``DiaryEntry`` to a serializable record for the index."""
+
+    try:
+        relative_source = entry.source.relative_to(log_dir).as_posix()
+    except ValueError:
+        relative_source = entry.source.name
+
+    lines = list(entry.lines)
+    metadata = dict(entry.metadata)
+    entry_id = compute_entry_id(relative_source, entry.timestamp, lines, metadata)
+
+    return {
+        "id": entry_id,
+        "day": entry.day.isoformat() if entry.day else None,
+        "timestamp": entry.timestamp,
+        "lines": lines,
+        "tags": list(entry.tags),
+        "metadata": metadata,
+        "source": relative_source,
+    }
+
+
+def build_index_from_entries(
+    entries: Iterable[DiaryEntry], log_dir: Path
+) -> dict:
+    """Build a structured index representation from diary entries."""
+
+    records = [diary_entry_to_index_record(entry, log_dir) for entry in entries]
+    records.sort(key=lambda record: (
+        record.get("day") or "",
+        record.get("timestamp") or "",
+        record.get("id") or "",
+    ))
+    return {"version": INDEX_VERSION, "entries": records}
+
+
+def ensure_index_data(log_dir: Path, config: SectionProxy) -> dict:
+    """Ensure an index exists, rebuilding from source files when necessary."""
+
+    data = load_index_data(log_dir)
+    if data is not None:
+        return data
+
+    entries = list(iter_diary_entries(log_dir, config))
+    data = build_index_from_entries(entries, log_dir)
+    save_index_data(log_dir, data)
+    return data
+
+
+def append_index_entry(log_dir: Path, entry: DiaryEntry) -> None:
+    """Append a new entry to the on-disk index."""
+
+    data = load_index_data(log_dir)
+    if data is None or data.get("version") != INDEX_VERSION:
+        data = {"version": INDEX_VERSION, "entries": []}
+
+    record = diary_entry_to_index_record(entry, log_dir)
+    data.setdefault("entries", []).append(record)
+    save_index_data(log_dir, data)
+
+
+def iter_index_entries(
+    log_dir: Path, config: SectionProxy
+) -> Iterable[DiaryEntry]:
+    """Yield ``DiaryEntry`` objects sourced from the persistent index."""
+
+    data = ensure_index_data(log_dir, config)
+    for record in data.get("entries", []):
+        day_value = record.get("day")
+        entry_day = date.fromisoformat(day_value) if day_value else None
+        lines = tuple(record.get("lines", []))
+        tags = tuple(record.get("tags", []))
+        metadata = dict(record.get("metadata", {}))
+        source_name = record.get("source") or ""
+        source_path = log_dir / source_name if source_name else log_dir
+
+        yield DiaryEntry(
+            day=entry_day,
+            timestamp=record.get("timestamp", "00:00"),
+            lines=lines,
+            tags=tags,
+            metadata=metadata,
+            metadata_numbers=build_numeric_metadata(metadata),
+            source=source_path,
+        )
+
+
+def rebuild_index(log_dir: Path, config: SectionProxy) -> dict:
+    """Rebuild and persist the search index from the diary files."""
+
+    entries = list(iter_diary_entries(log_dir, config))
+    data = build_index_from_entries(entries, log_dir)
+    save_index_data(log_dir, data)
+    return data
+
+
 def parse_args(config_path: Path) -> argparse.Namespace:
     """Parse CLI arguments."""
     parser = argparse.ArgumentParser(
@@ -446,7 +606,7 @@ def parse_args(config_path: Path) -> argparse.Namespace:
         "--doctor",
         dest="doctor",
         action="store_true",
-        help="Rebuild tag archives from existing entries and exit.",
+        help="Rebuild the search index from existing entries and exit.",
     )
     parser.add_argument(
         "--format",
@@ -627,24 +787,6 @@ def append_entry(
             handle.write(f"{line}\n")
 
     return header_line, extra_lines, all_tags
-
-
-def mirror_entry_to_tag_files(
-    log_dir: Path,
-    config: SectionProxy,
-    now: datetime,
-    header_line: str,
-    extra_lines: Tuple[str, ...],
-    tags: Tuple[str, ...],
-) -> None:
-    """Write the entry to per-tag daily files so tag archives stay in sync."""
-    for tag in tags:
-        tag_dir = log_dir / tag
-        tag_day_file = ensure_day_file(tag_dir, now, config)
-        with tag_day_file.open("a", encoding="utf-8") as handle:
-            handle.write(f"{header_line}\n")
-            for line in extra_lines:
-                handle.write(f"{line}\n")
 
 
 def show_calendar_stats(
@@ -899,7 +1041,7 @@ def run_search(
     use_advanced = bool(metadata_filters or tag_filters)
     matches: List[DiaryEntry] = []
 
-    for entry in iter_diary_entries(log_dir, config):
+    for entry in iter_index_entries(log_dir, config):
         if entry_matches(
             entry,
             query_norm,
@@ -970,12 +1112,15 @@ def list_tags(
             print("No diary entries found yet.")
         return
 
-    folders = sorted(
-        child.name
-        for child in log_dir.iterdir()
-        if child.is_dir() and TAG_PATTERN.fullmatch(child.name)
+    data = ensure_index_data(log_dir, config)
+    tags = sorted(
+        {
+            tag
+            for record in data.get("entries", [])
+            for tag in record.get("tags", [])
+        }
     )
-    if not folders:
+    if not tags:
         if output_format == "json":
             print(json.dumps({"tags": []}))
         else:
@@ -983,77 +1128,57 @@ def list_tags(
         return
 
     if output_format == "json":
-        print(json.dumps({"tags": folders}, indent=2))
+        print(json.dumps({"tags": tags}, indent=2))
     else:
-        for folder in folders:
-            print(folder)
+        for tag in tags:
+            print(tag)
 
 
 def run_doctor(log_dir: Path, config: SectionProxy) -> None:
-    """Rebuild tag archives from existing diary entries."""
+    """Rebuild the structured index and clean up legacy tag folders."""
     if not log_dir.exists():
         print("Log directory does not exist yet; nothing to rebuild.")
         return
 
-    entries = list(iter_diary_entries(log_dir, config))
-    if not entries:
-        print("No entries found; nothing to rebuild.")
-        return
-
-    # Remove existing tag directories so we can rebuild from scratch.
     removed = 0
-    for child in log_dir.iterdir():
+    for child in list(log_dir.iterdir()):
         if child.is_dir() and TAG_PATTERN.fullmatch(child.name):
             shutil.rmtree(child)
             removed += 1
 
-    rebuilt_counts: Dict[str, int] = defaultdict(int)
+    data = rebuild_index(log_dir, config)
+    total_entries = len(data.get("entries", []))
 
-    for entry in entries:
-        if not entry.tags:
-            continue
-
-        entry_day = entry.day
-        if entry_day is None:
-            entry_day = datetime.fromtimestamp(
-                entry.source.stat().st_mtime
-            ).date()
-
-        day_reference = datetime.combine(
-            entry_day, datetime.strptime(entry.timestamp, "%H:%M").time()
-        )
-
-        message_lines = list(entry.lines)
-        first_line = message_lines[0] if message_lines else ""
-        extra_lines = message_lines[1:]
-        embedded_tags = set(extract_tags_from_text("\n".join(message_lines)))
-        extra_tag_markers = [tag for tag in entry.tags if tag not in embedded_tags]
-        header_line = format_entry_header(
-            entry.timestamp, first_line, entry.metadata, extra_tag_markers
-        )
-
-        for tag in entry.tags:
-            tag_dir = log_dir / tag
-            tag_day_file = ensure_day_file(tag_dir, day_reference, config)
-            with tag_day_file.open("a", encoding="utf-8") as handle:
-                handle.write(f"{header_line}\n")
-                for line in extra_lines:
-                    handle.write(f"{line}\n")
-            rebuilt_counts[tag] += 1
-
-    if not rebuilt_counts:
+    if total_entries == 0:
+        message = "No diary entries found; index cleared."
         if removed:
-            print(
-                "Removed existing tag folders but found no tagged entries to rebuild."
+            message = (
+                f"Removed {removed} legacy tag folder(s). "
+                + message
             )
-        else:
-            print("No tagged entries discovered; nothing to rebuild.")
+        print(message)
         return
 
-    summary = ", ".join(
-        f"#{tag}: {count}" for tag, count in sorted(rebuilt_counts.items())
+    tag_counts: Dict[str, int] = defaultdict(int)
+    for record in data.get("entries", []):
+        for tag in record.get("tags", []):
+            tag_counts[tag] += 1
+
+    summary = (
+        "No tags recorded."
+        if not tag_counts
+        else ", ".join(
+            f"#{tag}: {count}" for tag, count in sorted(tag_counts.items())
+        )
     )
-    print(f"Rebuilt tag archives for {len(rebuilt_counts)} tags. {summary}")
+
+    entry_word = "entry" if total_entries == 1 else "entries"
+    message = f"Rebuilt search index for {total_entries} {entry_word}."
+    if removed:
+        message += f" Removed {removed} legacy tag folder(s)."
+    if summary:
+        message += f" Tags: {summary}"
+    print(message)
 
 
 def main() -> None:
@@ -1093,11 +1218,10 @@ def main() -> None:
             startfile(str(log_dir))
         else:
             tag_name = args.open_folder.lstrip("#")
-            tag_dir = log_dir / tag_name
-            if tag_dir.exists() and tag_dir.is_dir():
-                startfile(str(tag_dir))
-            else:
-                print(f"No tag folder found for '#{tag_name}'.")
+            print(
+                "Tag folders are no longer maintained. "
+                f"Search for '#{tag_name}' instead."
+            )
         return
 
     day_file = ensure_day_file(log_dir, now, config)
@@ -1115,9 +1239,16 @@ def main() -> None:
     )
     save_last_entry_timestamp(config_dir, now)
 
-    if tags:
-        mirror_entry_to_tag_files(
-            log_dir, config, now, header_line, extra_lines, tags
-        )
+    entry_lines = tuple(entry_body.splitlines() or [entry_body])
+    indexed_entry = DiaryEntry(
+        day=now.date(),
+        timestamp=timestamp,
+        lines=entry_lines,
+        tags=tags,
+        metadata=dict(metadata),
+        metadata_numbers=build_numeric_metadata(metadata),
+        source=day_file,
+    )
+    append_index_entry(log_dir, indexed_entry)
 
     print("Entry added to:", day_file)
