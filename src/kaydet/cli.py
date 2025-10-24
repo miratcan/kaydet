@@ -203,12 +203,11 @@ def tokenize_query(
                 tag_filters.append(tag)
             continue
 
-        if ":" in token:
-            key, value = token.split(":", 1)
-            key = key.strip().lower()
-            if key and value:
-                metadata_filters.append((key, value.strip()))
-                continue
+        parsed = parse_metadata_token(token)
+        if parsed:
+            key, value = parsed
+            metadata_filters.append((key, value))
+            continue
 
         text_terms.append(token.lower())
 
