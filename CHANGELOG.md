@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.26.0] - 2025-10-24
+### Added
+- Added structured metadata support with key-value syntax (e.g., `commit:38edf60 pr:76 time:2h status:done`)
+- Added metadata search with comparison operators (`time:>2`, `time:>=2`, `time:<5`, `time:<=3`)
+- Added metadata range expressions for numeric queries (`time:1..3`, `time:2..`)
+- Added metadata wildcard matching for flexible searches (`branch:feature/*`, `project:valo*`)
+- Added numeric value parsing for time units (`2h` → 2.0 hours, `45m` → 0.75 hours)
+- Added pipe-separated file format for metadata storage (`timestamp: message | key:value | #tags`)
+- Added support for multiple metadata filters in single search (`status:done billable:yes`)
+
+### Changed
+- Replaced tag-based folder structure with unified JSON index for better performance
+- Updated README with 6 real-world use cases showcasing metadata-driven workflows:
+  - Work Log & Git Notes (commit tracking, PR linking, status updates)
+  - Personal Knowledge Base (TIL entries with structured context)
+  - Time & Energy Tracking (duration logging with numeric queries)
+  - Idea & Research Log (priority and area tagging)
+  - Mood & Wellness Journal (sleep and mood tracking)
+  - Lightweight Expense Tracker (billable hours, client tracking)
+- Enhanced search index to support structured metadata alongside hashtags
+- Improved entry parsing to handle both legacy and new metadata formats
+
 ## [0.25.0] - 2025-09-30
 ### Changed
 - Changed the default log directory to follow the XDG Base Directory Specification. Logs are now stored in `$XDG_DATA_HOME/kaydet` (defaults to `~/.local/share/kaydet`), preventing clutter in the user's home directory.
