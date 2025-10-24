@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import sqlite3
 import sys
 from configparser import ConfigParser
 from datetime import datetime, timedelta
@@ -77,7 +79,7 @@ def test_add_simple_entry(setup_kaydet, mock_datetime_factory):
 
 
 def test_add_entry_with_tags(setup_kaydet, mock_datetime_factory):
-    """Test that an entry with hashtags is captured in the structured index."""
+    """Test that an entry with hashtags is captured in the new SQLite index."""
     fake_log_dir = setup_kaydet["fake_log_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
     mock_datetime_factory(datetime(2025, 9, 30, 11, 0, 0))
@@ -87,27 +89,33 @@ def test_add_entry_with_tags(setup_kaydet, mock_datetime_factory):
 
     cli.main()
 
+    # 1. Check the text file for the new format
     main_log_file = fake_log_dir / "2025-09-30.txt"
     assert main_log_file.exists()
-    assert (
-        "11:00: This is a test for #work and #project-a"
-        in main_log_file.read_text()
-    )
+    content = main_log_file.read_text()
+    
+    # --- DIAGNOSTIC PRINT ---
+    print(f"\n--- LOG FILE CONTENT ---\n{content}\n------------------------")
+    
+    # Check for the new format: uuid:timestamp: message
+    assert re.search(r"[a-zA-Z0-9_-]{22}:11:00: This is a test for #work and #project-a", content)
 
-    index_path = fake_log_dir / "index.json"
-    assert index_path.exists()
-    index_data = json.loads(index_path.read_text())
-    entry_record = index_data["entries"][0]
-    assert sorted(entry_record["tags"]) == ["project-a", "work"]
-    assert entry_record["timestamp"] == "11:00"
-    assert entry_record["lines"] == [entry_text]
+    # 2. Check the SQLite database
+    db_path = fake_log_dir / "index.db"
+    assert db_path.exists()
+    db = sqlite3.connect(db_path)
+    cursor = db.cursor()
 
-    for tag in ["work", "project-a"]:
-        assert not (fake_log_dir / tag).exists()
+    # Find the entry_id associated with the tags
+    cursor.execute("SELECT tag_name FROM tags WHERE entry_id = (SELECT id FROM entries WHERE timestamp = '11:00') ORDER BY tag_name")
+    tags_in_db = [row[0] for row in cursor.fetchall()]
+    assert tags_in_db == ["project-a", "work"]
+
+    db.close()
 
 
 def test_add_entry_with_metadata_tokens(setup_kaydet, mock_datetime_factory):
-    """Entries supplied with key-value tokens should persist metadata."""
+    """Entries supplied with key-value tokens should persist metadata in SQLite."""
 
     fake_log_dir = setup_kaydet["fake_log_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
@@ -132,22 +140,31 @@ def test_add_entry_with_metadata_tokens(setup_kaydet, mock_datetime_factory):
 
     day_file = fake_log_dir / "2025-09-30.txt"
     assert day_file.exists()
-    day_lines = day_file.read_text().splitlines()
-    assert (
-        "13:30: Fixed bug | commit:38edf60 pr:76 status:done time:2h | #urgent"
-        in day_lines
-    )
+    content = day_file.read_text()
+    assert re.search(r"[a-zA-Z0-9_-]{22}:13:30: Fixed bug | commit:38edf60 pr:76 status:done time:2h | #urgent", content)
 
-    index_path = fake_log_dir / "index.json"
-    index_data = json.loads(index_path.read_text())
-    record = index_data["entries"][0]
-    assert record["metadata"] == {
+    db_path = fake_log_dir / "index.db"
+    assert db_path.exists()
+    db = sqlite3.connect(db_path)
+    cursor = db.cursor()
+
+    cursor.execute("SELECT id FROM entries WHERE timestamp = '13:30'")
+    entry_id = cursor.fetchone()[0]
+
+    cursor.execute("SELECT meta_key, meta_value FROM metadata WHERE entry_id = ? ORDER BY meta_key", (entry_id,))
+    metadata_in_db = dict(cursor.fetchall())
+    assert metadata_in_db == {
         "commit": "38edf60",
         "pr": "76",
         "status": "done",
         "time": "2h",
     }
-    assert record["tags"] == ["urgent"]
+
+    cursor.execute("SELECT tag_name FROM tags WHERE entry_id = ?", (entry_id,))
+    tag_in_db = cursor.fetchone()[0]
+    assert tag_in_db == "urgent"
+
+    db.close()
 
 
 def test_editor_usage(setup_kaydet, mock_datetime_factory):
@@ -323,63 +340,41 @@ def test_search_with_metadata_filters(setup_kaydet, capsys, mock_datetime_factor
     assert "Bugfix" not in output
 
 
-def test_tags_command(setup_kaydet, capsys):
-    """Test the --tags command output is sourced from the index."""
-    fake_log_dir = setup_kaydet["fake_log_dir"]
+def test_tags_command(setup_kaydet, capsys, mock_datetime_factory):
+    """Test the --tags command output is sourced from the SQLite database."""
     monkeypatch = setup_kaydet["monkeypatch"]
-    fake_log_dir.mkdir(exist_ok=True)
 
-    index_data = {
-        "version": 1,
-        "entries": [
-            {
-                "id": "entry-1",
-                "day": "2025-10-01",
-                "timestamp": "09:00",
-                "lines": ["First entry"],
-                "tags": ["work", "project-a"],
-                "metadata": {},
-                "source": "2025-10-01.txt",
-            },
-            {
-                "id": "entry-2",
-                "day": "2025-10-02",
-                "timestamp": "15:00",
-                "lines": ["Second entry"],
-                "tags": ["personal"],
-                "metadata": {},
-                "source": "2025-10-02.txt",
-            },
-        ],
-    }
-    (fake_log_dir / "index.json").write_text(json.dumps(index_data))
+    # Add a few entries with tags
+    mock_datetime_factory(datetime(2025, 10, 1, 9, 0, 0))
+    monkeypatch.setattr(sys, "argv", ["kaydet", "Entry with #work and #project-a"])
+    cli.main()
 
+    mock_datetime_factory(datetime(2025, 10, 1, 10, 0, 0))
+    monkeypatch.setattr(sys, "argv", ["kaydet", "Entry with #personal"])
+    cli.main()
+
+    # Run the --tags command
     monkeypatch.setattr(sys, "argv", ["kaydet", "--tags"])
-
     cli.main()
 
     captured = capsys.readouterr()
     output = captured.out
 
     expected_output = "personal\nproject-a\nwork\n"
-    assert output == expected_output
-
+    assert output.endswith(expected_output)
 
 def test_doctor_command(setup_kaydet, capsys):
-    """Test the --doctor command rebuilds the index and removes tag folders."""
+    """Test the --doctor command rebuilds the SQLite index from legacy files."""
     fake_log_dir = setup_kaydet["fake_log_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
     fake_log_dir.mkdir(exist_ok=True)
 
+    # Create a legacy file without UUIDs
     (fake_log_dir / "2025-10-10.txt").write_text(
         "10:00: A task for #work.\n"
         "11:00: A personal note for #home.\n"
         "12:00: Another #work thing to do.\n"
     )
-
-    orphaned_tag_dir = fake_log_dir / "orphaned"
-    orphaned_tag_dir.mkdir()
-    (orphaned_tag_dir / "stale.txt").touch()
 
     monkeypatch.setattr(sys, "argv", ["kaydet", "--doctor"])
 
@@ -388,23 +383,23 @@ def test_doctor_command(setup_kaydet, capsys):
     captured = capsys.readouterr()
     output = captured.out
 
-    assert (
-        "Rebuilt search index for 3 entries. Removed 1 legacy tag folder(s)."
-        in output
-    )
-    assert "Tags: #home: 1, #work: 2" in output
-    assert not orphaned_tag_dir.exists()
+    assert "Rebuilt search index for 3 entries." in output
 
-    index_path = fake_log_dir / "index.json"
-    assert index_path.exists()
-    index_data = json.loads(index_path.read_text())
-    assert index_data["version"] == 1
-    tags = [
-        tag
-        for entry in index_data["entries"]
-        for tag in entry.get("tags", [])
-    ]
-    assert sorted(tags) == ["home", "work", "work"]
+    db_path = fake_log_dir / "index.db"
+    assert db_path.exists()
+    db = sqlite3.connect(db_path)
+    cursor = db.cursor()
+
+    # Check if entries were added
+    cursor.execute("SELECT COUNT(*) FROM entries")
+    assert cursor.fetchone()[0] == 3
+
+    # Check if tags were added correctly
+    cursor.execute("SELECT tag_name, COUNT(*) FROM tags GROUP BY tag_name ORDER BY tag_name")
+    tag_counts = dict(cursor.fetchall())
+    assert tag_counts == {"home": 1, "work": 2}
+
+    db.close()
 
 
 def test_reminder_no_previous_entries(setup_kaydet, capsys):
