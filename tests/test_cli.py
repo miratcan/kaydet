@@ -103,6 +103,49 @@ def test_add_entry_with_tags(setup_kaydet, mock_datetime_factory):
         assert "11:00: This is a test for #work and #project-a" in content
 
 
+def test_add_entry_with_metadata_tokens(setup_kaydet, mock_datetime_factory):
+    """Entries supplied with key-value tokens should persist metadata."""
+
+    fake_log_dir = setup_kaydet["fake_log_dir"]
+    monkeypatch = setup_kaydet["monkeypatch"]
+    mock_datetime_factory(datetime(2025, 9, 30, 13, 30, 0))
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "kaydet",
+            "Fixed",
+            "bug",
+            "commit:38edf60",
+            "pr:76",
+            "status:done",
+            "time:2h",
+            "#urgent",
+        ],
+    )
+
+    cli.main()
+
+    day_file = fake_log_dir / "2025-09-30.txt"
+    assert day_file.exists()
+    day_lines = day_file.read_text().splitlines()
+    assert (
+        "13:30: Fixed bug | commit:38edf60 pr:76 status:done time:2h | #urgent"
+        in day_lines
+    )
+
+    urgent_dir = fake_log_dir / "urgent"
+    assert urgent_dir.is_dir()
+    urgent_day = urgent_dir / "2025-09-30.txt"
+    assert urgent_day.exists()
+    urgent_lines = urgent_day.read_text().splitlines()
+    assert (
+        "13:30: Fixed bug | commit:38edf60 pr:76 status:done time:2h | #urgent"
+        in urgent_lines
+    )
+
+
 def test_editor_usage(setup_kaydet, mock_datetime_factory):
     """Test that the editor is used when no entry is provided."""
     fake_log_dir = setup_kaydet["fake_log_dir"]
@@ -187,6 +230,80 @@ def test_search_command(setup_kaydet, capsys):
     assert "Planning the #secret-meeting." in output
     assert "unrelated note" not in output
     assert "Found 2 entries containing 'secret'." in output
+
+
+def test_search_with_metadata_filters(setup_kaydet, capsys, mock_datetime_factory):
+    """Search queries should understand metadata, ranges, and wildcards."""
+
+    fake_log_dir = setup_kaydet["fake_log_dir"]
+    monkeypatch = setup_kaydet["monkeypatch"]
+    fake_log_dir.mkdir(exist_ok=True)
+
+    mock_datetime_factory(datetime(2025, 10, 5, 9, 0, 0))
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "kaydet",
+            "Implement feature",
+            "status:wip",
+            "time:2h",
+            "branch:feature/api",
+        ],
+    )
+    cli.main()
+
+    mock_datetime_factory(datetime(2025, 10, 5, 11, 0, 0))
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "kaydet",
+            "Feature complete",
+            "status:done",
+            "time:3.5h",
+            "branch:feature/api",
+            "#release",
+        ],
+    )
+    cli.main()
+
+    mock_datetime_factory(datetime(2025, 10, 5, 13, 0, 0))
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "kaydet",
+            "Bugfix",
+            "status:done",
+            "time:45m",
+            "branch:hotfix/security",
+        ],
+    )
+    cli.main()
+
+    monkeypatch.setattr(sys, "argv", ["kaydet", "--search", "status:done"])
+    cli.main()
+    output = capsys.readouterr().out
+    assert "Feature complete" in output
+    assert "status:done" in output
+    assert "Bugfix" in output
+    assert "Implement feature" not in output
+
+    monkeypatch.setattr(sys, "argv", ["kaydet", "--search", "time:>2"])
+    cli.main()
+    output = capsys.readouterr().out
+    assert "Feature complete" in output
+    assert "Bugfix" not in output
+
+    monkeypatch.setattr(
+        sys, "argv", ["kaydet", "--search", "branch:feature/* status:done"]
+    )
+    cli.main()
+    output = capsys.readouterr().out
+    assert "Feature complete" in output
+    assert "branch:feature/api" in output
+    assert "Bugfix" not in output
 
 
 def test_tags_command(setup_kaydet, capsys):
