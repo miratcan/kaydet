@@ -65,6 +65,9 @@ def parse_metadata_token(token: str) -> Optional[Tuple[str, str]]:
     value = match.group("value").strip()
     if not value:
         return None
+    # Reject URLs: value starting with // indicates a URL scheme (http://, ftp://, etc.)
+    if value.startswith("//"):
+        return None
     return key, value
 
 
