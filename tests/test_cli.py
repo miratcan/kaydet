@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import os
 import re
 import sqlite3
@@ -11,12 +10,13 @@ from pathlib import Path
 
 import pytest
 
-from kaydet import __version__ as package_version, cli
+from kaydet import __version__ as package_version
+from kaydet import cli
 
 
 @pytest.fixture
 def setup_kaydet(monkeypatch, tmp_path: Path) -> dict:
-    """A pytest fixture to set up a controlled environment for testing kaydet."""
+    """Return a configured Kaydet test environment."""
     fake_home = tmp_path
     fake_config_dir = fake_home / ".config" / "kaydet"
     fake_config_dir.mkdir(parents=True)
@@ -93,12 +93,15 @@ def test_add_entry_with_tags(setup_kaydet, mock_datetime_factory):
     main_log_file = fake_log_dir / "2025-09-30.txt"
     assert main_log_file.exists()
     content = main_log_file.read_text()
-    
+
     # --- DIAGNOSTIC PRINT ---
     print(f"\n--- LOG FILE CONTENT ---\n{content}\n------------------------")
-    
+
     # Check for the new format: uuid:timestamp: message
-    assert re.search(r"[a-zA-Z0-9_-]{22}:11:00: This is a test for #work and #project-a", content)
+    assert re.search(
+        r"[a-zA-Z0-9_-]{22}:11:00: This is a test for #work and #project-a",
+        content,
+    )
 
     # 2. Check the SQLite database
     db_path = fake_log_dir / "index.db"
@@ -107,7 +110,14 @@ def test_add_entry_with_tags(setup_kaydet, mock_datetime_factory):
     cursor = db.cursor()
 
     # Find the entry_id associated with the tags
-    cursor.execute("SELECT tag_name FROM tags WHERE entry_id = (SELECT id FROM entries WHERE timestamp = '11:00') ORDER BY tag_name")
+    cursor.execute(
+        (
+            "SELECT tag_name FROM tags "
+            "WHERE entry_id = (SELECT id FROM entries "
+            "WHERE timestamp = '11:00') "
+            "ORDER BY tag_name"
+        )
+    )
     tags_in_db = [row[0] for row in cursor.fetchall()]
     assert tags_in_db == ["project-a", "work"]
 
@@ -115,7 +125,7 @@ def test_add_entry_with_tags(setup_kaydet, mock_datetime_factory):
 
 
 def test_add_entry_with_metadata_tokens(setup_kaydet, mock_datetime_factory):
-    """Entries supplied with key-value tokens should persist metadata in SQLite."""
+    """Entries with metadata tokens persist them in SQLite."""
 
     fake_log_dir = setup_kaydet["fake_log_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
@@ -141,7 +151,13 @@ def test_add_entry_with_metadata_tokens(setup_kaydet, mock_datetime_factory):
     day_file = fake_log_dir / "2025-09-30.txt"
     assert day_file.exists()
     content = day_file.read_text()
-    assert re.search(r"[a-zA-Z0-9_-]{22}:13:30: Fixed bug | commit:38edf60 pr:76 status:done time:2h | #urgent", content)
+    assert re.search(
+        (
+            r"[a-zA-Z0-9_-]{22}:13:30: Fixed bug | commit:38edf60 "
+            r"pr:76 status:done time:2h | #urgent"
+        ),
+        content,
+    )
 
     db_path = fake_log_dir / "index.db"
     assert db_path.exists()
@@ -151,7 +167,13 @@ def test_add_entry_with_metadata_tokens(setup_kaydet, mock_datetime_factory):
     cursor.execute("SELECT id FROM entries WHERE timestamp = '13:30'")
     entry_id = cursor.fetchone()[0]
 
-    cursor.execute("SELECT meta_key, meta_value FROM metadata WHERE entry_id = ? ORDER BY meta_key", (entry_id,))
+    cursor.execute(
+        (
+            "SELECT meta_key, meta_value FROM metadata "
+            "WHERE entry_id = ? ORDER BY meta_key"
+        ),
+        (entry_id,),
+    )
     metadata_in_db = dict(cursor.fetchall())
     assert metadata_in_db == {
         "commit": "38edf60",
@@ -176,7 +198,9 @@ def test_editor_usage(setup_kaydet, mock_datetime_factory):
     monkeypatch.setattr(sys, "argv", ["kaydet"])
 
     editor_text = "This entry came from the editor."
-    monkeypatch.setattr("kaydet.commands.add.open_editor", lambda *args: editor_text)
+    monkeypatch.setattr(
+        "kaydet.commands.add.open_editor", lambda *args: editor_text
+    )
 
     cli.main()
 
@@ -193,10 +217,24 @@ def test_stats_command(setup_kaydet, capsys, mock_datetime_factory):
     fake_log_dir.mkdir(exist_ok=True)
 
     (fake_log_dir / "2025-09-01.txt").write_text(
-        "09:00: entry 1\n10:00: entry 2\n11:00: entry 3"
+        "\n".join(
+            [
+                "09:00: entry 1",
+                "10:00: entry 2",
+                "11:00: entry 3",
+            ]
+        )
     )
     (fake_log_dir / "2025-09-15.txt").write_text(
-        "12:00: entry 1\n13:00: entry 2\n14:00: entry 3\n15:00: entry 4\n16:00: entry 5"
+        "\n".join(
+            [
+                "12:00: entry 1",
+                "13:00: entry 2",
+                "14:00: entry 3",
+                "15:00: entry 4",
+                "16:00: entry 5",
+            ]
+        )
     )
     (fake_log_dir / "2025-08-20.txt").write_text(
         "08:00: entry from another month"
@@ -266,7 +304,9 @@ def test_search_command(setup_kaydet, capsys):
     assert "Found 2 entries containing 'secret'." in output
 
 
-def test_search_with_metadata_filters(setup_kaydet, capsys, mock_datetime_factory):
+def test_search_with_metadata_filters(
+    setup_kaydet, capsys, mock_datetime_factory
+):
     """Search queries should understand metadata, ranges, and wildcards."""
 
     fake_log_dir = setup_kaydet["fake_log_dir"]
@@ -341,12 +381,14 @@ def test_search_with_metadata_filters(setup_kaydet, capsys, mock_datetime_factor
 
 
 def test_tags_command(setup_kaydet, capsys, mock_datetime_factory):
-    """Test the --tags command output is sourced from the SQLite database."""
+    """Verify the --tags command reads from the SQLite index."""
     monkeypatch = setup_kaydet["monkeypatch"]
 
     # Add a few entries with tags
     mock_datetime_factory(datetime(2025, 10, 1, 9, 0, 0))
-    monkeypatch.setattr(sys, "argv", ["kaydet", "Entry with #work and #project-a"])
+    monkeypatch.setattr(
+        sys, "argv", ["kaydet", "Entry with #work and #project-a"]
+    )
     cli.main()
 
     mock_datetime_factory(datetime(2025, 10, 1, 10, 0, 0))
@@ -363,8 +405,9 @@ def test_tags_command(setup_kaydet, capsys, mock_datetime_factory):
     expected_output = "personal\nproject-a\nwork\n"
     assert output.endswith(expected_output)
 
+
 def test_doctor_command(setup_kaydet, capsys):
-    """Test the --doctor command rebuilds the SQLite index from legacy files."""
+    """Ensure --doctor rebuilds the index from legacy files."""
     fake_log_dir = setup_kaydet["fake_log_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
     fake_log_dir.mkdir(exist_ok=True)
@@ -395,7 +438,12 @@ def test_doctor_command(setup_kaydet, capsys):
     assert cursor.fetchone()[0] == 3
 
     # Check if tags were added correctly
-    cursor.execute("SELECT tag_name, COUNT(*) FROM tags GROUP BY tag_name ORDER BY tag_name")
+    cursor.execute(
+        (
+            "SELECT tag_name, COUNT(*) FROM tags "
+            "GROUP BY tag_name ORDER BY tag_name"
+        )
+    )
     tag_counts = dict(cursor.fetchall())
     assert tag_counts == {"home": 1, "work": 2}
 
@@ -481,7 +529,7 @@ def test_folder_command_opens_tag_dir(setup_kaydet, mocker):
 
 
 def test_folder_command_non_existent_tag(setup_kaydet, capsys, mocker):
-    """Test that `kaydet --folder TAG` shows an error for a non-existent tag."""
+    """Warn when `kaydet --folder TAG` targets a missing tag."""
     monkeypatch = setup_kaydet["monkeypatch"]
     mock_startfile = mocker.patch("kaydet.cli.startfile")
 
@@ -673,7 +721,9 @@ def test_empty_entry_from_editor(setup_kaydet, capsys, mock_datetime_factory):
 
     monkeypatch.setattr(sys, "argv", ["kaydet"])
 
-    monkeypatch.setattr("kaydet.commands.add.open_editor", lambda *args: " \n ")
+    monkeypatch.setattr(
+        "kaydet.commands.add.open_editor", lambda *args: " \n "
+    )
 
     cli.main()
 
@@ -747,7 +797,13 @@ def test_search_multiline_result(setup_kaydet, capsys):
     fake_log_dir.mkdir(exist_ok=True)
 
     (fake_log_dir / "2025-11-01.txt").write_text(
-        "10:00: The first line of a multiline note.\n    This is the second line.\n    And a third."
+        "\n".join(
+            [
+                "10:00: The first line of a multiline note.",
+                "    This is the second line.",
+                "    And a third.",
+            ]
+        )
     )
 
     monkeypatch.setattr(sys, "argv", ["kaydet", "--search", "first line"])
@@ -768,14 +824,20 @@ def test_doctor_with_untagged_entries(setup_kaydet, capsys):
     fake_log_dir.mkdir(exist_ok=True)
 
     (fake_log_dir / "2025-11-02.txt").write_text(
-        "10:00: An entry with #work.\n11:00: An entry with no tags.\n"
+        "\n".join(
+            [
+                "10:00: An entry with #work.",
+                "11:00: An entry with no tags.",
+                "",
+            ]
+        )
     )
 
     monkeypatch.setattr(sys, "argv", ["kaydet", "--doctor"])
     cli.main()
 
     captured = capsys.readouterr()
-    # Assert that it completes successfully and only rebuilds the tag that exists
+    # Ensure the rebuild completes and keeps only the existing tag
     assert "Rebuilt search index for 2 entries." in captured.out
     assert "Tags: #work: 1" in captured.out
 
@@ -806,7 +868,9 @@ def test_extract_tags_empty_string():
     assert cli.extract_tags_from_text("") == ()
 
 
-def test_search_with_colon_containing_text(setup_kaydet, capsys, mock_datetime_factory):
+def test_search_with_colon_containing_text(
+    setup_kaydet, capsys, mock_datetime_factory
+):
     """Test that URLs and times with colons are searchable as plain text."""
     fake_log_dir = setup_kaydet["fake_log_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
@@ -838,7 +902,9 @@ def test_search_with_colon_containing_text(setup_kaydet, capsys, mock_datetime_f
     cli.main()
 
     # Search for URL - should match as plain text
-    monkeypatch.setattr(sys, "argv", ["kaydet", "--search", "http://example.com"])
+    monkeypatch.setattr(
+        sys, "argv", ["kaydet", "--search", "http://example.com"]
+    )
     cli.main()
     output = capsys.readouterr().out
     assert "http://example.com" in output

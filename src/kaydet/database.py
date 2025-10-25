@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import sqlite3
@@ -9,9 +8,11 @@ from typing import Iterable
 # Increment this when making non-backward-compatible changes to the schema.
 SCHEMA_VERSION = 1
 
+
 def get_db_connection(db_path: Path) -> sqlite3.Connection:
     """Establishes a connection to the SQLite database."""
-    return sqlite3.connect(db_path, isolation_level=None) # Autocommit mode
+    return sqlite3.connect(db_path, isolation_level=None)  # Autocommit mode
+
 
 def initialize_database(db: sqlite3.Connection):
     """
@@ -25,7 +26,7 @@ def initialize_database(db: sqlite3.Connection):
     db_version = cursor.fetchone()[0]
 
     if db_version >= SCHEMA_VERSION:
-        return # Database is already up to date
+        return  # Database is already up to date
 
     # For a fresh start or upgrade, we drop old tables and recreate.
     # A more complex migration system could be built here for future versions.
@@ -35,7 +36,7 @@ def initialize_database(db: sqlite3.Connection):
     cursor.execute("DROP TABLE IF EXISTS metadata")
 
     # 2. Create tables
-    # entries: Core table linking a unique ID to a physical location in a text file.
+    # entries: Core table linking a unique ID to where it lives on disk.
     cursor.execute("""
         CREATE TABLE entries (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -66,7 +67,7 @@ def initialize_database(db: sqlite3.Connection):
     """)
     cursor.execute("CREATE INDEX idx_words_word ON words(word)")
 
-    # metadata: Stores key-value pairs, including a pre-calculated numeric value.
+    # metadata: Stores key-value pairs, plus a pre-calculated numeric value.
     cursor.execute("""
         CREATE TABLE metadata (
             entry_id INTEGER NOT NULL,
@@ -77,13 +78,18 @@ def initialize_database(db: sqlite3.Connection):
             UNIQUE(entry_id, meta_key)
         )
     """)
-    cursor.execute("CREATE INDEX idx_metadata_key_value ON metadata(meta_key, meta_value)")
-    cursor.execute("CREATE INDEX idx_metadata_key_numeric ON metadata(meta_key, numeric_value)")
-
+    cursor.execute(
+        "CREATE INDEX idx_metadata_key_value ON metadata(meta_key, meta_value)"
+    )
+    cursor.execute(
+        "CREATE INDEX idx_metadata_key_numeric ON metadata(meta_key, "
+        "numeric_value)"
+    )
 
     # 3. Set the new schema version
     cursor.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     db.commit()
+
 
 def add_entry(
     db: sqlite3.Connection,
@@ -92,36 +98,35 @@ def add_entry(
     timestamp: str,
     tags: Iterable[str],
     words: Iterable[str],
-    metadata: dict[str, tuple[str, float | None]]
+    metadata: dict[str, tuple[str, float | None]],
 ) -> int:
-    """
-    Adds a new entry and its associated tags, words, and metadata to the database
-    within a single transaction.
-
-    Returns:
-        The ID of the newly inserted entry.
-    """
+    """Add an entry, with its tags, words, and metadata, in one transaction."""
     cursor = db.cursor()
-    
+
     try:
         cursor.execute("BEGIN")
 
         # Insert the main entry record
         cursor.execute(
-            "INSERT INTO entries (entry_uuid, source_file, timestamp) VALUES (?, ?, ?)",
-            (entry_uuid, source_file, timestamp)
+            "INSERT INTO entries (entry_uuid, source_file, timestamp) "
+            "VALUES (?, ?, ?)",
+            (entry_uuid, source_file, timestamp),
         )
         entry_id = cursor.lastrowid
 
         # Insert tags
         if tags:
             tag_data = [(entry_id, tag) for tag in set(tags)]
-            cursor.executemany("INSERT INTO tags (entry_id, tag_name) VALUES (?, ?)", tag_data)
+            cursor.executemany(
+                "INSERT INTO tags (entry_id, tag_name) VALUES (?, ?)", tag_data
+            )
 
         # Insert words
         if words:
             word_data = [(entry_id, word) for word in set(words)]
-            cursor.executemany("INSERT INTO words (entry_id, word) VALUES (?, ?)", word_data)
+            cursor.executemany(
+                "INSERT INTO words (entry_id, word) VALUES (?, ?)", word_data
+            )
 
         # Insert metadata
         if metadata:
@@ -130,13 +135,13 @@ def add_entry(
                 for key, (value, num_value) in metadata.items()
             ]
             cursor.executemany(
-                "INSERT INTO metadata (entry_id, meta_key, meta_value, numeric_value) VALUES (?, ?, ?, ?)",
-                meta_data
+                "INSERT INTO metadata (entry_id, meta_key, meta_value, "
+                "numeric_value) VALUES (?, ?, ?, ?)",
+                meta_data,
             )
-        
+
         cursor.execute("COMMIT")
         return entry_id
     except sqlite3.Error as e:
         cursor.execute("ROLLBACK")
         raise e
-

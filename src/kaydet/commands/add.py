@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import argparse
-import shortuuid
 from configparser import SectionProxy
-from datetime import datetime
 from pathlib import Path
 from typing import Dict, Iterable, Tuple
+
+import shortuuid
 
 from .. import database
 from ..parsers import (
@@ -22,16 +22,16 @@ from ..utils import ensure_day_file, open_editor, save_last_entry_timestamp
 
 
 def get_entry(
-    args: argparse.Namespace,
-    config: SectionProxy,
+    args: argparse.Namespace, config: SectionProxy
 ) -> Tuple[str, Dict[str, str], Tuple[str, ...]]:
-    """Resolve entry content, metadata, and tags from CLI arguments or an editor."""
+    """Resolve entry text, metadata, and tags from CLI args or the editor."""
     tokens = list(args.entry or [])
     message_tokens, metadata, explicit_tags = partition_entry_tokens(tokens)
     message_text = " ".join(message_tokens)
     if args.use_editor or not (message_text or metadata or explicit_tags):
         editor_text = open_editor(message_text, config["EDITOR"])
-        # Editor text is returned as-is; metadata and tags can be embedded with # and key:value
+        # Editor text is returned as-is; metadata and tags can be embedded with
+        # hashes and key:value pairs.
         return editor_text, {}, ()
     return message_text, metadata, tuple(explicit_tags)
 
@@ -50,10 +50,14 @@ def append_entry(
     extra_lines = tuple(message_lines[1:])
     embedded_tags = extract_tags_from_text(entry_text)
     unique_explicit = sorted(list(set(t.lower() for t in explicit_tags if t)))
-    extra_tag_markers = [t for t in unique_explicit if t not in set(embedded_tags)]
+    extra_tag_markers = [
+        t for t in unique_explicit if t not in set(embedded_tags)
+    ]
     all_tags = deduplicate_tags(unique_explicit, message_lines)
-    
-    formatted_header = format_entry_header(timestamp, first_line, metadata, extra_tag_markers)
+
+    formatted_header = format_entry_header(
+        timestamp, first_line, metadata, extra_tag_markers
+    )
     header_line = f"{uuid}:{formatted_header}"
 
     with day_file.open("a", encoding="utf-8") as handle:
@@ -84,10 +88,12 @@ def add_entry_command(args, config, config_dir, log_dir, now, db):
         explicit_tags=explicit_tags,
     )
     save_last_entry_timestamp(config_dir, now)
-    
+
     words = extract_words_from_text(entry_body)
-    full_metadata = {k: (v, parse_numeric_value(v)) for k, v in metadata.items()}
-    
+    full_metadata = {
+        k: (v, parse_numeric_value(v)) for k, v in metadata.items()
+    }
+
     database.add_entry(
         db=db,
         entry_uuid=entry_uuid,

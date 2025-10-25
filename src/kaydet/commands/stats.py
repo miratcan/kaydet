@@ -11,7 +11,12 @@ from ..parsers import count_entries, resolve_entry_date
 from ..utils import DEFAULT_SETTINGS
 
 
-def stats_command(log_dir: Path, config: SectionProxy, now: datetime, output_format: str = "text"):
+def stats_command(
+    log_dir: Path,
+    config: SectionProxy,
+    now: datetime,
+    output_format: str = "text",
+):
     """Render a calendar for the current month with entry counts per day."""
     if not log_dir.exists():
         if output_format == "json":
@@ -62,10 +67,14 @@ def stats_command(log_dir: Path, config: SectionProxy, now: datetime, output_for
             print(f"\nTotal entries this month: {total_entries}")
 
 
-def collect_month_counts(log_dir: Path, config: SectionProxy, year: int, month: int):
+def collect_month_counts(
+    log_dir: Path, config: SectionProxy, year: int, month: int
+):
     """Return a mapping of day number to entry count for the given month."""
     counts = defaultdict(int)
-    day_file_pattern = config.get("DAY_FILE_PATTERN", DEFAULT_SETTINGS["DAY_FILE_PATTERN"])
+    day_file_pattern = config.get(
+        "DAY_FILE_PATTERN", DEFAULT_SETTINGS["DAY_FILE_PATTERN"]
+    )
 
     for candidate in sorted(log_dir.iterdir()):
         if not candidate.is_file():
@@ -73,7 +82,9 @@ def collect_month_counts(log_dir: Path, config: SectionProxy, year: int, month: 
 
         entry_date = resolve_entry_date(candidate, day_file_pattern)
         if entry_date is None:
-            entry_date = datetime.fromtimestamp(candidate.stat().st_mtime).date()
+            entry_date = datetime.fromtimestamp(
+                candidate.stat().st_mtime
+            ).date()
 
         if entry_date.year != year or entry_date.month != month:
             continue
