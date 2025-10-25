@@ -176,7 +176,7 @@ def test_editor_usage(setup_kaydet, mock_datetime_factory):
     monkeypatch.setattr(sys, "argv", ["kaydet"])
 
     editor_text = "This entry came from the editor."
-    monkeypatch.setattr(cli, "open_editor", lambda *args: editor_text)
+    monkeypatch.setattr("kaydet.commands.add.open_editor", lambda *args: editor_text)
 
     cli.main()
 
@@ -673,7 +673,7 @@ def test_empty_entry_from_editor(setup_kaydet, capsys, mock_datetime_factory):
 
     monkeypatch.setattr(sys, "argv", ["kaydet"])
 
-    monkeypatch.setattr(cli, "open_editor", lambda *args: " \n ")
+    monkeypatch.setattr("kaydet.commands.add.open_editor", lambda *args: " \n ")
 
     cli.main()
 
