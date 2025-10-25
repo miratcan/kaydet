@@ -72,7 +72,7 @@ def add_entry_command(args, config, config_dir, log_dir, now, db):
     day_file = ensure_day_file(log_dir, now, config)
     raw_entry, metadata, explicit_tags = get_entry(args, config)
     entry_body = raw_entry.strip()
-    if not entry_body and not metadata and not explicit_tags:
+    if not any((entry_body, metadata, explicit_tags)):
         print("Nothing to save.")
         return
 
