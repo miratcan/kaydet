@@ -54,10 +54,8 @@ def main() -> None:
         "--folder",
         "-f",
         dest="open_folder",
-        nargs="?",
-        const="",
-        metavar="TAG",
-        help="Open log directory.",
+        action="store_true",
+        help="Open the log directory.",
     )
     parser.add_argument(
         "--reminder",
@@ -125,15 +123,8 @@ def main() -> None:
         db = database.get_db_connection(db_path)
         database.initialize_database(db)
         doctor_command(db, log_dir, config)
-    elif args.open_folder is not None:
-        if args.open_folder == "":
-            startfile(str(log_dir))
-        else:
-            tag_name = args.open_folder.lstrip("#")
-            print(
-                "Tag folders are no longer maintained. "
-                f"Search for '#{tag_name}' instead."
-            )
+    elif args.open_folder:
+        startfile(str(log_dir))
         return
     else:
         log_dir.mkdir(parents=True, exist_ok=True)

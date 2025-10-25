@@ -511,40 +511,6 @@ def test_folder_command_opens_main_log_dir(setup_kaydet, mocker):
     mock_startfile.assert_called_once_with(str(fake_log_dir))
 
 
-def test_folder_command_opens_tag_dir(setup_kaydet, mocker):
-    """Test that `kaydet --folder TAG` informs users about index usage."""
-    fake_log_dir = setup_kaydet["fake_log_dir"]
-    monkeypatch = setup_kaydet["monkeypatch"]
-    mock_startfile = mocker.patch("kaydet.cli.startfile")
-
-    tag_dir = fake_log_dir / "work"
-    fake_log_dir.mkdir(exist_ok=True)
-    tag_dir.mkdir()
-
-    monkeypatch.setattr(sys, "argv", ["kaydet", "--folder", "work"])
-
-    cli.main()
-
-    mock_startfile.assert_not_called()
-
-
-def test_folder_command_non_existent_tag(setup_kaydet, capsys, mocker):
-    """Warn when `kaydet --folder TAG` targets a missing tag."""
-    monkeypatch = setup_kaydet["monkeypatch"]
-    mock_startfile = mocker.patch("kaydet.cli.startfile")
-
-    monkeypatch.setattr(sys, "argv", ["kaydet", "--folder", "non-existent"])
-
-    cli.main()
-
-    mock_startfile.assert_not_called()
-    captured = capsys.readouterr()
-    assert (
-        "Tag folders are no longer maintained. "
-        "Search for '#non-existent' instead."
-    ) in captured.out
-
-
 def test_read_diary_with_bad_encoding(
     setup_kaydet, capsys, mock_datetime_factory
 ):
