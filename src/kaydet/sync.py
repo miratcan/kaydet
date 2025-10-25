@@ -93,9 +93,20 @@ def _normalize_entries(
 
         if entry.entry_id and entry.entry_id.isdigit():
             candidate = int(entry.entry_id)
-            cursor.execute("SELECT 1 FROM entries WHERE id = ?", (candidate,))
-            if cursor.fetchone():
-                entry_id_value = candidate
+            cursor.execute(
+                "SELECT entry_uuid, source_file FROM entries WHERE id = ?",
+                (candidate,),
+            )
+            row = cursor.fetchone()
+            expected_uuid = entry.uuid
+            expected_source = day_file.name
+            if row:
+                existing_uuid, existing_source = row
+                if (
+                    existing_uuid == expected_uuid
+                    and existing_source == expected_source
+                ):
+                    entry_id_value = candidate
             else:
                 cursor.execute(
                     "INSERT INTO entries (id, entry_uuid, source_file, timestamp) "
