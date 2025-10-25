@@ -7,8 +7,6 @@ from configparser import SectionProxy
 from pathlib import Path
 from typing import Dict, Iterable, Tuple
 
-import uuid
-
 from .. import database
 from ..parsers import (
     deduplicate_tags,
@@ -46,11 +44,12 @@ def append_entry(
 ) -> None:
     """Append a timestamped entry with its numeric identifier."""
     first_line = message_lines[0] if message_lines else ""
-    formatted_header = format_entry_header(
-        timestamp, first_line, metadata, extra_tag_markers
-    )
-    header_line = formatted_header.replace(
-        f"{timestamp}:", f"{timestamp} [{entry_id}]:", 1
+    header_line = format_entry_header(
+        timestamp,
+        first_line,
+        metadata,
+        extra_tag_markers,
+        entry_id=str(entry_id),
     )
 
     with day_file.open("a", encoding="utf-8") as handle:
@@ -68,7 +67,6 @@ def add_entry_command(args, config, config_dir, log_dir, now, db):
         print("Nothing to save.")
         return
 
-    entry_uuid = uuid.uuid4().hex
     timestamp = now.strftime("%H:%M")
 
     message_lines = tuple(entry_body.splitlines() or [entry_body])
@@ -86,7 +84,6 @@ def add_entry_command(args, config, config_dir, log_dir, now, db):
 
     entry_id = database.add_entry(
         db=db,
-        entry_uuid=entry_uuid,
         source_file=day_file.name,
         timestamp=timestamp,
         tags=all_tags,
@@ -110,11 +107,6 @@ def add_entry_command(args, config, config_dir, log_dir, now, db):
         db.execute("DELETE FROM metadata WHERE entry_id = ?", cleanup_payload)
         db.execute("DELETE FROM entries WHERE id = ?", cleanup_payload)
         raise
-
-    db.execute(
-        "UPDATE entries SET entry_uuid = ? WHERE id = ?",
-        (f"{day_file.name}:{entry_id}", entry_id),
-    )
 
     save_last_entry_timestamp(config_dir, now)
     print("Entry added to:", day_file)

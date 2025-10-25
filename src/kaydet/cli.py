@@ -100,6 +100,18 @@ def main() -> None:
     log_dir = Path(config["LOG_DIR"]).expanduser()
     now = datetime.now()
 
+    def run_sync(db, *, force: bool = False, process_today: bool = False):
+        normalized = synchronize_diary(
+            db,
+            log_dir,
+            config,
+            now,
+            force=force,
+            process_today=process_today,
+        )
+        for changed in normalized:
+            print(f"Normalized IDs in {changed}")
+
     if args.reminder:
         reminder_command(config_dir, log_dir, now)
         return
@@ -108,7 +120,7 @@ def main() -> None:
         db_path = log_dir / INDEX_FILENAME
         db = database.get_db_connection(db_path)
         database.initialize_database(db)
-        synchronize_diary(db, log_dir, config, now)
+        run_sync(db)
         stats_command(log_dir, config, now, args.output_format)
         return
     elif args.list_tags:
@@ -116,14 +128,14 @@ def main() -> None:
         db_path = log_dir / INDEX_FILENAME
         db = database.get_db_connection(db_path)
         database.initialize_database(db)
-        synchronize_diary(db, log_dir, config, now)
+        run_sync(db)
         tags_command(db, args.output_format)
     elif args.search:
         log_dir.mkdir(parents=True, exist_ok=True)
         db_path = log_dir / INDEX_FILENAME
         db = database.get_db_connection(db_path)
         database.initialize_database(db)
-        synchronize_diary(db, log_dir, config, now)
+        run_sync(db)
         search_command(db, log_dir, config, args.search, args.output_format)
     elif args.doctor:
         log_dir.mkdir(parents=True, exist_ok=True)
@@ -139,5 +151,5 @@ def main() -> None:
         db_path = log_dir / INDEX_FILENAME
         db = database.get_db_connection(db_path)
         database.initialize_database(db)
-        synchronize_diary(db, log_dir, config, now)
+        run_sync(db)
         add_entry_command(args, config, config_dir, log_dir, now, db)

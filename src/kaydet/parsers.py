@@ -116,6 +116,8 @@ def format_entry_header(
     message: str,
     metadata: Dict[str, str],
     extra_tag_markers: Iterable[str],
+    *,
+    entry_id: str | None = None,
 ) -> str:
     """Format the first line of a diary entry for storage.
 
@@ -124,7 +126,11 @@ def format_entry_header(
         ...                    {"status": "done"}, ["work"])
         '10:00: Shipped release | status:done | #work'
     """
-    base = f"{timestamp}: {message}" if message else f"{timestamp}:"
+    if entry_id:
+        base_timestamp = f"{timestamp} [{entry_id}]"
+    else:
+        base_timestamp = timestamp
+    base = f"{base_timestamp}: {message}" if message else f"{base_timestamp}:"
     segments = [base.rstrip()]
     if metadata:
         segments.append(" ".join(f"{k}:{v}" for k, v in metadata.items()))

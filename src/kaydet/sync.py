@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from typing import Dict, Iterable, List, Sequence, Tuple
 
 from . import database
@@ -19,6 +21,9 @@ from .parsers import (
     resolve_entry_date,
 )
 from .utils import DEFAULT_SETTINGS
+
+
+logger = logging.getLogger(__name__)
 
 
 def _split_header(lines: Sequence[str]) -> List[str]:
@@ -38,20 +43,13 @@ def _render_entry(entry: Entry) -> List[str]:
     explicit_markers = [
         tag for tag in entry.tags if tag not in inline_tags
     ]
-    header_body = format_entry_header(
+    header_line = format_entry_header(
         entry.timestamp,
         message,
         entry.metadata,
         explicit_markers,
+        entry_id=entry.entry_id,
     )
-    if entry.entry_id:
-        header_line = header_body.replace(
-            f"{entry.timestamp}:",
-            f"{entry.timestamp} [{entry.entry_id}]:",
-            1,
-        )
-    else:
-        header_line = header_body
     rendered = [header_line]
     rendered.extend(entry.lines[1:])
     return rendered
@@ -65,9 +63,18 @@ def _write_if_changed(day_file: Path, original_text: str, lines: List[str]) -> b
         new_text = f"{new_text}\n"
     if new_text == original_text:
         return False
-    day_file.write_text(new_text, encoding="utf-8")
-    print(f"Normalized IDs in {day_file}")
-    return True
+    temp_path = None
+    try:
+        with NamedTemporaryFile(
+            "w", encoding="utf-8", dir=day_file.parent, delete=False
+        ) as handle:
+            handle.write(new_text)
+            temp_path = Path(handle.name)
+        temp_path.replace(day_file)
+        return True
+    finally:
+        if temp_path is not None and temp_path.exists():
+            temp_path.unlink(missing_ok=True)
 
 
 def _normalize_entries(
@@ -201,11 +208,11 @@ def synchronize_diary(
     *,
     force: bool = False,
     process_today: bool = False,
-) -> None:
+) -> List[Path]:
     """Synchronize modified diary files with the SQLite index."""
 
     if not log_dir.exists():
-        return
+        return []
 
     day_pattern = config.get(
         "DAY_FILE_PATTERN",
@@ -220,6 +227,8 @@ def synchronize_diary(
         path: (mtime, needs)
         for path, mtime, needs in cursor.fetchall()
     }
+
+    normalized_files: List[Path] = []
 
     for day_file in sorted(log_dir.glob("*.txt")):
         if not day_file.is_file():
@@ -275,6 +284,7 @@ def synchronize_diary(
             else:
                 changed = _write_if_changed(day_file, raw_text, rendered_lines)
                 if changed:
+                    normalized_files.append(day_file)
                     file_mtime = day_file.stat().st_mtime
                 pending_flag = 0
 
@@ -289,3 +299,9 @@ def synchronize_diary(
         except Exception:
             db.execute("ROLLBACK")
             raise
+    if normalized_files:
+        logger.info(
+            "Normalized IDs in %s",
+            ", ".join(str(path) for path in normalized_files),
+        )
+    return normalized_files
