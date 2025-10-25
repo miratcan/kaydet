@@ -20,6 +20,8 @@ def doctor_command(
 
     for table in ["tags", "words", "metadata"]:
         db.execute(f"DELETE FROM {table}")
+    db.execute("DELETE FROM entries")
+    db.execute("DELETE FROM synced_files")
     db.commit()
 
     normalized = synchronize_diary(
