@@ -482,6 +482,49 @@ def test_manual_edit_sync_before_search(
     assert "Updated entry #updated" in output
 
 
+def test_conflicting_numeric_id_preserves_original_entry(
+    setup_kaydet, mock_datetime_factory, capsys
+):
+    """A conflicting manual ID should not overwrite an existing entry."""
+
+    fake_log_dir = setup_kaydet["fake_log_dir"]
+    monkeypatch = setup_kaydet["monkeypatch"]
+
+    mock_datetime_factory(datetime(2025, 9, 29, 8, 0, 0))
+    monkeypatch.setattr(sys, "argv", ["kaydet", "Original entry"])
+    cli.main()
+    capsys.readouterr()
+
+    conflicting_file = fake_log_dir / "2025-09-30.txt"
+    conflicting_file.write_text("10:00 [1]: Conflicting entry\n", encoding="utf-8")
+
+    mock_datetime_factory(datetime(2025, 9, 30, 9, 0, 0))
+    monkeypatch.setattr(sys, "argv", ["kaydet", "--tags"])
+    cli.main()
+    capsys.readouterr()
+
+    db_path = fake_log_dir / "index.db"
+    db = sqlite3.connect(db_path)
+    cursor = db.cursor()
+
+    cursor.execute("SELECT source_file FROM entries WHERE id = 1")
+    assert cursor.fetchone()[0] == "2025-09-29.txt"
+
+    cursor.execute("SELECT id FROM entries WHERE source_file = ?", ("2025-09-30.txt",))
+    conflicting_entry_id = cursor.fetchone()[0]
+    assert conflicting_entry_id != 1
+
+    cursor.execute("SELECT COUNT(*) FROM entries")
+    assert cursor.fetchone()[0] == 2
+
+    db.close()
+
+    updated_content = conflicting_file.read_text()
+    match = re.search(r"10:00 \[(\d+)\]: Conflicting entry", updated_content)
+    assert match is not None
+    assert match.group(1) != "1"
+
+
 def test_today_file_waits_until_midnight(setup_kaydet, mock_datetime_factory, capsys):
     """Today's diary file should defer ID rewrites until the next day."""
 
