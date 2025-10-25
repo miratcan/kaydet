@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import subprocess  # Used by tests  # noqa: F401
 from datetime import datetime
+from functools import wraps
 from pathlib import Path
 from textwrap import dedent
 
@@ -100,17 +101,30 @@ def main() -> None:
     log_dir = Path(config["LOG_DIR"]).expanduser()
     now = datetime.now()
 
-    def run_sync(db, *, force: bool = False, process_today: bool = False):
-        normalized = synchronize_diary(
-            db,
-            log_dir,
-            config,
-            now,
-            force=force,
-            process_today=process_today,
-        )
-        for changed in normalized:
-            print(f"Normalized IDs in {changed}")
+    def make_sync_decorator(db):
+        def decorator(func=None, *, force: bool = False, process_today: bool = False):
+            def apply(target):
+                @wraps(target)
+                def wrapper(*args, **kwargs):
+                    normalized = synchronize_diary(
+                        db,
+                        log_dir,
+                        config,
+                        now,
+                        force=force,
+                        process_today=process_today,
+                    )
+                    for changed in normalized:
+                        print(f"Normalized IDs in {changed}")
+                    return target(*args, **kwargs)
+
+                return wrapper
+
+            if func is None:
+                return apply
+            return apply(func)
+
+        return decorator
 
     if args.reminder:
         reminder_command(config_dir, log_dir, now)
@@ -120,23 +134,38 @@ def main() -> None:
         db_path = log_dir / INDEX_FILENAME
         db = database.get_db_connection(db_path)
         database.initialize_database(db)
-        run_sync(db)
-        stats_command(log_dir, config, now, args.output_format)
+        sync = make_sync_decorator(db)
+
+        @sync
+        def execute_stats() -> None:
+            stats_command(log_dir, config, now, args.output_format)
+
+        execute_stats()
         return
     elif args.list_tags:
         log_dir.mkdir(parents=True, exist_ok=True)
         db_path = log_dir / INDEX_FILENAME
         db = database.get_db_connection(db_path)
         database.initialize_database(db)
-        run_sync(db)
-        tags_command(db, args.output_format)
+        sync = make_sync_decorator(db)
+
+        @sync
+        def execute_tags() -> None:
+            tags_command(db, args.output_format)
+
+        execute_tags()
     elif args.search:
         log_dir.mkdir(parents=True, exist_ok=True)
         db_path = log_dir / INDEX_FILENAME
         db = database.get_db_connection(db_path)
         database.initialize_database(db)
-        run_sync(db)
-        search_command(db, log_dir, config, args.search, args.output_format)
+        sync = make_sync_decorator(db)
+
+        @sync
+        def execute_search() -> None:
+            search_command(db, log_dir, config, args.search, args.output_format)
+
+        execute_search()
     elif args.doctor:
         log_dir.mkdir(parents=True, exist_ok=True)
         db_path = log_dir / INDEX_FILENAME
@@ -151,5 +180,10 @@ def main() -> None:
         db_path = log_dir / INDEX_FILENAME
         db = database.get_db_connection(db_path)
         database.initialize_database(db)
-        run_sync(db)
-        add_entry_command(args, config, config_dir, log_dir, now, db)
+        sync = make_sync_decorator(db)
+
+        @sync
+        def execute_add() -> None:
+            add_entry_command(args, config, config_dir, log_dir, now, db)
+
+        execute_add()
