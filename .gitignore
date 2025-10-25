@@ -2,3 +2,5 @@
 dist/
 src/kaydet.egg-info/
 .coverage
+__pycache__/
+*.pyc
