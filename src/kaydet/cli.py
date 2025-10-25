@@ -19,15 +19,16 @@ from .commands import (
     stats_command,
     tags_command,
 )
+from .indexing import rebuild_index_if_empty
 from .parsers import extract_tags_from_text  # noqa: F401
-from .utils import DEFAULT_SETTINGS, get_config  # noqa: F401
+from .sync import sync_modified_diary_files
+from .utils import DEFAULT_SETTINGS, load_config  # noqa: F401
 
 INDEX_FILENAME = "index.db"
 
 
-def main() -> None:
-    """Application entry point for the kaydet CLI."""
-    config, config_path, config_dir = get_config()
+def build_parser(config_path: Path) -> argparse.ArgumentParser:
+    """Create the kaydet CLI argument parser."""
     parser = argparse.ArgumentParser(
         prog="kaydet",
         description=__description__,
@@ -76,9 +77,7 @@ def main() -> None:
         "--search", dest="search", metavar="TEXT", help="Search entries."
     )
     parser.add_argument(
-        "--doctor",
-        dest="doctor",
-        action="store_true",
+        "--doctor", dest="doctor", action="store_true",
         help="Rebuild search index.",
     )
     parser.add_argument(
@@ -94,41 +93,47 @@ def main() -> None:
         version=f"%(prog)s {__version__}",
         help="Show version.",
     )
+    return parser
+
+
+def main() -> None:
+    """Application entry point for the kaydet CLI."""
+    config, config_path, config_dir, log_dir = load_config()
+    parser = build_parser(config_path)
     args = parser.parse_args()
 
-    log_dir = Path(config["LOG_DIR"]).expanduser()
     now = datetime.now()
 
     if args.reminder:
         reminder_command(config_dir, log_dir, now)
         return
-    elif args.stats:
-        stats_command(log_dir, config, now, args.output_format)
-        return
-    elif args.list_tags:
-        log_dir.mkdir(parents=True, exist_ok=True)
-        db_path = log_dir / INDEX_FILENAME
-        db = database.get_db_connection(db_path)
-        database.initialize_database(db)
-        tags_command(db, args.output_format)
-    elif args.search:
-        log_dir.mkdir(parents=True, exist_ok=True)
-        db_path = log_dir / INDEX_FILENAME
-        db = database.get_db_connection(db_path)
-        database.initialize_database(db)
-        search_command(db, log_dir, config, args.search, args.output_format)
-    elif args.doctor:
-        log_dir.mkdir(parents=True, exist_ok=True)
-        db_path = log_dir / INDEX_FILENAME
-        db = database.get_db_connection(db_path)
-        database.initialize_database(db)
-        doctor_command(db, log_dir, config)
-    elif args.open_folder:
+    if args.open_folder:
         startfile(str(log_dir))
         return
-    else:
-        log_dir.mkdir(parents=True, exist_ok=True)
-        db_path = log_dir / INDEX_FILENAME
-        db = database.get_db_connection(db_path)
-        database.initialize_database(db)
-        add_entry_command(args, config, config_dir, log_dir, now, db)
+
+    db_path = log_dir / INDEX_FILENAME
+    db = database.get_db_connection(db_path)
+    database.initialize_database(db)
+
+    if args.doctor:
+        doctor_command(db, log_dir, config, now)
+        return
+
+    sync_modified_diary_files(db, log_dir, config, now)
+    rebuild_index_if_empty(db, log_dir, config, now)
+
+    if args.stats:
+        stats_command(log_dir, config, now, args.output_format)
+        return
+
+    if args.list_tags:
+        tags_command(db, args.output_format)
+        return
+
+    if args.search:
+        search_command( db, log_dir, config, args.search, args.output_format)
+        return
+
+    add_entry_command(
+        args, config, config_dir, log_dir, now, db
+    )

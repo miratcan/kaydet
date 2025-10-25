@@ -1,6 +1,8 @@
 .ruff_cache/
 dist/
 src/kaydet.egg-info/
+.pytest_cache/
+AGENTS.md
 .coverage
 __pycache__/
 *.pyc
