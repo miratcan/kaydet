@@ -10,9 +10,13 @@ from ..parsers import TAG_PATTERN, extract_words_from_text
 from ..utils import iter_diary_entries
 
 
-def doctor_command(db: sqlite3.Connection, log_dir: Path, config: SectionProxy):
+def doctor_command(
+    db: sqlite3.Connection, log_dir: Path, config: SectionProxy
+):
     """Rebuild the SQLite index from all existing diary files."""
-    print("Rebuilding search index from diary files... This may take a moment.")
+    print(
+        "Rebuilding search index from diary files... This may take a moment."
+    )
     for table in ["entries", "tags", "words", "metadata"]:
         db.execute(f"DELETE FROM {table}")
     db.commit()
@@ -41,7 +45,8 @@ def doctor_command(db: sqlite3.Connection, log_dir: Path, config: SectionProxy):
             if child.is_dir() and TAG_PATTERN.fullmatch(child.name):
                 shutil.rmtree(child)
 
-    print(f"Rebuilt search index for {total_entries} {'entry' if total_entries == 1 else 'entries'}.")
+    entry_label = "entry" if total_entries == 1 else "entries"
+    print(f"Rebuilt search index for {total_entries} {entry_label}.")
 
     # Print tag statistics
     cursor = db.cursor()

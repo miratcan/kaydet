@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import subprocess  # Used by tests  # noqa: F401
 from datetime import datetime
 from pathlib import Path
 from textwrap import dedent
@@ -18,11 +19,8 @@ from .commands import (
     stats_command,
     tags_command,
 )
-from .parsers import extract_tags_from_text
-from .utils import DEFAULT_SETTINGS, get_config, open_editor
-
-# For backward compatibility - re-export commonly used items
-import subprocess  # Used by tests
+from .parsers import extract_tags_from_text  # noqa: F401
+from .utils import DEFAULT_SETTINGS, get_config  # noqa: F401
 
 INDEX_FILENAME = "index.db"
 
@@ -36,21 +34,68 @@ def main() -> None:
         epilog=dedent(
             f"""You can configure this by editing: {config_path}\n\n"""
             "  $ kaydet 'I am feeling grateful now.'\n"
-            "  $ kaydet \"Fixed issue\" status:done time:45m #work\n"
-            "  $ kaydet --editor"""
+            '  $ kaydet "Fixed issue" status:done time:45m #work\n'
+            "  $ kaydet --editor"
+            ""
         ),
         formatter_class=argparse.RawTextHelpFormatter,
     )
-    parser.add_argument("entry", type=str, nargs="*", metavar="Entry", help="Entry content.")
-    parser.add_argument("--editor", "-e", dest="use_editor", action="store_true", help="Force opening editor.")
-    parser.add_argument("--folder", "-f", dest="open_folder", nargs="?", const="", metavar="TAG", help="Open log directory.")
-    parser.add_argument("--reminder", dest="reminder", action="store_true", help="Show reminder.")
-    parser.add_argument("--stats", dest="stats", action="store_true", help="Show calendar stats.")
-    parser.add_argument("--tags", dest="list_tags", action="store_true", help="List all tags.")
-    parser.add_argument("--search", dest="search", metavar="TEXT", help="Search entries.")
-    parser.add_argument("--doctor", dest="doctor", action="store_true", help="Rebuild search index.")
-    parser.add_argument("--format", dest="output_format", choices=["text", "json"], default="text", help="Output format.")
-    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}", help="Show version.")
+    parser.add_argument(
+        "entry", type=str, nargs="*", metavar="Entry", help="Entry content."
+    )
+    parser.add_argument(
+        "--editor",
+        "-e",
+        dest="use_editor",
+        action="store_true",
+        help="Force opening editor.",
+    )
+    parser.add_argument(
+        "--folder",
+        "-f",
+        dest="open_folder",
+        nargs="?",
+        const="",
+        metavar="TAG",
+        help="Open log directory.",
+    )
+    parser.add_argument(
+        "--reminder",
+        dest="reminder",
+        action="store_true",
+        help="Show reminder.",
+    )
+    parser.add_argument(
+        "--stats",
+        dest="stats",
+        action="store_true",
+        help="Show calendar stats.",
+    )
+    parser.add_argument(
+        "--tags", dest="list_tags", action="store_true", help="List all tags."
+    )
+    parser.add_argument(
+        "--search", dest="search", metavar="TEXT", help="Search entries."
+    )
+    parser.add_argument(
+        "--doctor",
+        dest="doctor",
+        action="store_true",
+        help="Rebuild search index.",
+    )
+    parser.add_argument(
+        "--format",
+        dest="output_format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format.",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
+        help="Show version.",
+    )
     args = parser.parse_args()
 
     log_dir = Path(config["LOG_DIR"]).expanduser()

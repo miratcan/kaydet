@@ -11,6 +11,7 @@ from typing import Dict, Optional, Tuple
 @dataclass(frozen=True)
 class DiaryEntry:
     """Structured view of a diary entry loaded from disk."""
+
     uuid: str
     day: Optional[date]
     timestamp: str

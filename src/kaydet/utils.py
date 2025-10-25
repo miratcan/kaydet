@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-import subprocess
 import shlex
+import subprocess
 from configparser import ConfigParser, SectionProxy
 from datetime import datetime, timedelta
-from os import environ as env, fdopen, remove
+from os import environ as env
+from os import fdopen, remove
 from pathlib import Path
 from tempfile import mkstemp
 from typing import Iterable, Optional, Tuple
@@ -19,7 +20,8 @@ DEFAULT_SETTINGS = {
     "DAY_FILE_PATTERN": "%Y-%m-%d.txt",
     "DAY_TITLE_PATTERN": "%Y/%m/%d/ - %A",
     "LOG_DIR": str(
-        Path(env.get("XDG_DATA_HOME") or Path.home() / ".local" / "share") / "kaydet"
+        Path(env.get("XDG_DATA_HOME") or Path.home() / ".local" / "share")
+        / "kaydet"
     ),
     "EDITOR": env.get("EDITOR", "vim"),
 }
@@ -50,11 +52,15 @@ def get_config() -> Tuple[SectionProxy, Path, Path]:
     return section, config_path, config_dir
 
 
-def iter_diary_entries(log_dir: Path, config: SectionProxy) -> Iterable[DiaryEntry]:
+def iter_diary_entries(
+    log_dir: Path, config: SectionProxy
+) -> Iterable[DiaryEntry]:
     """Yield entries from every diary file sorted by filename."""
     if not log_dir.exists():
         return
-    day_file_pattern = config.get("DAY_FILE_PATTERN", DEFAULT_SETTINGS["DAY_FILE_PATTERN"])
+    day_file_pattern = config.get(
+        "DAY_FILE_PATTERN", DEFAULT_SETTINGS["DAY_FILE_PATTERN"]
+    )
     for candidate in sorted(log_dir.glob("*.txt")):
         if not candidate.is_file():
             continue
@@ -64,7 +70,9 @@ def iter_diary_entries(log_dir: Path, config: SectionProxy) -> Iterable[DiaryEnt
 
 def save_last_entry_timestamp(config_dir: Path, moment: datetime) -> None:
     """Persist the provided timestamp for subsequent reminder checks."""
-    (config_dir / LAST_ENTRY_FILENAME).write_text(moment.isoformat(), encoding="utf-8")
+    (config_dir / LAST_ENTRY_FILENAME).write_text(
+        moment.isoformat(), encoding="utf-8"
+    )
 
 
 def load_last_entry_timestamp(
@@ -91,7 +99,9 @@ def load_last_entry_timestamp(
     return datetime.fromtimestamp(latest_mtime)
 
 
-def ensure_day_file(log_dir: Path, now: datetime, config: SectionProxy) -> Path:
+def ensure_day_file(
+    log_dir: Path, now: datetime, config: SectionProxy
+) -> Path:
     """Ensure the daily file exists and return its path."""
     log_dir.mkdir(parents=True, exist_ok=True)
     file_name = now.strftime(config["DAY_FILE_PATTERN"])
@@ -106,7 +116,7 @@ def ensure_day_file(log_dir: Path, now: datetime, config: SectionProxy) -> Path:
 
 
 def open_editor(initial_text: str, editor_command: str) -> str:
-    """Open a temporary file with the configured editor and return its contents."""
+    """Open a temp file in the configured editor and return its text."""
     fd, tmp_path = mkstemp()
     try:
         with fdopen(fd, "w", encoding="utf-8") as handle:

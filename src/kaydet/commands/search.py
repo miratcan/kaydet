@@ -78,7 +78,14 @@ def search_command(
             where_clauses.append(f"m{i}.meta_value = ?")
             params.append(expression)
 
-    sql_query = f'SELECT DISTINCT e.source_file, e.entry_uuid FROM {" ".join(from_clauses)} WHERE {" AND ".join(where_clauses)} ORDER BY e.source_file, e.id'
+    select_clause = "SELECT DISTINCT e.source_file, e.entry_uuid"
+    from_clause = " ".join(from_clauses)
+    where_clause = " AND ".join(where_clauses)
+    sql_query = (
+        f"{select_clause} FROM {from_clause} "
+        f"WHERE {where_clause} "
+        "ORDER BY e.source_file, e.id"
+    )
 
     cursor = db.cursor()
     try:
@@ -112,16 +119,30 @@ def search_command(
     matches.sort(key=lambda e: (e.day or date.min, e.timestamp))
 
     if output_format == "json":
-        print(json.dumps({"query": query, "matches": [m.to_dict() for m in matches], "total": len(matches)}, indent=2, ensure_ascii=False))
+        print(
+            json.dumps(
+                {
+                    "query": query,
+                    "matches": [m.to_dict() for m in matches],
+                    "total": len(matches),
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
     else:
         for match in matches:
-            day_label = match.day.isoformat() if match.day else match.source.name
+            day_label = (
+                match.day.isoformat() if match.day else match.source.name
+            )
             first_line, *rest = list(match.lines) or [""]
 
             # Build header with metadata and tags
             parts = [f"{day_label} {match.timestamp} {first_line}".rstrip()]
             if match.metadata:
-                metadata_str = " ".join(f"{k}:{v}" for k, v in match.metadata.items())
+                metadata_str = " ".join(
+                    f"{k}:{v}" for k, v in match.metadata.items()
+                )
                 parts.append(metadata_str)
             if match.tags:
                 tags_str = " ".join(f"#{tag}" for tag in match.tags)
@@ -132,7 +153,8 @@ def search_command(
             for extra in rest:
                 print(f"    {extra}")
             print()
-        print(f"\nFound {len(matches)} {'entry' if len(matches) == 1 else 'entries'} containing '{query}'.")
+        entry_label = "entry" if len(matches) == 1 else "entries"
+        print(f"\nFound {len(matches)} {entry_label} containing '{query}'.")
 
 
 def tags_command(db: sqlite3.Connection, output_format: str = "text"):

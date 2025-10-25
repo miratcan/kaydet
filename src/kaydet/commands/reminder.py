@@ -3,7 +3,7 @@
 from datetime import datetime
 from pathlib import Path
 
-from ..utils import load_last_entry_timestamp, REMINDER_THRESHOLD
+from ..utils import REMINDER_THRESHOLD, load_last_entry_timestamp
 
 
 def reminder_command(config_dir: Path, log_dir: Path, now: datetime):

@@ -12,8 +12,12 @@ from typing import Dict, Iterable, List, Optional, Tuple
 from .models import DiaryEntry
 
 # Regex patterns
-ENTRY_LINE_PATTERN = re.compile(r"^(?:([a-zA-Z0-9_-]{22}):)?(\d{2}:\d{2}): (.*)")
-LEGACY_TAG_PATTERN = re.compile(r"^[\[(](?P<tags>[a-z-]+(?:,[a-z-]+)*)[\])]\s*")
+ENTRY_LINE_PATTERN = re.compile(
+    r"^(?:([a-zA-Z0-9_-]{22}):)?(\d{2}:\d{2}): (.*)"
+)
+LEGACY_TAG_PATTERN = re.compile(
+    r"^[\[(](?P<tags>[a-z-]+(?:,[a-z-]+)*)[\])]\s*"
+)
 HASHTAG_PATTERN = re.compile(r"#([a-z-]+)")
 TAG_PATTERN = re.compile(r"^[a-z-]+$")
 KEY_VALUE_PATTERN = re.compile(r"^(?P<key>[a-z][a-z0-9_-]*):(?P<value>.+)")
@@ -121,7 +125,7 @@ def parse_stored_entry_remainder(
 def tokenize_query(
     query: str,
 ) -> Tuple[List[str], List[Tuple[str, str]], List[str]]:
-    """Split a search query into text terms, metadata filters, and tag filters."""
+    """Split a query into text terms, metadata filters, and tag filters."""
     try:
         tokens = shlex.split(query)
     except ValueError:
@@ -142,19 +146,25 @@ def tokenize_query(
     return text_terms, metadata_filters, tag_filters
 
 
-def parse_range_expression(expression: str) -> Optional[Tuple[Optional[float], Optional[float]]]:
+def parse_range_expression(
+    expression: str,
+) -> Optional[Tuple[Optional[float], Optional[float]]]:
     """Parse a range expression like ``1..3`` into numeric bounds."""
     if ".." not in expression:
         return None
     lower_raw, upper_raw = expression.split("..", 1)
     lower = parse_numeric_value(lower_raw) if lower_raw.strip() else None
     upper = parse_numeric_value(upper_raw) if upper_raw.strip() else None
-    if (lower_raw.strip() and lower is None) or (upper_raw.strip() and upper is None):
+    if (lower_raw.strip() and lower is None) or (
+        upper_raw.strip() and upper is None
+    ):
         return None
     return lower, upper
 
 
-def parse_comparison_expression(expression: str) -> Optional[Tuple[str, float]]:
+def parse_comparison_expression(
+    expression: str,
+) -> Optional[Tuple[str, float]]:
     """Parse comparison expressions like ``>=2`` or ``<5``."""
     for operator in (">=", "<=", ">", "<"):
         if expression.startswith(operator):
@@ -179,7 +189,7 @@ def count_entries(day_file: Path) -> int:
 
 
 def parse_day_entries(day_file: Path, day: Optional[date]) -> List[DiaryEntry]:
-    """Parse structured entries from a diary file, supporting both UUID and legacy formats."""
+    """Parse diary entries, supporting both UUID and legacy formats."""
     lines = read_diary_lines(day_file)
     entries: List[DiaryEntry] = []
     current_uuid: Optional[str] = None
@@ -196,7 +206,7 @@ def parse_day_entries(day_file: Path, day: Optional[date]) -> List[DiaryEntry]:
         if current_uuid:
             entry_uuid = current_uuid
         else:
-            # Create deterministic UUID from file path, timestamp, and first line
+            # Build a deterministic UUID from path, timestamp, and first line.
             first_line = current_lines[0] if current_lines else ""
             seed = f"{day_file.name}:{current_time}:{first_line}"
             hash_digest = hashlib.sha256(seed.encode()).hexdigest()
@@ -224,7 +234,7 @@ def parse_day_entries(day_file: Path, day: Optional[date]) -> List[DiaryEntry]:
             uuid_part, time_part, remainder = match.groups()
             current_uuid = uuid_part
             current_time = time_part.strip(":")
-            
+
             legacy_match = LEGACY_TAG_PATTERN.match(remainder)
             if legacy_match:
                 current_legacy_tags = legacy_match.group("tags").split(",")
@@ -233,7 +243,9 @@ def parse_day_entries(day_file: Path, day: Optional[date]) -> List[DiaryEntry]:
                 current_legacy_tags = []
 
             remainder = remainder.lstrip()
-            message_line, parsed_metadata, explicit_tags = parse_stored_entry_remainder(remainder)
+            message_line, parsed_metadata, explicit_tags = (
+                parse_stored_entry_remainder(remainder)
+            )
             current_lines = [message_line]
             current_metadata = parsed_metadata
             current_explicit_tags = explicit_tags
@@ -249,9 +261,11 @@ def deduplicate_tags(
 ) -> Tuple[str, ...]:
     """Return unique lowercase tags."""
     seen: List[str] = []
+
     def register(tag: str):
         if (tag_lower := tag.lower()) and tag_lower not in seen:
             seen.append(tag_lower)
+
     for tag in initial_tags:
         register(tag)
     for line in lines:
@@ -273,7 +287,7 @@ def extract_words_from_text(text: str) -> List[str]:
 
 
 def resolve_entry_date(day_file: Path, pattern: str) -> Optional[date]:
-    """Infer the date represented by a diary file using the configured pattern."""
+    """Infer a diary date from the file name and configured pattern."""
     try:
         return datetime.strptime(day_file.name, pattern).date()
     except ValueError:

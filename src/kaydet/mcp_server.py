@@ -67,7 +67,10 @@ async def serve() -> None:
                     "properties": {
                         "text": {
                             "type": "string",
-                            "description": "The diary entry text. Can include hashtags like #work #project",
+                            "description": (
+                                "Diary entry text may include hashtags such "
+                                "as #work or #project."
+                            ),
                         },
                     },
                     "required": ["text"],
@@ -81,7 +84,10 @@ async def serve() -> None:
                     "properties": {
                         "query": {
                             "type": "string",
-                            "description": "Text to search for in entries (can be a word, phrase, or tag)",
+                            "description": (
+                                "Text to search for in entries: word, phrase, "
+                                "or tag."
+                            ),
                         },
                     },
                     "required": ["query"],
@@ -97,7 +103,9 @@ async def serve() -> None:
             ),
             Tool(
                 name="get_stats",
-                description="Get statistics about diary entries for the current month",
+                description=(
+                    "Get statistics about diary entries for the current month"
+                ),
                 inputSchema={
                     "type": "object",
                     "properties": {},

@@ -33,7 +33,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "black==24.4.2",
+    "pre-commit==4.0.1",
     "ruff==0.6.1",
 ]
 mcp = [
@@ -60,10 +60,6 @@ where = ["src"]
 version = {attr = "kaydet.__version__"}
 readme = {file = ["README.md"], content-type = "text/markdown"}
 
-[tool.black]
-line-length = 79
-target-version = ["py38"]
-
 [tool.ruff]
 line-length = 79
 target-version = "py38"
@@ -71,7 +67,7 @@ src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B"]
-ignore = ["E203", "E501"]
+ignore = ["E203"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["kaydet"]
