@@ -9,7 +9,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
 
-from .models import DiaryEntry
+from .models import Entry
 
 # Regex patterns
 ENTRY_LINE_PATTERN = re.compile(
@@ -25,13 +25,23 @@ NUMERIC_PATTERN = re.compile(r"^[-+]?\d+(?:\.\d+)?$")
 
 
 def normalize_tag(tag: str) -> Optional[str]:
-    """Normalize a tag token by stripping markers and lowercasing."""
+    """Normalize a tag token by stripping markers and lowercasing.
+
+    Example:
+        >>> normalize_tag("#Work")
+        'work'
+    """
     cleaned = tag.strip().lstrip("#").lower()
     return cleaned if cleaned else None
 
 
 def parse_metadata_token(token: str) -> Optional[Tuple[str, str]]:
-    """Return a (key, value) pair if the token is a metadata declaration."""
+    """Return a ``(key, value)`` pair when the token encodes metadata.
+
+    Example:
+        >>> parse_metadata_token("time:2h")
+        ('time', '2h')
+    """
     match = KEY_VALUE_PATTERN.match(token)
     if not match:
         return None
@@ -43,7 +53,12 @@ def parse_metadata_token(token: str) -> Optional[Tuple[str, str]]:
 
 
 def parse_numeric_value(raw_value: str) -> Optional[float]:
-    """Convert a metadata value to a numeric representation when possible."""
+    """Convert a metadata value to a numeric representation when possible.
+
+    Example:
+        >>> parse_numeric_value("90m")
+        1.5
+    """
     value = raw_value.strip().lower()
     if value.endswith("h") and NUMERIC_PATTERN.match(value[:-1]):
         return float(value[:-1])
@@ -55,7 +70,12 @@ def parse_numeric_value(raw_value: str) -> Optional[float]:
 
 
 def build_numeric_metadata(metadata: Dict[str, str]) -> Dict[str, float]:
-    """Return numeric representations for metadata values when available."""
+    """Return numeric representations for metadata values when available.
+
+    Example:
+        >>> build_numeric_metadata({"time": "2h", "status": "done"})
+        {'time': 2.0}
+    """
     numeric: Dict[str, float] = {}
     for key, value in metadata.items():
         converted = parse_numeric_value(value)
@@ -67,7 +87,12 @@ def build_numeric_metadata(metadata: Dict[str, str]) -> Dict[str, float]:
 def partition_entry_tokens(
     tokens: Iterable[str],
 ) -> Tuple[List[str], Dict[str, str], List[str]]:
-    """Split CLI tokens into message text, metadata, and explicit tags."""
+    """Split CLI tokens into message text, metadata, and explicit tags.
+
+    Example:
+        >>> partition_entry_tokens(["Fix", "bug", "time:1h", "#work"])
+        (['Fix', 'bug'], {'time': '1h'}, ['work'])
+    """
     message_tokens: List[str] = []
     metadata: Dict[str, str] = {}
     explicit_tags: List[str] = []
@@ -89,7 +114,13 @@ def format_entry_header(
     metadata: Dict[str, str],
     extra_tag_markers: Iterable[str],
 ) -> str:
-    """Format the first line of a diary entry for storage."""
+    """Format the first line of a diary entry for storage.
+
+    Example:
+        >>> format_entry_header("10:00", "Shipped release",
+        ...                    {"status": "done"}, ["work"])
+        '10:00: Shipped release | status:done | #work'
+    """
     base = f"{timestamp}: {message}" if message else f"{timestamp}:"
     segments = [base.rstrip()]
     if metadata:
@@ -102,7 +133,14 @@ def format_entry_header(
 def parse_stored_entry_remainder(
     remainder: str,
 ) -> Tuple[str, Dict[str, str], List[str]]:
-    """Parse the message, metadata, and explicit tags from a stored line."""
+    """Parse the message, metadata, and explicit tags from a stored line.
+
+    Example:
+        >>> parse_stored_entry_remainder(
+        ...     "Start | status:done | #work #release"
+        ... )
+        ('Start', {'status': 'done'}, ['work', 'release'])
+    """
     metadata: Dict[str, str] = {}
     explicit_tags: List[str] = []
     if "|" not in remainder:
@@ -125,7 +163,12 @@ def parse_stored_entry_remainder(
 def tokenize_query(
     query: str,
 ) -> Tuple[List[str], List[Tuple[str, str]], List[str]]:
-    """Split a query into text terms, metadata filters, and tag filters."""
+    """Split a query into text terms, metadata filters, and tag filters.
+
+    Example:
+        >>> tokenize_query("#work status:done focus")
+        (['focus'], [('status', 'done')], ['work'])
+    """
     try:
         tokens = shlex.split(query)
     except ValueError:
@@ -149,7 +192,12 @@ def tokenize_query(
 def parse_range_expression(
     expression: str,
 ) -> Optional[Tuple[Optional[float], Optional[float]]]:
-    """Parse a range expression like ``1..3`` into numeric bounds."""
+    """Parse a range expression like ``1..3`` into numeric bounds.
+
+    Example:
+        >>> parse_range_expression("1..3")
+        (1.0, 3.0)
+    """
     if ".." not in expression:
         return None
     lower_raw, upper_raw = expression.split("..", 1)
@@ -165,7 +213,12 @@ def parse_range_expression(
 def parse_comparison_expression(
     expression: str,
 ) -> Optional[Tuple[str, float]]:
-    """Parse comparison expressions like ``>=2`` or ``<5``."""
+    """Parse comparison expressions like ``>=2`` or ``<5``.
+
+    Example:
+        >>> parse_comparison_expression("<=3")
+        ('<=', 3.0)
+    """
     for operator in (">=", "<=", ">", "<"):
         if expression.startswith(operator):
             remainder = expression[len(operator) :].strip()
@@ -175,7 +228,15 @@ def parse_comparison_expression(
 
 
 def read_diary_lines(path: Path) -> List[str]:
-    """Return diary file lines, tolerating non-UTF8 bytes by replacing them."""
+    """Return diary file lines, tolerating non-UTF8 bytes by replacing them.
+
+    Example:
+        >>> tmp = Path("example.txt")
+        >>> _ = tmp.write_text("hello\\n", encoding="utf-8")
+        >>> read_diary_lines(tmp)
+        ['hello']
+        >>> tmp.unlink()
+    """
     try:
         return path.read_text(encoding="utf-8").splitlines()
     except UnicodeDecodeError:
@@ -183,15 +244,32 @@ def read_diary_lines(path: Path) -> List[str]:
 
 
 def count_entries(day_file: Path) -> int:
-    """Count timestamped diary entries inside a daily file."""
+    """Count timestamped diary entries inside a daily file.
+
+    Example:
+        >>> tmp = Path("count.txt")
+        >>> _ = tmp.write_text("10:00: note\\n")
+        >>> count_entries(tmp)
+        1
+        >>> tmp.unlink()
+    """
     lines = read_diary_lines(day_file)
     return sum(1 for line in lines if ENTRY_LINE_PATTERN.match(line))
 
 
-def parse_day_entries(day_file: Path, day: Optional[date]) -> List[DiaryEntry]:
-    """Parse diary entries, supporting both UUID and legacy formats."""
+def parse_day_entries(day_file: Path, day: Optional[date]) -> List[Entry]:
+    """Parse diary entries, supporting both UUID and legacy formats.
+
+    Example:
+        >>> tmp = Path("entry.txt")
+        >>> _ = tmp.write_text("10:00: Hello world\\n")
+        >>> entries = parse_day_entries(tmp, date(2025, 1, 1))
+        >>> len(entries), entries[0].lines[0]
+        (1, 'Hello world')
+        >>> tmp.unlink()
+    """
     lines = read_diary_lines(day_file)
-    entries: List[DiaryEntry] = []
+    entries: List[Entry] = []
     current_uuid: Optional[str] = None
     current_time: Optional[str] = None
     current_lines: List[str] = []
@@ -215,7 +293,7 @@ def parse_day_entries(day_file: Path, day: Optional[date]) -> List[DiaryEntry]:
         combined_tags = current_legacy_tags + current_explicit_tags
         tags = deduplicate_tags(combined_tags, current_lines)
         entries.append(
-            DiaryEntry(
+            Entry(
                 uuid=entry_uuid,
                 day=day,
                 timestamp=current_time,
@@ -259,7 +337,12 @@ def deduplicate_tags(
     initial_tags: Iterable[str],
     lines: Iterable[str],
 ) -> Tuple[str, ...]:
-    """Return unique lowercase tags."""
+    """Return unique lowercase tags from explicit and inline markers.
+
+    Example:
+        >>> deduplicate_tags(['Work'], ['Note about #Work and #focus'])
+        ('work', 'focus')
+    """
     seen: List[str] = []
 
     def register(tag: str):
@@ -275,19 +358,34 @@ def deduplicate_tags(
 
 
 def extract_tags_from_text(entry_text: str) -> Tuple[str, ...]:
-    """Return all unique hashtags present in the entry text."""
+    """Return all unique hashtags present in the entry text.
+
+    Example:
+        >>> extract_tags_from_text("Meeting notes #work #sync")
+        ('work', 'sync')
+    """
     if not entry_text:
         return ()
     return deduplicate_tags([], entry_text.splitlines() or [entry_text])
 
 
 def extract_words_from_text(text: str) -> List[str]:
-    """Extracts and normalizes words from a string for full-text indexing."""
+    """Extract and normalize words from a string for full-text indexing.
+
+    Example:
+        >>> extract_words_from_text("Ship MVP!")
+        ['ship', 'mvp']
+    """
     return re.sub(r"[^\w\s]", "", text).lower().split()
 
 
 def resolve_entry_date(day_file: Path, pattern: str) -> Optional[date]:
-    """Infer a diary date from the file name and configured pattern."""
+    """Infer a diary date from the file name and configured pattern.
+
+    Example:
+        >>> resolve_entry_date(Path("2025-01-01.txt"), "%Y-%m-%d.txt")
+        datetime.date(2025, 1, 1)
+    """
     try:
         return datetime.strptime(day_file.name, pattern).date()
     except ValueError:

@@ -9,7 +9,7 @@ from typing import Dict, Optional, Tuple
 
 
 @dataclass(frozen=True)
-class DiaryEntry:
+class Entry:
     """Structured view of a diary entry loaded from disk."""
 
     uuid: str
