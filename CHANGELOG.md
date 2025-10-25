@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.28.0] - 2025-10-25
+### Changed
+- Split the CLI into a dedicated `kaydet.commands` package with focused modules for add/search/stats/tags/reminder/doctor flows.
+- Moved shared helpers into new `kaydet.parsers`, `kaydet.utils`, and `kaydet.models` modules for easier reuse and testing.
+- Centralised database writes through `database.add_entry`, keeping tags, metadata, and full-text words in sync.
+
+### Developer Notes
+- Tests updated to exercise the new module boundaries; `pytest` continues to pass.
+
+## [0.27.0] - 2025-10-24
+### Added
+- Introduced a SQLite-backed index enabling full-text search, metadata filtering (range, comparison, wildcard), and tag statistics.
+- Added deterministic UUID support for legacy entries and auto-indexing when the database is empty.
+- Displayed metadata and tags inline in search results with a new database schema covering entries, tags, words, and metadata.
+
+### Fixed
+- Addressed word extraction for full-text indexing and multiple CLI edge cases (empty editor contents, stats when no log directory).
+
+### Developer Notes
+- Expanded tests to cover search, metadata workflows, doctor rebuilds, and legacy tag parsing, keeping coverage at 100%.
+
 ## [0.26.3] - 2025-10-24
 ### Added
 - Added `--version` CLI flag to print the installed kaydet version.
