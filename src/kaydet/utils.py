@@ -12,7 +12,7 @@ from pathlib import Path
 from tempfile import mkstemp
 from typing import Iterable, Optional, Tuple
 
-from .models import DiaryEntry
+from .models import Entry
 from .parsers import parse_day_entries, resolve_entry_date
 
 CONFIG_SECTION = "SETTINGS"
@@ -54,7 +54,7 @@ def get_config() -> Tuple[SectionProxy, Path, Path]:
 
 def iter_diary_entries(
     log_dir: Path, config: SectionProxy
-) -> Iterable[DiaryEntry]:
+) -> Iterable[Entry]:
     """Yield entries from every diary file sorted by filename."""
     if not log_dir.exists():
         return

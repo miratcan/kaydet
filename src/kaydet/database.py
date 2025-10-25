@@ -8,6 +8,71 @@ from typing import Iterable
 # Increment this when making non-backward-compatible changes to the schema.
 SCHEMA_VERSION = 1
 
+PRAGMA_USER_VERSION = "PRAGMA user_version"
+
+DROP_TABLE_STATEMENTS = (
+    "DROP TABLE IF EXISTS entries",
+    "DROP TABLE IF EXISTS tags",
+    "DROP TABLE IF EXISTS words",
+    "DROP TABLE IF EXISTS metadata",
+)
+
+CREATE_TABLE_ENTRIES = """
+CREATE TABLE entries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    entry_uuid TEXT NOT NULL UNIQUE,
+    source_file TEXT NOT NULL,
+    timestamp TEXT NOT NULL
+)
+"""
+
+CREATE_TABLE_TAGS = """
+CREATE TABLE tags (
+    entry_id INTEGER NOT NULL,
+    tag_name TEXT NOT NULL,
+    FOREIGN KEY (entry_id) REFERENCES entries(id) ON DELETE CASCADE,
+    UNIQUE(entry_id, tag_name)
+)
+"""
+
+CREATE_TABLE_WORDS = """
+CREATE TABLE words (
+    entry_id INTEGER NOT NULL,
+    word TEXT NOT NULL,
+    FOREIGN KEY (entry_id) REFERENCES entries(id) ON DELETE CASCADE
+)
+"""
+
+CREATE_TABLE_METADATA = """
+CREATE TABLE metadata (
+    entry_id INTEGER NOT NULL,
+    meta_key TEXT NOT NULL,
+    meta_value TEXT NOT NULL,
+    numeric_value REAL,
+    FOREIGN KEY (entry_id) REFERENCES entries(id) ON DELETE CASCADE,
+    UNIQUE(entry_id, meta_key)
+)
+"""
+
+CREATE_INDEX_STATEMENTS = (
+    "CREATE INDEX idx_tags_tag_name ON tags(tag_name)",
+    "CREATE INDEX idx_words_word ON words(word)",
+    "CREATE INDEX idx_metadata_key_value "
+    "ON metadata(meta_key, meta_value)",
+    "CREATE INDEX idx_metadata_key_numeric "
+    "ON metadata(meta_key, numeric_value)",
+)
+
+INSERT_ENTRY_SQL = (
+    "INSERT INTO entries (entry_uuid, source_file, timestamp) VALUES (?, ?, ?)"
+)
+INSERT_TAG_SQL = "INSERT INTO tags (entry_id, tag_name) VALUES (?, ?)"
+INSERT_WORD_SQL = "INSERT INTO words (entry_id, word) VALUES (?, ?)"
+INSERT_METADATA_SQL = (
+    "INSERT INTO metadata (entry_id, meta_key, meta_value, numeric_value) "
+    "VALUES (?, ?, ?, ?)"
+)
+
 
 def get_db_connection(db_path: Path) -> sqlite3.Connection:
     """Establishes a connection to the SQLite database."""
@@ -22,7 +87,7 @@ def initialize_database(db: sqlite3.Connection):
     cursor = db.cursor()
 
     # 1. Check and set schema version
-    cursor.execute("PRAGMA user_version")
+    cursor.execute(PRAGMA_USER_VERSION)
     db_version = cursor.fetchone()[0]
 
     if db_version >= SCHEMA_VERSION:
@@ -30,61 +95,23 @@ def initialize_database(db: sqlite3.Connection):
 
     # For a fresh start or upgrade, we drop old tables and recreate.
     # A more complex migration system could be built here for future versions.
-    cursor.execute("DROP TABLE IF EXISTS entries")
-    cursor.execute("DROP TABLE IF EXISTS tags")
-    cursor.execute("DROP TABLE IF EXISTS words")
-    cursor.execute("DROP TABLE IF EXISTS metadata")
+    for statement in DROP_TABLE_STATEMENTS:
+        cursor.execute(statement)
 
     # 2. Create tables
     # entries: Core table linking a unique ID to where it lives on disk.
-    cursor.execute("""
-        CREATE TABLE entries (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            entry_uuid TEXT NOT NULL UNIQUE,
-            source_file TEXT NOT NULL,
-            timestamp TEXT NOT NULL
-        )
-    """)
+    cursor.execute(CREATE_TABLE_ENTRIES)
 
     # tags: Associates tags with entries.
-    cursor.execute("""
-        CREATE TABLE tags (
-            entry_id INTEGER NOT NULL,
-            tag_name TEXT NOT NULL,
-            FOREIGN KEY (entry_id) REFERENCES entries(id) ON DELETE CASCADE,
-            UNIQUE(entry_id, tag_name)
-        )
-    """)
-    cursor.execute("CREATE INDEX idx_tags_tag_name ON tags(tag_name)")
+    cursor.execute(CREATE_TABLE_TAGS)
 
     # words: For full-text search indexing.
-    cursor.execute("""
-        CREATE TABLE words (
-            entry_id INTEGER NOT NULL,
-            word TEXT NOT NULL,
-            FOREIGN KEY (entry_id) REFERENCES entries(id) ON DELETE CASCADE
-        )
-    """)
-    cursor.execute("CREATE INDEX idx_words_word ON words(word)")
+    cursor.execute(CREATE_TABLE_WORDS)
 
     # metadata: Stores key-value pairs, plus a pre-calculated numeric value.
-    cursor.execute("""
-        CREATE TABLE metadata (
-            entry_id INTEGER NOT NULL,
-            meta_key TEXT NOT NULL,
-            meta_value TEXT NOT NULL,
-            numeric_value REAL,
-            FOREIGN KEY (entry_id) REFERENCES entries(id) ON DELETE CASCADE,
-            UNIQUE(entry_id, meta_key)
-        )
-    """)
-    cursor.execute(
-        "CREATE INDEX idx_metadata_key_value ON metadata(meta_key, meta_value)"
-    )
-    cursor.execute(
-        "CREATE INDEX idx_metadata_key_numeric ON metadata(meta_key, "
-        "numeric_value)"
-    )
+    cursor.execute(CREATE_TABLE_METADATA)
+    for statement in CREATE_INDEX_STATEMENTS:
+        cursor.execute(statement)
 
     # 3. Set the new schema version
     cursor.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
@@ -108,8 +135,7 @@ def add_entry(
 
         # Insert the main entry record
         cursor.execute(
-            "INSERT INTO entries (entry_uuid, source_file, timestamp) "
-            "VALUES (?, ?, ?)",
+            INSERT_ENTRY_SQL,
             (entry_uuid, source_file, timestamp),
         )
         entry_id = cursor.lastrowid
@@ -117,16 +143,12 @@ def add_entry(
         # Insert tags
         if tags:
             tag_data = [(entry_id, tag) for tag in set(tags)]
-            cursor.executemany(
-                "INSERT INTO tags (entry_id, tag_name) VALUES (?, ?)", tag_data
-            )
+            cursor.executemany(INSERT_TAG_SQL, tag_data)
 
         # Insert words
         if words:
             word_data = [(entry_id, word) for word in set(words)]
-            cursor.executemany(
-                "INSERT INTO words (entry_id, word) VALUES (?, ?)", word_data
-            )
+            cursor.executemany(INSERT_WORD_SQL, word_data)
 
         # Insert metadata
         if metadata:
@@ -135,8 +157,7 @@ def add_entry(
                 for key, (value, num_value) in metadata.items()
             ]
             cursor.executemany(
-                "INSERT INTO metadata (entry_id, meta_key, meta_value, "
-                "numeric_value) VALUES (?, ?, ?, ?)",
+                INSERT_METADATA_SQL,
                 meta_data,
             )
 

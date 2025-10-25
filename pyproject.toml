@@ -67,7 +67,6 @@ src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B"]
-ignore = ["E203"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["kaydet"]

@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 - Split the CLI into a dedicated `kaydet.commands` package with focused modules for add/search/stats/tags/reminder/doctor flows.
 - Moved shared helpers into new `kaydet.parsers`, `kaydet.utils`, and `kaydet.models` modules for easier reuse and testing.
 - Centralised database writes through `database.add_entry`, keeping tags, metadata, and full-text words in sync.
+- Promoted SQLite statements to named constants and renamed the `DiaryEntry` dataclass to `Entry` for clarity.
 
 ### Developer Notes
 - Tests updated to exercise the new module boundaries; `pytest` continues to pass.
