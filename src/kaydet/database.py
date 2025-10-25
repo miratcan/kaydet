@@ -8,6 +8,9 @@ from typing import Iterable
 # Increment this when making non-backward-compatible changes to the schema.
 SCHEMA_VERSION = 2
 
+# Legacy migrations kept a user_version pragma, but SQLite is purely an
+# index/cache for Kaydet. We can safely drop and recreate tables whenever the
+# schema changes instead of juggling ALTER statements.
 PRAGMA_USER_VERSION = "PRAGMA user_version"
 
 DROP_TABLE_STATEMENTS = (
@@ -98,7 +101,7 @@ def initialize_database(db: sqlite3.Connection):
     cursor.execute(PRAGMA_USER_VERSION)
     db_version = cursor.fetchone()[0]
 
-    if db_version == 0:
+    if db_version != SCHEMA_VERSION:
         for statement in DROP_TABLE_STATEMENTS:
             cursor.execute(statement)
 
@@ -114,15 +117,7 @@ def initialize_database(db: sqlite3.Connection):
         db.commit()
         return
 
-    if db_version < 1:
-        raise RuntimeError("Unsupported database version")
-
-    if db_version < 2:
-        cursor.execute(CREATE_TABLE_SYNCED_FILES)
-        cursor.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
-        db.commit()
-        return
-
+    cursor.execute("DROP TABLE IF EXISTS synced_files")
     cursor.execute(CREATE_TABLE_SYNCED_FILES)
 
 

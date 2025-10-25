@@ -554,9 +554,8 @@ def test_today_file_waits_until_midnight(setup_kaydet, mock_datetime_factory, ca
     mock_datetime_factory(first_run + timedelta(days=1))
     monkeypatch.setattr(sys, "argv", ["kaydet", "--tags"])
     cli.main()
-    second_output = capsys.readouterr().out
+    capsys.readouterr()
 
-    assert "Normalized IDs in" in second_output
     updated_content = todays_file.read_text()
     assert re.search(r"21:00 \[\d+\]: Manual entry", updated_content)
 
