@@ -169,10 +169,18 @@ Mo Tu We Th Fr Sa Su
 Total entries this month: 12
 ```
 
-Each entry is written to a daily file (for example `~/.kaydet/2024-02-19.txt`) and
-prefixed with the current time. Opening an existing daily file will append a new
-section; the first entry of the day creates the file with a heading for easy
-navigating.
+Each entry is written to a daily file (for example `~/.kaydet/2024-02-19.txt`)
+and prefixed with the current time plus a durable numeric identifier:
+
+```
+14:25 [132]: Finished refactoring the sync helper #focus
+```
+
+Opening an existing daily file will append a new section; the first entry of the
+day creates the file with a heading for easy navigating. Kaydet keeps those
+files and the SQLite index in sync automatically—any command that touches the
+database refreshes changed files, assigns missing IDs, and lets you know when a
+file was rewritten.
 
 Add inline hashtags (for example `#family`) or structured metadata (`project:valocom`,
 `time:45m`) to enrich your notes. Kaydet stores everything in the daily file,

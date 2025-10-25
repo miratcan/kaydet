@@ -6,7 +6,7 @@ from typing import Iterable
 
 # Database schema version
 # Increment this when making non-backward-compatible changes to the schema.
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 PRAGMA_USER_VERSION = "PRAGMA user_version"
 
@@ -15,6 +15,7 @@ DROP_TABLE_STATEMENTS = (
     "DROP TABLE IF EXISTS tags",
     "DROP TABLE IF EXISTS words",
     "DROP TABLE IF EXISTS metadata",
+    "DROP TABLE IF EXISTS synced_files",
 )
 
 CREATE_TABLE_ENTRIES = """
@@ -54,6 +55,14 @@ CREATE TABLE metadata (
 )
 """
 
+CREATE_TABLE_SYNCED_FILES = """
+CREATE TABLE IF NOT EXISTS synced_files (
+    path TEXT PRIMARY KEY,
+    mtime REAL NOT NULL,
+    needs_final_sync INTEGER NOT NULL DEFAULT 0
+)
+"""
+
 CREATE_INDEX_STATEMENTS = (
     "CREATE INDEX idx_tags_tag_name ON tags(tag_name)",
     "CREATE INDEX idx_words_word ON words(word)",
@@ -63,9 +72,6 @@ CREATE_INDEX_STATEMENTS = (
     "ON metadata(meta_key, numeric_value)",
 )
 
-INSERT_ENTRY_SQL = (
-    "INSERT INTO entries (entry_uuid, source_file, timestamp) VALUES (?, ?, ?)"
-)
 INSERT_TAG_SQL = "INSERT INTO tags (entry_id, tag_name) VALUES (?, ?)"
 INSERT_WORD_SQL = "INSERT INTO words (entry_id, word) VALUES (?, ?)"
 INSERT_METADATA_SQL = (
@@ -76,7 +82,9 @@ INSERT_METADATA_SQL = (
 
 def get_db_connection(db_path: Path) -> sqlite3.Connection:
     """Establishes a connection to the SQLite database."""
-    return sqlite3.connect(db_path, isolation_level=None)  # Autocommit mode
+    connection = sqlite3.connect(db_path, isolation_level=None)
+    connection.execute("PRAGMA foreign_keys = ON")
+    return connection
 
 
 def initialize_database(db: sqlite3.Connection):
@@ -90,42 +98,44 @@ def initialize_database(db: sqlite3.Connection):
     cursor.execute(PRAGMA_USER_VERSION)
     db_version = cursor.fetchone()[0]
 
-    if db_version >= SCHEMA_VERSION:
-        return  # Database is already up to date
+    if db_version == 0:
+        for statement in DROP_TABLE_STATEMENTS:
+            cursor.execute(statement)
 
-    # For a fresh start or upgrade, we drop old tables and recreate.
-    # A more complex migration system could be built here for future versions.
-    for statement in DROP_TABLE_STATEMENTS:
-        cursor.execute(statement)
+        cursor.execute(CREATE_TABLE_ENTRIES)
+        cursor.execute(CREATE_TABLE_TAGS)
+        cursor.execute(CREATE_TABLE_WORDS)
+        cursor.execute(CREATE_TABLE_METADATA)
+        cursor.execute(CREATE_TABLE_SYNCED_FILES)
+        for statement in CREATE_INDEX_STATEMENTS:
+            cursor.execute(statement)
 
-    # 2. Create tables
-    # entries: Core table linking a unique ID to where it lives on disk.
-    cursor.execute(CREATE_TABLE_ENTRIES)
+        cursor.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+        db.commit()
+        return
 
-    # tags: Associates tags with entries.
-    cursor.execute(CREATE_TABLE_TAGS)
+    if db_version < 1:
+        raise RuntimeError("Unsupported database version")
 
-    # words: For full-text search indexing.
-    cursor.execute(CREATE_TABLE_WORDS)
+    if db_version < 2:
+        cursor.execute(CREATE_TABLE_SYNCED_FILES)
+        cursor.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+        db.commit()
+        return
 
-    # metadata: Stores key-value pairs, plus a pre-calculated numeric value.
-    cursor.execute(CREATE_TABLE_METADATA)
-    for statement in CREATE_INDEX_STATEMENTS:
-        cursor.execute(statement)
-
-    # 3. Set the new schema version
-    cursor.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
-    db.commit()
+    cursor.execute(CREATE_TABLE_SYNCED_FILES)
 
 
 def add_entry(
     db: sqlite3.Connection,
-    entry_uuid: str,
     source_file: str,
     timestamp: str,
     tags: Iterable[str],
     words: Iterable[str],
     metadata: dict[str, tuple[str, float | None]],
+    *,
+    entry_id: int | None = None,
+    entry_uuid: str | None = None,
 ) -> int:
     """Add an entry, with its tags, words, and metadata, in one transaction."""
     cursor = db.cursor()
@@ -134,11 +144,18 @@ def add_entry(
         cursor.execute("BEGIN")
 
         # Insert the main entry record
+        if entry_id is None:
+            cursor.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM entries")
+            entry_id = cursor.fetchone()[0]
+
+        if entry_uuid is None:
+            entry_uuid = f"{source_file}:{entry_id}"
+
         cursor.execute(
-            INSERT_ENTRY_SQL,
-            (entry_uuid, source_file, timestamp),
+            "INSERT INTO entries (id, entry_uuid, source_file, timestamp) "
+            "VALUES (?, ?, ?, ?)",
+            (entry_id, entry_uuid, source_file, timestamp),
         )
-        entry_id = cursor.lastrowid
 
         # Insert tags
         if tags:
