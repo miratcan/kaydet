@@ -22,7 +22,7 @@ def doctor_command(
         db.execute(f"DELETE FROM {table}")
     db.commit()
 
-    synchronize_diary(
+    normalized = synchronize_diary(
         db,
         log_dir,
         config,
@@ -30,6 +30,8 @@ def doctor_command(
         force=True,
         process_today=True,
     )
+    for changed in normalized:
+        print(f"Normalized IDs in {changed}")
 
     cursor = db.cursor()
     cursor.execute("SELECT COUNT(*) FROM entries")

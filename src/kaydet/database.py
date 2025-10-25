@@ -72,9 +72,6 @@ CREATE_INDEX_STATEMENTS = (
     "ON metadata(meta_key, numeric_value)",
 )
 
-INSERT_ENTRY_SQL = (
-    "INSERT INTO entries (entry_uuid, source_file, timestamp) VALUES (?, ?, ?)"
-)
 INSERT_TAG_SQL = "INSERT INTO tags (entry_id, tag_name) VALUES (?, ?)"
 INSERT_WORD_SQL = "INSERT INTO words (entry_id, word) VALUES (?, ?)"
 INSERT_METADATA_SQL = (
@@ -124,16 +121,21 @@ def initialize_database(db: sqlite3.Connection):
         cursor.execute(CREATE_TABLE_SYNCED_FILES)
         cursor.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         db.commit()
+        return
+
+    cursor.execute(CREATE_TABLE_SYNCED_FILES)
 
 
 def add_entry(
     db: sqlite3.Connection,
-    entry_uuid: str,
     source_file: str,
     timestamp: str,
     tags: Iterable[str],
     words: Iterable[str],
     metadata: dict[str, tuple[str, float | None]],
+    *,
+    entry_id: int | None = None,
+    entry_uuid: str | None = None,
 ) -> int:
     """Add an entry, with its tags, words, and metadata, in one transaction."""
     cursor = db.cursor()
@@ -142,11 +144,18 @@ def add_entry(
         cursor.execute("BEGIN")
 
         # Insert the main entry record
+        if entry_id is None:
+            cursor.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM entries")
+            entry_id = cursor.fetchone()[0]
+
+        if entry_uuid is None:
+            entry_uuid = f"{source_file}:{entry_id}"
+
         cursor.execute(
-            INSERT_ENTRY_SQL,
-            (entry_uuid, source_file, timestamp),
+            "INSERT INTO entries (id, entry_uuid, source_file, timestamp) "
+            "VALUES (?, ?, ?, ?)",
+            (entry_id, entry_uuid, source_file, timestamp),
         )
-        entry_id = cursor.lastrowid
 
         # Insert tags
         if tags:
