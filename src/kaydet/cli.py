@@ -20,6 +20,7 @@ from .commands import (
     tags_command,
 )
 from .parsers import extract_tags_from_text  # noqa: F401
+from .sync import synchronize_diary
 from .utils import DEFAULT_SETTINGS, get_config  # noqa: F401
 
 INDEX_FILENAME = "index.db"
@@ -103,6 +104,11 @@ def main() -> None:
         reminder_command(config_dir, log_dir, now)
         return
     elif args.stats:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        db_path = log_dir / INDEX_FILENAME
+        db = database.get_db_connection(db_path)
+        database.initialize_database(db)
+        synchronize_diary(db, log_dir, config, now)
         stats_command(log_dir, config, now, args.output_format)
         return
     elif args.list_tags:
@@ -110,19 +116,21 @@ def main() -> None:
         db_path = log_dir / INDEX_FILENAME
         db = database.get_db_connection(db_path)
         database.initialize_database(db)
+        synchronize_diary(db, log_dir, config, now)
         tags_command(db, args.output_format)
     elif args.search:
         log_dir.mkdir(parents=True, exist_ok=True)
         db_path = log_dir / INDEX_FILENAME
         db = database.get_db_connection(db_path)
         database.initialize_database(db)
+        synchronize_diary(db, log_dir, config, now)
         search_command(db, log_dir, config, args.search, args.output_format)
     elif args.doctor:
         log_dir.mkdir(parents=True, exist_ok=True)
         db_path = log_dir / INDEX_FILENAME
         db = database.get_db_connection(db_path)
         database.initialize_database(db)
-        doctor_command(db, log_dir, config)
+        doctor_command(db, log_dir, config, now)
     elif args.open_folder:
         startfile(str(log_dir))
         return
@@ -131,4 +139,5 @@ def main() -> None:
         db_path = log_dir / INDEX_FILENAME
         db = database.get_db_connection(db_path)
         database.initialize_database(db)
+        synchronize_diary(db, log_dir, config, now)
         add_entry_command(args, config, config_dir, log_dir, now, db)

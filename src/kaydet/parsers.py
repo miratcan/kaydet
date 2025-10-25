@@ -13,7 +13,10 @@ from .models import Entry
 
 # Regex patterns
 ENTRY_LINE_PATTERN = re.compile(
-    r"^(?:([a-zA-Z0-9_-]{22}):)?(\d{2}:\d{2}): (.*)"
+    r"^(?:([a-zA-Z0-9_-]{22}):)?"  # Optional legacy UUID prefix
+    r"(\d{2}:\d{2})"  # Timestamp (HH:MM)
+    r"(?:\s+\[(.+?)\])?"  # Optional identifier like `[123]`
+    r":\s*(.*)"  # Remainder of the header line
 )
 LEGACY_TAG_PATTERN = re.compile(
     r"^[\[(](?P<tags>[a-z-]+(?:,[a-z-]+)*)[\])]\s*"
@@ -272,16 +275,21 @@ def parse_day_entries(day_file: Path, day: Optional[date]) -> List[Entry]:
     entries: List[Entry] = []
     current_uuid: Optional[str] = None
     current_time: Optional[str] = None
+    current_entry_id: Optional[str] = None
     current_lines: List[str] = []
     current_legacy_tags: List[str] = []
     current_metadata: Dict[str, str] = {}
     current_explicit_tags: List[str] = []
 
     def finalize_entry():
+        nonlocal current_entry_id
         if current_time is None:
             return
-        # Generate deterministic UUID for legacy entries
-        if current_uuid:
+        # Prefer numeric identifiers when available, otherwise fall back to
+        # stored UUIDs or deterministic hashes.
+        if current_entry_id and current_entry_id.isdigit():
+            entry_uuid = f"{day_file.name}:{current_entry_id}"
+        elif current_uuid:
             entry_uuid = current_uuid
         else:
             # Build a deterministic UUID from path, timestamp, and first line.
@@ -295,6 +303,7 @@ def parse_day_entries(day_file: Path, day: Optional[date]) -> List[Entry]:
         entries.append(
             Entry(
                 uuid=entry_uuid,
+                entry_id=current_entry_id,
                 day=day,
                 timestamp=current_time,
                 lines=tuple(current_lines),
@@ -304,14 +313,16 @@ def parse_day_entries(day_file: Path, day: Optional[date]) -> List[Entry]:
                 source=day_file,
             )
         )
+        current_entry_id = None
 
     for line in lines:
         match = ENTRY_LINE_PATTERN.match(line)
         if match:
             finalize_entry()
-            uuid_part, time_part, remainder = match.groups()
+            uuid_part, time_part, identifier_part, remainder = match.groups()
             current_uuid = uuid_part
             current_time = time_part.strip(":")
+            current_entry_id = identifier_part.strip() if identifier_part else None
 
             legacy_match = LEGACY_TAG_PATTERN.match(remainder)
             if legacy_match:

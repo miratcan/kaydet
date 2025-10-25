@@ -4,7 +4,7 @@ import json
 import sqlite3
 from collections import defaultdict
 from configparser import SectionProxy
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 from ..parsers import (
@@ -35,7 +35,7 @@ def search_command(
         txt_files = list(log_dir.glob("*.txt"))
         if txt_files:
             print("Search index is empty. Rebuilding from existing files...")
-            doctor_command(db, log_dir, config)
+            doctor_command(db, log_dir, config, datetime.now())
             print()  # Add spacing after doctor output
 
     text_terms, metadata_filters, tag_filters = tokenize_query(query)
