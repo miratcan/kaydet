@@ -12,7 +12,6 @@ from typing import Dict, Optional, Tuple
 class Entry:
     """Structured view of a diary entry loaded from disk."""
 
-    uuid: str
     entry_id: Optional[str]
     day: Optional[date]
     timestamp: str
@@ -29,7 +28,7 @@ class Entry:
     def to_dict(self) -> dict:
         """Convert entry to dictionary for JSON serialization."""
         return {
-            "uuid": self.uuid,
+            "id": self.entry_id,
             "date": self.day.isoformat() if self.day else None,
             "timestamp": self.timestamp,
             "text": self.text,

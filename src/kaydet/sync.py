@@ -8,7 +8,7 @@ from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Dict, Iterable, List, Sequence, Tuple
+from typing import Dict, Iterable, List, Sequence
 
 from . import database
 from .models import Entry
@@ -21,7 +21,6 @@ from .parsers import (
     resolve_entry_date,
 )
 from .utils import DEFAULT_SETTINGS
-
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +54,9 @@ def _render_entry(entry: Entry) -> List[str]:
     return rendered
 
 
-def _write_if_changed(day_file: Path, original_text: str, lines: List[str]) -> bool:
+def _write_if_changed(
+    day_file: Path, original_text: str, lines: List[str]
+) -> bool:
     """Write the provided lines back to disk when content changes."""
 
     new_text = "\n".join(lines)
@@ -94,56 +95,45 @@ def _normalize_entries(
         if entry.entry_id and entry.entry_id.isdigit():
             candidate = int(entry.entry_id)
             cursor.execute(
-                "SELECT entry_uuid, source_file FROM entries WHERE id = ?",
+                "SELECT source_file FROM entries WHERE id = ?",
                 (candidate,),
             )
             row = cursor.fetchone()
-            expected_uuid = entry.uuid
-            expected_source = day_file.name
             if row:
-                existing_uuid, existing_source = row
-                if (
-                    existing_uuid == expected_uuid
-                    and existing_source == expected_source
-                ):
+                (existing_source,) = row
+                if existing_source == day_file.name:
                     entry_id_value = candidate
+                    update_sql = (
+                        "UPDATE entries "
+                        "SET source_file = ?, timestamp = ? "
+                        "WHERE id = ?"
+                    )
+                    cursor.execute(
+                        update_sql,
+                        (day_file.name, entry.timestamp, entry_id_value),
+                    )
             else:
-                cursor.execute(
-                    "INSERT INTO entries (id, entry_uuid, source_file, timestamp) "
-                    "VALUES (?, ?, ?, ?)",
-                    (candidate, entry.uuid, day_file.name, entry.timestamp),
-                )
                 entry_id_value = candidate
-
-        if entry_id_value is None:
-            cursor.execute(
-                "SELECT id FROM entries WHERE entry_uuid = ?",
-                (entry.uuid,),
-            )
-            match = cursor.fetchone()
-            if match:
-                entry_id_value = match[0]
-            else:
-                cursor.execute(
-                    "INSERT INTO entries (entry_uuid, source_file, timestamp) "
-                    "VALUES (?, ?, ?)",
-                    (entry.uuid, day_file.name, entry.timestamp),
+                insert_with_id_sql = (
+                    "INSERT INTO entries (id, source_file, timestamp) "
+                    "VALUES (?, ?, ?)"
                 )
-                entry_id_value = cursor.lastrowid
-
-        entry_uuid_value = f"{day_file.name}:{entry_id_value}"
-        cursor.execute(
-            "UPDATE entries SET entry_uuid = ?, source_file = ?, timestamp = ? "
-            "WHERE id = ?",
-            (entry_uuid_value, day_file.name, entry.timestamp, entry_id_value),
-        )
+                cursor.execute(
+                    insert_with_id_sql,
+                    (entry_id_value, day_file.name, entry.timestamp),
+                )
+        if entry_id_value is None:
+            insert_sql = (
+                "INSERT INTO entries (source_file, timestamp) VALUES (?, ?)"
+            )
+            cursor.execute(insert_sql, (day_file.name, entry.timestamp))
+            entry_id_value = cursor.lastrowid
 
         assigned_ids.append(entry_id_value)
         normalized.append(
             replace(
                 entry,
                 entry_id=str(entry_id_value),
-                uuid=entry_uuid_value,
             )
         )
 
@@ -176,8 +166,14 @@ def _reindex_entries(
         if not entry.entry_id or not entry.entry_id.isdigit():
             continue
         entry_id_value = int(entry.entry_id)
-        cursor.execute("DELETE FROM tags WHERE entry_id = ?", (entry_id_value,))
-        cursor.execute("DELETE FROM words WHERE entry_id = ?", (entry_id_value,))
+        cursor.execute(
+            "DELETE FROM tags WHERE entry_id = ?",
+            (entry_id_value,),
+        )
+        cursor.execute(
+            "DELETE FROM words WHERE entry_id = ?",
+            (entry_id_value,),
+        )
         cursor.execute(
             "DELETE FROM metadata WHERE entry_id = ?",
             (entry_id_value,),
@@ -211,16 +207,15 @@ def _reindex_entries(
             )
 
 
-def synchronize_diary(
+def sync_modified_diary_files(
     db: sqlite3.Connection,
     log_dir: Path,
     config: Dict[str, str],
     now: datetime,
     *,
     force: bool = False,
-    process_today: bool = False,
 ) -> List[Path]:
-    """Synchronize modified diary files with the SQLite index."""
+    """Incrementally synchronize modified diary files with the SQLite index."""
 
     if not log_dir.exists():
         return []
@@ -232,11 +227,10 @@ def synchronize_diary(
 
     cursor = db.cursor()
     cursor.execute(
-        "SELECT path, mtime, needs_final_sync FROM synced_files"
+        "SELECT source_file, last_mtime FROM synced_files"
     )
-    tracked: Dict[str, Tuple[float, int]] = {
-        path: (mtime, needs)
-        for path, mtime, needs in cursor.fetchall()
+    tracked: Dict[str, float] = {
+        source_file: mtime for source_file, mtime in cursor.fetchall()
     }
 
     normalized_files: List[Path] = []
@@ -246,17 +240,10 @@ def synchronize_diary(
             continue
         file_mtime = day_file.stat().st_mtime
         entry_date = resolve_entry_date(day_file, day_pattern)
-        record = tracked.get(day_file.name)
-        needs_sync = force or record is None
-        pending_flag = 0
-
-        if not needs_sync and record is not None:
-            stored_mtime, pending = record
-            pending_flag = pending
-            if abs(stored_mtime - file_mtime) > 1e-6:
-                needs_sync = True
-            elif pending and entry_date and entry_date < now.date():
-                needs_sync = True
+        stored_mtime = tracked.get(day_file.name)
+        needs_sync = force or stored_mtime is None or (
+            abs(stored_mtime - file_mtime) > 1e-6
+        )
 
         if not needs_sync:
             continue
@@ -268,10 +255,9 @@ def synchronize_diary(
         lines = raw_text.splitlines()
         header_lines = _split_header(lines)
         entries = parse_day_entries(day_file, entry_date)
-        had_missing_ids = any(
-            not (entry.entry_id and entry.entry_id.isdigit()) for entry in entries
-        )
-
+        # DEBUG
+        if day_file.name == "2025-09-30.txt":
+            print("sync entries", day_file.name, len(entries))
         db.execute("BEGIN")
         try:
             normalized_entries = _normalize_entries(db, day_file, entries)
@@ -281,30 +267,17 @@ def synchronize_diary(
             for entry in normalized_entries:
                 rendered_lines.extend(_render_entry(entry))
 
-            skip_today = False
-            if (
-                entry_date
-                and entry_date == now.date()
-                and not process_today
-                and had_missing_ids
-            ):
-                skip_today = True
-
-            if skip_today:
-                pending_flag = 1
-            else:
-                changed = _write_if_changed(day_file, raw_text, rendered_lines)
-                if changed:
-                    normalized_files.append(day_file)
-                    file_mtime = day_file.stat().st_mtime
-                pending_flag = 0
+            changed = _write_if_changed(day_file, raw_text, rendered_lines)
+            if changed:
+                normalized_files.append(day_file)
+                file_mtime = day_file.stat().st_mtime
 
             cursor.execute(
-                "INSERT INTO synced_files(path, mtime, needs_final_sync) "
-                "VALUES(?, ?, ?) "
-                "ON CONFLICT(path) DO UPDATE SET mtime=excluded.mtime, "
-                "needs_final_sync=excluded.needs_final_sync",
-                (day_file.name, file_mtime, pending_flag),
+                "INSERT INTO synced_files(source_file, last_mtime) "
+                "VALUES(?, ?) "
+                "ON CONFLICT(source_file) DO UPDATE SET "
+                "last_mtime = excluded.last_mtime",
+                (day_file.name, file_mtime),
             )
             db.execute("COMMIT")
         except Exception:

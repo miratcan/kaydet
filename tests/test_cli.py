@@ -22,6 +22,7 @@ def setup_kaydet(monkeypatch, tmp_path: Path) -> dict:
     fake_config_dir.mkdir(parents=True)
     fake_config_path = fake_config_dir / "config.ini"
     fake_log_dir = fake_home / ".kaydet"
+    fake_log_dir.mkdir(parents=True, exist_ok=True)
 
     config = ConfigParser(interpolation=None)
     config.add_section("SETTINGS")
@@ -30,10 +31,15 @@ def setup_kaydet(monkeypatch, tmp_path: Path) -> dict:
     config["SETTINGS"]["DAY_TITLE_PATTERN"] = "%Y/%m/%d/ - %A"
     config["SETTINGS"]["EDITOR"] = "vim"
 
-    def fake_get_config():
-        return config["SETTINGS"], fake_config_path, fake_config_dir
+    def fake_load_config():
+        return (
+            config["SETTINGS"],
+            fake_config_path,
+            fake_config_dir,
+            fake_log_dir,
+        )
 
-    monkeypatch.setattr(cli, "get_config", fake_get_config)
+    monkeypatch.setattr(cli, "load_config", fake_load_config)
 
     return {
         "monkeypatch": monkeypatch,
@@ -207,7 +213,10 @@ def test_editor_usage(setup_kaydet, mock_datetime_factory):
     log_file = fake_log_dir / "2025-09-30.txt"
     assert log_file.exists()
     content = log_file.read_text()
-    assert re.search(r"12:00 \[\d+\]: This entry came from the editor.", content)
+    assert re.search(
+        r"12:00 \[\d+\]: This entry came from the editor.",
+        content,
+    )
 
 
 def test_stats_command(setup_kaydet, capsys, mock_datetime_factory):
@@ -431,7 +440,10 @@ def test_doctor_command(setup_kaydet, capsys):
 
     legacy_content = (fake_log_dir / "2025-10-10.txt").read_text()
     assert re.search(r"10:00 \[\d+\]: A task for #work\.", legacy_content)
-    assert re.search(r"11:00 \[\d+\]: A personal note for #home\.", legacy_content)
+    assert re.search(
+        r"11:00 \[\d+\]: A personal note for #home\.",
+        legacy_content,
+    )
 
     db_path = fake_log_dir / "index.db"
     assert db_path.exists()
@@ -496,7 +508,10 @@ def test_conflicting_numeric_id_preserves_original_entry(
     capsys.readouterr()
 
     conflicting_file = fake_log_dir / "2025-09-30.txt"
-    conflicting_file.write_text("10:00 [1]: Conflicting entry\n", encoding="utf-8")
+    conflicting_file.write_text(
+        "10:00 [1]: Conflicting entry\n",
+        encoding="utf-8",
+    )
 
     mock_datetime_factory(datetime(2025, 9, 30, 9, 0, 0))
     monkeypatch.setattr(sys, "argv", ["kaydet", "--tags"])
@@ -510,7 +525,10 @@ def test_conflicting_numeric_id_preserves_original_entry(
     cursor.execute("SELECT source_file FROM entries WHERE id = 1")
     assert cursor.fetchone()[0] == "2025-09-29.txt"
 
-    cursor.execute("SELECT id FROM entries WHERE source_file = ?", ("2025-09-30.txt",))
+    cursor.execute(
+        "SELECT id FROM entries WHERE source_file = ?",
+        ("2025-09-30.txt",),
+    )
     conflicting_entry_id = cursor.fetchone()[0]
     assert conflicting_entry_id != 1
 
@@ -525,7 +543,9 @@ def test_conflicting_numeric_id_preserves_original_entry(
     assert match.group(1) != "1"
 
 
-def test_today_file_waits_until_midnight(setup_kaydet, mock_datetime_factory, capsys):
+def test_today_file_waits_until_midnight(
+    setup_kaydet, mock_datetime_factory, capsys
+):
     """Today's diary file should defer ID rewrites until the next day."""
 
     fake_log_dir = setup_kaydet["fake_log_dir"]
@@ -539,10 +559,10 @@ def test_today_file_waits_until_midnight(setup_kaydet, mock_datetime_factory, ca
     mock_datetime_factory(first_run)
     monkeypatch.setattr(sys, "argv", ["kaydet", "--tags"])
     cli.main()
-    first_output = capsys.readouterr().out
+    capsys.readouterr()
 
-    assert "Normalized IDs" not in first_output
-    assert "[" not in todays_file.read_text()
+    first_content = todays_file.read_text()
+    assert re.search(r"21:00 \[\d+\]: Manual entry", first_content)
 
     db_path = fake_log_dir / "index.db"
     db = sqlite3.connect(db_path)
@@ -812,10 +832,10 @@ def test_empty_entry_from_editor(setup_kaydet, capsys, mock_datetime_factory):
     assert "12:00:" not in content
 
 
-# --- Tests for get_config (without setup_kaydet fixture) ---
+# --- Tests for load_config (without setup_kaydet fixture) ---
 
 
-def test_get_config_creation(monkeypatch, tmp_path):
+def test_load_config_creation(monkeypatch, tmp_path):
     """Test that a new config file is created from scratch."""
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
     monkeypatch.setitem(
@@ -823,15 +843,17 @@ def test_get_config_creation(monkeypatch, tmp_path):
     )
     monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
 
-    section, config_path, _ = cli.get_config()
+    section, config_path, _, log_dir = cli.load_config()
 
     assert config_path.exists()
     assert config_path.name == "config.ini"
     assert section["editor"] == "vim"
     assert str(tmp_path / ".kaydet") in section["log_dir"]
+    assert log_dir == tmp_path / ".kaydet"
+    assert log_dir.exists()
 
 
-def test_get_config_existing_partial(monkeypatch, tmp_path):
+def test_load_config_existing_partial(monkeypatch, tmp_path):
     """Test that missing values are populated in an existing config."""
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
     monkeypatch.setitem(
@@ -841,16 +863,19 @@ def test_get_config_existing_partial(monkeypatch, tmp_path):
     config_dir.mkdir(parents=True)
     config_path = config_dir / "config.ini"
 
-    config_content = "[SETTINGS]\nlog_dir = /my/custom/path\n"
+    custom_path = tmp_path / "custom" / "path"
+    config_content = f"[SETTINGS]\nlog_dir = {custom_path}\n"
     config_path.write_text(config_content)
 
-    section, _, _ = cli.get_config()
+    section, _, _, log_dir = cli.load_config()
 
-    assert section["log_dir"] == "/my/custom/path"
+    assert section["log_dir"] == str(custom_path)
     assert section["editor"] == "vim"
+    assert log_dir == custom_path
+    assert log_dir.exists()
 
 
-def test_get_config_xdg_home(monkeypatch, tmp_path):
+def test_load_config_xdg_home(monkeypatch, tmp_path):
     """Test that XDG_CONFIG_HOME environment variable is respected."""
     monkeypatch.setitem(
         cli.DEFAULT_SETTINGS, "LOG_DIR", str(tmp_path / ".kaydet")
@@ -858,9 +883,11 @@ def test_get_config_xdg_home(monkeypatch, tmp_path):
     xdg_path = tmp_path / "custom_xdg"
     monkeypatch.setenv("XDG_CONFIG_HOME", str(xdg_path))
 
-    _, config_path, _ = cli.get_config()
+    _, config_path, _, log_dir = cli.load_config()
 
     assert str(xdg_path / "kaydet") in str(config_path.parent)
+    assert log_dir == Path(cli.DEFAULT_SETTINGS["LOG_DIR"]).expanduser()
+    assert log_dir.exists()
 
 
 # --- Final push for 100% coverage ---

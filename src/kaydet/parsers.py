@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import re
 import shlex
 from datetime import date, datetime
@@ -13,9 +12,9 @@ from .models import Entry
 
 # Regex patterns
 ENTRY_LINE_PATTERN = re.compile(
-    r"^(?:([a-zA-Z0-9_-]{22}):)?"  # Optional legacy UUID prefix
+    r"^(?:[a-zA-Z0-9_-]{22}:)?"  # Optional legacy UUID prefix
     r"(\d{2}:\d{2})"  # Timestamp (HH:MM)
-    r"(?:\s+\[(.+?)\])?"  # Optional identifier like `[123]`
+    r"(?:\s+\[(\d+)\])?"  # Optional identifier like `[123]`
     r":\s*(.*)"  # Remainder of the header line
 )
 LEGACY_TAG_PATTERN = re.compile(
@@ -279,7 +278,6 @@ def parse_day_entries(day_file: Path, day: Optional[date]) -> List[Entry]:
     """
     lines = read_diary_lines(day_file)
     entries: List[Entry] = []
-    current_uuid: Optional[str] = None
     current_time: Optional[str] = None
     current_entry_id: Optional[str] = None
     current_lines: List[str] = []
@@ -291,24 +289,10 @@ def parse_day_entries(day_file: Path, day: Optional[date]) -> List[Entry]:
         nonlocal current_entry_id
         if current_time is None:
             return
-        # Prefer numeric identifiers when available, otherwise fall back to
-        # stored UUIDs or deterministic hashes.
-        if current_entry_id and current_entry_id.isdigit():
-            entry_uuid = f"{day_file.name}:{current_entry_id}"
-        elif current_uuid:
-            entry_uuid = current_uuid
-        else:
-            # Build a deterministic UUID from path, timestamp, and first line.
-            first_line = current_lines[0] if current_lines else ""
-            seed = f"{day_file.name}:{current_time}:{first_line}"
-            hash_digest = hashlib.sha256(seed.encode()).hexdigest()
-            # Use first 22 chars of hash as deterministic UUID
-            entry_uuid = hash_digest[:22]
         combined_tags = current_legacy_tags + current_explicit_tags
         tags = deduplicate_tags(combined_tags, current_lines)
         entries.append(
             Entry(
-                uuid=entry_uuid,
                 entry_id=current_entry_id,
                 day=day,
                 timestamp=current_time,
@@ -325,10 +309,11 @@ def parse_day_entries(day_file: Path, day: Optional[date]) -> List[Entry]:
         match = ENTRY_LINE_PATTERN.match(line)
         if match:
             finalize_entry()
-            uuid_part, time_part, identifier_part, remainder = match.groups()
-            current_uuid = uuid_part
+            time_part, identifier_part, remainder = match.groups()
             current_time = time_part.strip(":")
-            current_entry_id = identifier_part.strip() if identifier_part else None
+            current_entry_id = (
+                identifier_part.strip() if identifier_part else None
+            )
 
             legacy_match = LEGACY_TAG_PATTERN.match(remainder)
             if legacy_match:
