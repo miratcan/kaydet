@@ -75,7 +75,7 @@ def test_add_simple_entry(setup_kaydet, mock_datetime_factory):
     assert log_file.exists()
     content = log_file.read_text()
     assert "2025/09/30/ - Tuesday" in content
-    assert "10:30: my first test entry" in content
+    assert re.search(r"10:30 \[\d+\]: my first test entry", content)
 
 
 def test_add_entry_with_tags(setup_kaydet, mock_datetime_factory):
@@ -97,9 +97,9 @@ def test_add_entry_with_tags(setup_kaydet, mock_datetime_factory):
     # --- DIAGNOSTIC PRINT ---
     print(f"\n--- LOG FILE CONTENT ---\n{content}\n------------------------")
 
-    # Check for the new format: uuid:timestamp: message
+    # Check for the new format with numeric IDs
     assert re.search(
-        r"[a-zA-Z0-9_-]{22}:11:00: This is a test for #work and #project-a",
+        r"11:00 \[\d+\]: This is a test for #work and #project-a",
         content,
     )
 
@@ -153,7 +153,7 @@ def test_add_entry_with_metadata_tokens(setup_kaydet, mock_datetime_factory):
     content = day_file.read_text()
     assert re.search(
         (
-            r"[a-zA-Z0-9_-]{22}:13:30: Fixed bug | commit:38edf60 "
+            r"13:30 \[\d+\]: Fixed bug | commit:38edf60 "
             r"pr:76 status:done time:2h | #urgent"
         ),
         content,
@@ -207,7 +207,7 @@ def test_editor_usage(setup_kaydet, mock_datetime_factory):
     log_file = fake_log_dir / "2025-09-30.txt"
     assert log_file.exists()
     content = log_file.read_text()
-    assert "12:00: This entry came from the editor." in content
+    assert re.search(r"12:00 \[\d+\]: This entry came from the editor.", content)
 
 
 def test_stats_command(setup_kaydet, capsys, mock_datetime_factory):
@@ -426,7 +426,12 @@ def test_doctor_command(setup_kaydet, capsys):
     captured = capsys.readouterr()
     output = captured.out
 
+    assert "Normalized IDs in" in output
     assert "Rebuilt search index for 3 entries." in output
+
+    legacy_content = (fake_log_dir / "2025-10-10.txt").read_text()
+    assert re.search(r"10:00 \[\d+\]: A task for #work\.", legacy_content)
+    assert re.search(r"11:00 \[\d+\]: A personal note for #home\.", legacy_content)
 
     db_path = fake_log_dir / "index.db"
     assert db_path.exists()
@@ -448,6 +453,69 @@ def test_doctor_command(setup_kaydet, capsys):
     assert tag_counts == {"home": 1, "work": 2}
 
     db.close()
+
+
+def test_manual_edit_sync_before_search(
+    setup_kaydet, mock_datetime_factory, capsys
+):
+    """Manual edits should be detected and synchronized before searching."""
+
+    fake_log_dir = setup_kaydet["fake_log_dir"]
+    monkeypatch = setup_kaydet["monkeypatch"]
+
+    mock_datetime_factory(datetime(2025, 9, 30, 9, 0, 0))
+    monkeypatch.setattr(sys, "argv", ["kaydet", "Initial note #work"])
+    cli.main()
+    capsys.readouterr()
+
+    day_file = fake_log_dir / "2025-09-30.txt"
+    content = day_file.read_text()
+    day_file.write_text(
+        content.replace("Initial note #work", "Updated entry #updated"),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(sys, "argv", ["kaydet", "--search", "#updated"])
+    cli.main()
+    output = capsys.readouterr().out
+
+    assert "Updated entry #updated" in output
+
+
+def test_today_file_waits_until_midnight(setup_kaydet, mock_datetime_factory, capsys):
+    """Today's diary file should defer ID rewrites until the next day."""
+
+    fake_log_dir = setup_kaydet["fake_log_dir"]
+    monkeypatch = setup_kaydet["monkeypatch"]
+    fake_log_dir.mkdir(exist_ok=True)
+
+    todays_file = fake_log_dir / "2025-09-30.txt"
+    todays_file.write_text("21:00: Manual entry\n", encoding="utf-8")
+
+    first_run = datetime(2025, 9, 30, 21, 0, 0)
+    mock_datetime_factory(first_run)
+    monkeypatch.setattr(sys, "argv", ["kaydet", "--tags"])
+    cli.main()
+    first_output = capsys.readouterr().out
+
+    assert "Normalized IDs" not in first_output
+    assert "[" not in todays_file.read_text()
+
+    db_path = fake_log_dir / "index.db"
+    db = sqlite3.connect(db_path)
+    cursor = db.cursor()
+    cursor.execute("SELECT COUNT(*) FROM entries")
+    assert cursor.fetchone()[0] == 1
+    db.close()
+
+    mock_datetime_factory(first_run + timedelta(days=1))
+    monkeypatch.setattr(sys, "argv", ["kaydet", "--tags"])
+    cli.main()
+    second_output = capsys.readouterr().out
+
+    assert "Normalized IDs in" in second_output
+    updated_content = todays_file.read_text()
+    assert re.search(r"21:00 \[\d+\]: Manual entry", updated_content)
 
 
 def test_reminder_no_previous_entries(setup_kaydet, capsys):

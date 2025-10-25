@@ -6,7 +6,7 @@ from typing import Iterable
 
 # Database schema version
 # Increment this when making non-backward-compatible changes to the schema.
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 PRAGMA_USER_VERSION = "PRAGMA user_version"
 
@@ -15,6 +15,7 @@ DROP_TABLE_STATEMENTS = (
     "DROP TABLE IF EXISTS tags",
     "DROP TABLE IF EXISTS words",
     "DROP TABLE IF EXISTS metadata",
+    "DROP TABLE IF EXISTS synced_files",
 )
 
 CREATE_TABLE_ENTRIES = """
@@ -54,6 +55,14 @@ CREATE TABLE metadata (
 )
 """
 
+CREATE_TABLE_SYNCED_FILES = """
+CREATE TABLE IF NOT EXISTS synced_files (
+    path TEXT PRIMARY KEY,
+    mtime REAL NOT NULL,
+    needs_final_sync INTEGER NOT NULL DEFAULT 0
+)
+"""
+
 CREATE_INDEX_STATEMENTS = (
     "CREATE INDEX idx_tags_tag_name ON tags(tag_name)",
     "CREATE INDEX idx_words_word ON words(word)",
@@ -76,7 +85,9 @@ INSERT_METADATA_SQL = (
 
 def get_db_connection(db_path: Path) -> sqlite3.Connection:
     """Establishes a connection to the SQLite database."""
-    return sqlite3.connect(db_path, isolation_level=None)  # Autocommit mode
+    connection = sqlite3.connect(db_path, isolation_level=None)
+    connection.execute("PRAGMA foreign_keys = ON")
+    return connection
 
 
 def initialize_database(db: sqlite3.Connection):
@@ -90,32 +101,29 @@ def initialize_database(db: sqlite3.Connection):
     cursor.execute(PRAGMA_USER_VERSION)
     db_version = cursor.fetchone()[0]
 
-    if db_version >= SCHEMA_VERSION:
-        return  # Database is already up to date
+    if db_version == 0:
+        for statement in DROP_TABLE_STATEMENTS:
+            cursor.execute(statement)
 
-    # For a fresh start or upgrade, we drop old tables and recreate.
-    # A more complex migration system could be built here for future versions.
-    for statement in DROP_TABLE_STATEMENTS:
-        cursor.execute(statement)
+        cursor.execute(CREATE_TABLE_ENTRIES)
+        cursor.execute(CREATE_TABLE_TAGS)
+        cursor.execute(CREATE_TABLE_WORDS)
+        cursor.execute(CREATE_TABLE_METADATA)
+        cursor.execute(CREATE_TABLE_SYNCED_FILES)
+        for statement in CREATE_INDEX_STATEMENTS:
+            cursor.execute(statement)
 
-    # 2. Create tables
-    # entries: Core table linking a unique ID to where it lives on disk.
-    cursor.execute(CREATE_TABLE_ENTRIES)
+        cursor.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+        db.commit()
+        return
 
-    # tags: Associates tags with entries.
-    cursor.execute(CREATE_TABLE_TAGS)
+    if db_version < 1:
+        raise RuntimeError("Unsupported database version")
 
-    # words: For full-text search indexing.
-    cursor.execute(CREATE_TABLE_WORDS)
-
-    # metadata: Stores key-value pairs, plus a pre-calculated numeric value.
-    cursor.execute(CREATE_TABLE_METADATA)
-    for statement in CREATE_INDEX_STATEMENTS:
-        cursor.execute(statement)
-
-    # 3. Set the new schema version
-    cursor.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
-    db.commit()
+    if db_version < 2:
+        cursor.execute(CREATE_TABLE_SYNCED_FILES)
+        cursor.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+        db.commit()
 
 
 def add_entry(

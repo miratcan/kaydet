@@ -13,6 +13,7 @@ class Entry:
     """Structured view of a diary entry loaded from disk."""
 
     uuid: str
+    entry_id: Optional[str]
     day: Optional[date]
     timestamp: str
     lines: Tuple[str, ...]
