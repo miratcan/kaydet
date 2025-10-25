@@ -4,3 +4,4 @@ src/kaydet.egg-info/
 .coverage
 __pycache__/
 *.pyc
+repomix-output.xml
