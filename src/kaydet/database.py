@@ -5,8 +5,8 @@ from pathlib import Path
 from typing import Iterable
 
 # Database schema version
-# Increment this when making non-backward-compatible changes to the schema.
-SCHEMA_VERSION = 2
+# Increment when we intentionally drop and recreate the schema.
+SCHEMA_VERSION = 1
 
 # Legacy migrations kept a user_version pragma, but SQLite is purely an
 # index/cache for Kaydet. We can safely drop and recreate tables whenever the
@@ -24,7 +24,6 @@ DROP_TABLE_STATEMENTS = (
 CREATE_TABLE_ENTRIES = """
 CREATE TABLE entries (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    entry_uuid TEXT NOT NULL UNIQUE,
     source_file TEXT NOT NULL,
     timestamp TEXT NOT NULL
 )
@@ -60,9 +59,8 @@ CREATE TABLE metadata (
 
 CREATE_TABLE_SYNCED_FILES = """
 CREATE TABLE IF NOT EXISTS synced_files (
-    path TEXT PRIMARY KEY,
-    mtime REAL NOT NULL,
-    needs_final_sync INTEGER NOT NULL DEFAULT 0
+    source_file TEXT PRIMARY KEY,
+    last_mtime REAL NOT NULL
 )
 """
 
@@ -81,6 +79,12 @@ INSERT_METADATA_SQL = (
     "INSERT INTO metadata (entry_id, meta_key, meta_value, numeric_value) "
     "VALUES (?, ?, ?, ?)"
 )
+
+UPSERT_SYNCED_FILE_SQL = (
+    "INSERT INTO synced_files(source_file, last_mtime) VALUES (?, ?) "
+    "ON CONFLICT(source_file) DO UPDATE SET last_mtime = excluded.last_mtime"
+)
+SELECT_SYNCED_FILES_SQL = "SELECT source_file, last_mtime FROM synced_files"
 
 
 def get_db_connection(db_path: Path) -> sqlite3.Connection:
@@ -117,7 +121,6 @@ def initialize_database(db: sqlite3.Connection):
         db.commit()
         return
 
-    cursor.execute("DROP TABLE IF EXISTS synced_files")
     cursor.execute(CREATE_TABLE_SYNCED_FILES)
 
 
@@ -130,7 +133,6 @@ def add_entry(
     metadata: dict[str, tuple[str, float | None]],
     *,
     entry_id: int | None = None,
-    entry_uuid: str | None = None,
 ) -> int:
     """Add an entry, with its tags, words, and metadata, in one transaction."""
     cursor = db.cursor()
@@ -140,17 +142,33 @@ def add_entry(
 
         # Insert the main entry record
         if entry_id is None:
-            cursor.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM entries")
-            entry_id = cursor.fetchone()[0]
-
-        if entry_uuid is None:
-            entry_uuid = f"{source_file}:{entry_id}"
-
-        cursor.execute(
-            "INSERT INTO entries (id, entry_uuid, source_file, timestamp) "
-            "VALUES (?, ?, ?, ?)",
-            (entry_id, entry_uuid, source_file, timestamp),
-        )
+            cursor.execute(
+                "INSERT INTO entries (source_file, timestamp) VALUES (?, ?)",
+                (source_file, timestamp),
+            )
+            entry_id = cursor.lastrowid
+        else:
+            cursor.execute(
+                "SELECT source_file FROM entries WHERE id = ?",
+                (entry_id,),
+            )
+            row = cursor.fetchone()
+            if row:
+                cursor.execute(
+                    (
+                        "UPDATE entries SET source_file = ?, timestamp = ? "
+                        "WHERE id = ?"
+                    ),
+                    (source_file, timestamp, entry_id),
+                )
+            else:
+                cursor.execute(
+                    (
+                        "INSERT INTO entries (id, source_file, timestamp) "
+                        "VALUES (?, ?, ?)"
+                    ),
+                    (entry_id, source_file, timestamp),
+                )
 
         # Insert tags
         if tags:

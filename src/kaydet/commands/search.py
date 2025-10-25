@@ -4,7 +4,7 @@ import json
 import sqlite3
 from collections import defaultdict
 from configparser import SectionProxy
-from datetime import date, datetime
+from datetime import date
 from pathlib import Path
 
 from ..parsers import (
@@ -14,35 +14,35 @@ from ..parsers import (
     resolve_entry_date,
     tokenize_query,
 )
-from .doctor import doctor_command
+from ..indexing import rebuild_index_if_empty
+
+SELECT_MATCHES_TEMPLATE = (
+    "SELECT DISTINCT e.source_file, e.id "
+    "FROM {from_clause} "
+    "WHERE {where_clause} "
+    "ORDER BY e.source_file, e.id"
+)
+
+SELECT_DISTINCT_TAGS_SQL = (
+    "SELECT DISTINCT tag_name FROM tags ORDER BY tag_name"
+)
 
 
-def search_command(
-    db: sqlite3.Connection,
-    log_dir: Path,
-    config: SectionProxy,
-    query: str,
-    output_format: str = "text",
-):
-    """Search diary entries using the SQLite index and print any matches."""
-    # Check if database is empty and auto-rebuild if needed
-    cursor = db.cursor()
-    cursor.execute("SELECT COUNT(*) FROM entries")
-    entry_count = cursor.fetchone()[0]
+def build_search_query(
+    text_terms, metadata_filters, tag_filters
+) -> tuple[str, list]:
+    """Compose the SQL query and parameters for a search request.
 
-    if entry_count == 0 and log_dir.exists():
-        # Check if there are any .txt files to index
-        txt_files = list(log_dir.glob("*.txt"))
-        if txt_files:
-            print("Search index is empty. Rebuilding from existing files...")
-            doctor_command(db, log_dir, config, datetime.now())
-            print()  # Add spacing after doctor output
+    TODO: Consider replacing this manual string builder with a small
+    query DSL or ORM abstraction once the schema stabilizes further.
 
-    text_terms, metadata_filters, tag_filters = tokenize_query(query)
-    if not any([text_terms, metadata_filters, tag_filters]):
-        print("Search query is empty.")
-        return
-
+    Example:
+        >>> sql, params = build_search_query(["focus"], [], [])
+        >>> sql.startswith("SELECT DISTINCT")
+        True
+        >>> params
+        ['%focus%']
+    """
     params = []
     from_clauses = ["entries e"]
     where_clauses = []
@@ -78,89 +78,130 @@ def search_command(
             where_clauses.append(f"m{i}.meta_value = ?")
             params.append(expression)
 
-    select_clause = "SELECT DISTINCT e.source_file, e.entry_uuid"
     from_clause = " ".join(from_clauses)
     where_clause = " AND ".join(where_clauses)
-    sql_query = (
-        f"{select_clause} FROM {from_clause} "
-        f"WHERE {where_clause} "
-        "ORDER BY e.source_file, e.id"
+    sql_query = SELECT_MATCHES_TEMPLATE.format(
+        from_clause=from_clause,
+        where_clause=where_clause,
     )
+    return sql_query, params
 
+
+def fetch_entry_locations(
+    db: sqlite3.Connection, sql_query: str, params: list
+):
+    """Execute the search query and return matching entry identifiers."""
     cursor = db.cursor()
     try:
         cursor.execute(sql_query, params)
-        locations = cursor.fetchall()
-    except sqlite3.OperationalError as e:
-        print(f"Database query failed: {e}")
-        return
+    except sqlite3.OperationalError as error:
+        print(f"Database query failed: {error}")
+        return None
+    return cursor.fetchall()
 
-    if not locations:
-        print(f"No entries matched '{query}'.")
-        return
 
+def load_matches(
+    locations,
+    log_dir: Path,
+    config: SectionProxy,
+):
+    """Resolve stored entry identifiers into diary entries."""
     file_map = defaultdict(list)
-    for source_file, uuid in locations:
-        file_map[source_file].append(uuid)
+    for source_file, entry_id in locations:
+        file_map[source_file].append(str(entry_id))
 
     matches = []
     day_file_pattern = config.get("DAY_FILE_PATTERN", "")
-    for source_file, uuids in file_map.items():
+    for source_file, entry_ids in file_map.items():
         full_path = log_dir / source_file
         if not full_path.exists():
             continue
         entry_date = resolve_entry_date(full_path, day_file_pattern)
         entries_in_file = parse_day_entries(full_path, entry_date)
-        entry_map = {entry.uuid: entry for entry in entries_in_file}
-        for uuid in uuids:
-            if uuid in entry_map:
-                matches.append(entry_map[uuid])
+        entry_map = {
+            entry.entry_id: entry
+            for entry in entries_in_file
+            if entry.entry_id and entry.entry_id.isdigit()
+        }
+        for entry_id in entry_ids:
+            if entry_id in entry_map:
+                matches.append(entry_map[entry_id])
 
-    matches.sort(key=lambda e: (e.day or date.min, e.timestamp))
+    matches.sort(key=lambda entry: (entry.day or date.min, entry.timestamp))
+    return matches
 
+
+def print_matches(matches, query: str, output_format: str) -> None:
+    """Render matches either as JSON or a terminal-friendly listing."""
     if output_format == "json":
         print(
             json.dumps(
                 {
                     "query": query,
-                    "matches": [m.to_dict() for m in matches],
+                    "matches": [match.to_dict() for match in matches],
                     "total": len(matches),
                 },
                 indent=2,
                 ensure_ascii=False,
             )
         )
-    else:
-        for match in matches:
-            day_label = (
-                match.day.isoformat() if match.day else match.source.name
+        return
+
+    for match in matches:
+        day_label = match.day.isoformat() if match.day else match.source.name
+        first_line, *rest = list(match.lines) or [""]
+
+        # Build header with metadata and tags
+        parts = [f"{day_label} {match.timestamp} {first_line}".rstrip()]
+        if match.metadata:
+            metadata_str = " ".join(
+                f"{key}:{value}" for key, value in match.metadata.items()
             )
-            first_line, *rest = list(match.lines) or [""]
+            parts.append(metadata_str)
+        if match.tags:
+            tags_str = " ".join(f"#{tag}" for tag in match.tags)
+            parts.append(tags_str)
 
-            # Build header with metadata and tags
-            parts = [f"{day_label} {match.timestamp} {first_line}".rstrip()]
-            if match.metadata:
-                metadata_str = " ".join(
-                    f"{k}:{v}" for k, v in match.metadata.items()
-                )
-                parts.append(metadata_str)
-            if match.tags:
-                tags_str = " ".join(f"#{tag}" for tag in match.tags)
-                parts.append(tags_str)
+        header = " | ".join(parts) if len(parts) > 1 else parts[0]
+        print(header)
+        for extra in rest:
+            print(f"    {extra}")
+        print()
+    entry_label = "entry" if len(matches) == 1 else "entries"
+    print(f"\nFound {len(matches)} {entry_label} containing '{query}'.")
 
-            header = " | ".join(parts) if len(parts) > 1 else parts[0]
-            print(header)
-            for extra in rest:
-                print(f"    {extra}")
-            print()
-        entry_label = "entry" if len(matches) == 1 else "entries"
-        print(f"\nFound {len(matches)} {entry_label} containing '{query}'.")
+
+def search_command(
+    db: sqlite3.Connection,
+    log_dir: Path,
+    config: SectionProxy,
+    query: str,
+    output_format: str = "text",
+):
+    """Search diary entries using the SQLite index and print any matches."""
+    rebuild_index_if_empty(db, log_dir, config)
+
+    text_terms, metadata_filters, tag_filters = tokenize_query(query)
+    if not any([text_terms, metadata_filters, tag_filters]):
+        print("Search query is empty.")
+        return
+    sql_query, params = build_search_query(
+        text_terms, metadata_filters, tag_filters
+    )
+    locations = fetch_entry_locations(db, sql_query, params)
+    if locations is None:
+        return
+    if not locations:
+        print(f"No entries matched '{query}'.")
+        return
+    matches = load_matches(locations, log_dir, config)
+    print_matches(matches, query, output_format)
 
 
 def tags_command(db: sqlite3.Connection, output_format: str = "text"):
     """Print the unique set of tags recorded in the database."""
     cursor = db.cursor()
-    cursor.execute("SELECT DISTINCT tag_name FROM tags ORDER BY tag_name")
+    cursor.execute(SELECT_DISTINCT_TAGS_SQL)
     tags = [row[0] for row in cursor.fetchall()]
     if not tags:
         if output_format == "json":

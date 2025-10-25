@@ -7,7 +7,19 @@ from datetime import datetime
 from pathlib import Path
 
 from ..parsers import TAG_PATTERN
-from ..sync import synchronize_diary
+from ..sync import sync_modified_diary_files
+
+DELETE_INDEX_TABLES = ("tags", "words", "metadata")
+DELETE_TABLE_TEMPLATE = "DELETE FROM {table}"
+DELETE_ENTRIES_SQL = "DELETE FROM entries"
+DELETE_SYNCED_FILES_SQL = "DELETE FROM synced_files"
+SELECT_ENTRY_COUNT_SQL = "SELECT COUNT(*) FROM entries"
+SELECT_TAG_STATS_SQL = """
+SELECT tag_name, COUNT(*) as count
+FROM tags
+GROUP BY tag_name
+ORDER BY tag_name
+"""
 
 
 def doctor_command(
@@ -18,25 +30,24 @@ def doctor_command(
         "Rebuilding search index from diary files... This may take a moment."
     )
 
-    for table in ["tags", "words", "metadata"]:
-        db.execute(f"DELETE FROM {table}")
-    db.execute("DELETE FROM entries")
-    db.execute("DELETE FROM synced_files")
+    for table in DELETE_INDEX_TABLES:
+        db.execute(DELETE_TABLE_TEMPLATE.format(table=table))
+    db.execute(DELETE_ENTRIES_SQL)
+    db.execute(DELETE_SYNCED_FILES_SQL)
     db.commit()
 
-    normalized = synchronize_diary(
+    normalized = sync_modified_diary_files(
         db,
         log_dir,
         config,
         now,
         force=True,
-        process_today=True,
     )
     for changed in normalized:
         print(f"Normalized IDs in {changed}")
 
     cursor = db.cursor()
-    cursor.execute("SELECT COUNT(*) FROM entries")
+    cursor.execute(SELECT_ENTRY_COUNT_SQL)
     total_entries = cursor.fetchone()[0]
 
     if log_dir.exists():
@@ -47,14 +58,7 @@ def doctor_command(
     entry_label = "entry" if total_entries == 1 else "entries"
     print(f"Rebuilt search index for {total_entries} {entry_label}.")
 
-    cursor.execute(
-        """
-        SELECT tag_name, COUNT(*) as count
-        FROM tags
-        GROUP BY tag_name
-        ORDER BY tag_name
-        """
-    )
+    cursor.execute(SELECT_TAG_STATS_SQL)
     tag_stats = cursor.fetchall()
     if tag_stats:
         tag_list = ", ".join(f"#{tag}: {count}" for tag, count in tag_stats)
