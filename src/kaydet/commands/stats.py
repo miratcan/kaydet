@@ -25,6 +25,13 @@ def stats_command(
             print("No diary entries found yet.")
         return
 
+    if not any(log_dir.glob("*.txt")):
+        if output_format == "json":
+            print(json.dumps({"error": "No diary entries found yet."}))
+        else:
+            print("No diary entries found yet.")
+        return
+
     year = now.year
     month = now.month
 

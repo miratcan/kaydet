@@ -29,8 +29,8 @@ LAST_ENTRY_FILENAME = "last_entry_timestamp"
 REMINDER_THRESHOLD = timedelta(hours=2)
 
 
-def get_config() -> Tuple[SectionProxy, Path, Path]:
-    """Load configuration and ensure defaults exist."""
+def load_config() -> Tuple[SectionProxy, Path, Path, Path]:
+    """Load configuration, ensuring directories and defaults exist."""
     config_root = Path(env.get("XDG_CONFIG_HOME") or Path.home() / ".config")
     config_dir = config_root / "kaydet"
     config_dir.mkdir(parents=True, exist_ok=True)
@@ -49,7 +49,12 @@ def get_config() -> Tuple[SectionProxy, Path, Path]:
     if updated:
         with config_path.open("w", encoding="utf-8") as config_file:
             parser.write(config_file)
-    return section, config_path, config_dir
+
+    log_dir = Path(section["LOG_DIR"]).expanduser()
+    log_dir.mkdir(parents=True, exist_ok=True)
+    return section, config_path, config_dir, log_dir
+
+
 
 
 def iter_diary_entries(

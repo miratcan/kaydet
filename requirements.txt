@@ -1,5 +1,4 @@
 universal-startfile
-shortuuid
 >=0.2
 pytest
 pytest-cov

@@ -7,8 +7,6 @@ from configparser import SectionProxy
 from pathlib import Path
 from typing import Dict, Iterable, Tuple
 
-import shortuuid
-
 from .. import database
 from ..parsers import (
     deduplicate_tags,
@@ -38,33 +36,26 @@ def get_entry(
 
 def append_entry(
     day_file: Path,
-    uuid: str,
+    entry_id: int,
     timestamp: str,
-    entry_text: str,
+    message_lines: Tuple[str, ...],
     metadata: Dict[str, str],
-    explicit_tags: Iterable[str],
-) -> Tuple[str, ...]:
-    """Append a timestamped entry with a UUID and return all tags."""
-    message_lines = entry_text.splitlines() or [entry_text]
+    extra_tag_markers: Iterable[str],
+) -> None:
+    """Append a timestamped entry with its numeric identifier."""
     first_line = message_lines[0] if message_lines else ""
-    extra_lines = tuple(message_lines[1:])
-    embedded_tags = extract_tags_from_text(entry_text)
-    unique_explicit = sorted(list(set(t.lower() for t in explicit_tags if t)))
-    extra_tag_markers = [
-        t for t in unique_explicit if t not in set(embedded_tags)
-    ]
-    all_tags = deduplicate_tags(unique_explicit, message_lines)
-
-    formatted_header = format_entry_header(
-        timestamp, first_line, metadata, extra_tag_markers
+    header_line = format_entry_header(
+        timestamp,
+        first_line,
+        metadata,
+        extra_tag_markers,
+        entry_id=str(entry_id),
     )
-    header_line = f"{uuid}:{formatted_header}"
 
     with day_file.open("a", encoding="utf-8") as handle:
         handle.write(f"{header_line}\n")
-        for line in extra_lines:
+        for line in message_lines[1:]:
             handle.write(f"{line}\n")
-    return all_tags
 
 
 def add_entry_command(args, config, config_dir, log_dir, now, db):
@@ -76,31 +67,46 @@ def add_entry_command(args, config, config_dir, log_dir, now, db):
         print("Nothing to save.")
         return
 
-    entry_uuid = shortuuid.uuid()
     timestamp = now.strftime("%H:%M")
 
-    tags = append_entry(
-        day_file=day_file,
-        uuid=entry_uuid,
-        timestamp=timestamp,
-        entry_text=entry_body,
-        metadata=metadata,
-        explicit_tags=explicit_tags,
-    )
-    save_last_entry_timestamp(config_dir, now)
+    message_lines = tuple(entry_body.splitlines() or [entry_body])
+    embedded_tags = extract_tags_from_text(entry_body)
+    unique_explicit = sorted(list(set(t.lower() for t in explicit_tags if t)))
+    extra_tag_markers = [
+        tag for tag in unique_explicit if tag not in set(embedded_tags)
+    ]
+    all_tags = deduplicate_tags(unique_explicit, message_lines)
 
     words = extract_words_from_text(entry_body)
     full_metadata = {
         k: (v, parse_numeric_value(v)) for k, v in metadata.items()
     }
 
-    database.add_entry(
+    entry_id = database.add_entry(
         db=db,
-        entry_uuid=entry_uuid,
         source_file=day_file.name,
         timestamp=timestamp,
-        tags=tags,
+        tags=all_tags,
         words=words,
         metadata=full_metadata,
     )
+
+    try:
+        append_entry(
+            day_file=day_file,
+            entry_id=entry_id,
+            timestamp=timestamp,
+            message_lines=message_lines,
+            metadata=metadata,
+            extra_tag_markers=extra_tag_markers,
+        )
+    except Exception:
+        cleanup_payload = (entry_id,)
+        db.execute("DELETE FROM tags WHERE entry_id = ?", cleanup_payload)
+        db.execute("DELETE FROM words WHERE entry_id = ?", cleanup_payload)
+        db.execute("DELETE FROM metadata WHERE entry_id = ?", cleanup_payload)
+        db.execute("DELETE FROM entries WHERE id = ?", cleanup_payload)
+        raise
+
+    save_last_entry_timestamp(config_dir, now)
     print("Entry added to:", day_file)

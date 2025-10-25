@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import re
 import shlex
 from datetime import date, datetime
@@ -13,7 +12,10 @@ from .models import Entry
 
 # Regex patterns
 ENTRY_LINE_PATTERN = re.compile(
-    r"^(?:([a-zA-Z0-9_-]{22}):)?(\d{2}:\d{2}): (.*)"
+    r"^(?:[a-zA-Z0-9_-]{22}:)?"  # Optional legacy UUID prefix
+    r"(\d{2}:\d{2})"  # Timestamp (HH:MM)
+    r"(?:\s+\[(\d+)\])?"  # Optional identifier like `[123]`
+    r":\s*(.*)"  # Remainder of the header line
 )
 LEGACY_TAG_PATTERN = re.compile(
     r"^[\[(](?P<tags>[a-z-]+(?:,[a-z-]+)*)[\])]\s*"
@@ -113,6 +115,8 @@ def format_entry_header(
     message: str,
     metadata: Dict[str, str],
     extra_tag_markers: Iterable[str],
+    *,
+    entry_id: str | None = None,
 ) -> str:
     """Format the first line of a diary entry for storage.
 
@@ -121,7 +125,11 @@ def format_entry_header(
         ...                    {"status": "done"}, ["work"])
         '10:00: Shipped release | status:done | #work'
     """
-    base = f"{timestamp}: {message}" if message else f"{timestamp}:"
+    if entry_id:
+        base_timestamp = f"{timestamp} [{entry_id}]"
+    else:
+        base_timestamp = timestamp
+    base = f"{base_timestamp}: {message}" if message else f"{base_timestamp}:"
     segments = [base.rstrip()]
     if metadata:
         segments.append(" ".join(f"{k}:{v}" for k, v in metadata.items()))
@@ -270,31 +278,22 @@ def parse_day_entries(day_file: Path, day: Optional[date]) -> List[Entry]:
     """
     lines = read_diary_lines(day_file)
     entries: List[Entry] = []
-    current_uuid: Optional[str] = None
     current_time: Optional[str] = None
+    current_entry_id: Optional[str] = None
     current_lines: List[str] = []
     current_legacy_tags: List[str] = []
     current_metadata: Dict[str, str] = {}
     current_explicit_tags: List[str] = []
 
     def finalize_entry():
+        nonlocal current_entry_id
         if current_time is None:
             return
-        # Generate deterministic UUID for legacy entries
-        if current_uuid:
-            entry_uuid = current_uuid
-        else:
-            # Build a deterministic UUID from path, timestamp, and first line.
-            first_line = current_lines[0] if current_lines else ""
-            seed = f"{day_file.name}:{current_time}:{first_line}"
-            hash_digest = hashlib.sha256(seed.encode()).hexdigest()
-            # Use first 22 chars of hash as deterministic UUID
-            entry_uuid = hash_digest[:22]
         combined_tags = current_legacy_tags + current_explicit_tags
         tags = deduplicate_tags(combined_tags, current_lines)
         entries.append(
             Entry(
-                uuid=entry_uuid,
+                entry_id=current_entry_id,
                 day=day,
                 timestamp=current_time,
                 lines=tuple(current_lines),
@@ -304,14 +303,17 @@ def parse_day_entries(day_file: Path, day: Optional[date]) -> List[Entry]:
                 source=day_file,
             )
         )
+        current_entry_id = None
 
     for line in lines:
         match = ENTRY_LINE_PATTERN.match(line)
         if match:
             finalize_entry()
-            uuid_part, time_part, remainder = match.groups()
-            current_uuid = uuid_part
+            time_part, identifier_part, remainder = match.groups()
             current_time = time_part.strip(":")
+            current_entry_id = (
+                identifier_part.strip() if identifier_part else None
+            )
 
             legacy_match = LEGACY_TAG_PATTERN.match(remainder)
             if legacy_match:
