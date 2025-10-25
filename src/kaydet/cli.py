@@ -106,7 +106,7 @@ def main() -> None:
             def apply(target):
                 @wraps(target)
                 def wrapper(*args, **kwargs):
-                    normalized = synchronize_diary(
+                    synchronize_diary(
                         db,
                         log_dir,
                         config,
@@ -114,8 +114,6 @@ def main() -> None:
                         force=force,
                         process_today=process_today,
                     )
-                    for changed in normalized:
-                        print(f"Normalized IDs in {changed}")
                     return target(*args, **kwargs)
 
                 return wrapper
