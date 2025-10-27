@@ -13,6 +13,7 @@ class Termynal {
         type: node.dataset.ty === "input" ? "input" : "text",
         content: this._decode(node.innerHTML),
         delay: this._parseDelay(node.dataset.tyDelay),
+        instant: node.dataset.tyInstant !== undefined,
       })
     );
     this._timeouts = [];
@@ -81,6 +82,15 @@ class Termynal {
   _typeLine(line, textNode, cursor) {
     let position = 0;
     const { content } = line;
+    if (line.instant) {
+      textNode.textContent = content;
+      cursor.remove();
+      const delay = line.delay ?? this.options.lineDelay;
+      const timer = setTimeout(() => this._showNextLine(), delay);
+      this._timeouts.push(timer);
+      return;
+    }
+
     const typeDelay = Math.max(this.options.typeDelay, 10);
 
     const typeNext = () => {
