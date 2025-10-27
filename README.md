@@ -156,6 +156,10 @@ kaydet --doctor          # rebuild the search index
 kaydet --search gratitude
 kaydet --search "status:done"
 kaydet --search "time:>1"
+
+# Update or remove past entries by ID (IDs are shown in search results)
+kaydet --edit 42
+kaydet --delete 42 --yes  # skip confirmation prompts
 ```
 
 Example `kaydet --stats` output:

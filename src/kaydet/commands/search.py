@@ -23,8 +23,9 @@ SELECT_MATCHES_TEMPLATE = (
     "ORDER BY e.source_file, e.id"
 )
 
-SELECT_DISTINCT_TAGS_SQL = (
-    "SELECT DISTINCT tag_name FROM tags ORDER BY tag_name"
+SELECT_TAG_COUNTS_SQL = (
+    "SELECT tag_name, COUNT(*) FROM tags "
+    "GROUP BY tag_name ORDER BY tag_name"
 )
 
 
@@ -152,7 +153,9 @@ def print_matches(matches, query: str, output_format: str) -> None:
         first_line, *rest = list(match.lines) or [""]
 
         # Build header with metadata and tags
-        parts = [f"{day_label} {match.timestamp} {first_line}".rstrip()]
+        id_suffix = f" [{match.entry_id}]" if match.entry_id else ""
+        header_prefix = f"{day_label} {match.timestamp}{id_suffix}"
+        parts = [f"{header_prefix} {first_line}".rstrip()]
         if match.metadata:
             metadata_str = " ".join(
                 f"{key}:{value}" for key, value in match.metadata.items()
@@ -201,15 +204,19 @@ def search_command(
 def tags_command(db: sqlite3.Connection, output_format: str = "text"):
     """Print the unique set of tags recorded in the database."""
     cursor = db.cursor()
-    cursor.execute(SELECT_DISTINCT_TAGS_SQL)
-    tags = [row[0] for row in cursor.fetchall()]
-    if not tags:
+    cursor.execute(SELECT_TAG_COUNTS_SQL)
+    rows = cursor.fetchall()
+    if not rows:
         if output_format == "json":
             print(json.dumps({"tags": []}))
         else:
             print("No tags have been recorded yet.")
         return
     if output_format == "json":
+        tags = [{"name": name, "count": count} for name, count in rows]
         print(json.dumps({"tags": tags}, indent=2))
     else:
-        print("\n".join(tags))
+        for name, count in rows:
+            label = f"#{name}"
+            suffix = "entry" if count == 1 else "entries"
+            print(f"{label:<20} {count} {suffix}")

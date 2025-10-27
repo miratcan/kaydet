@@ -411,8 +411,12 @@ def test_tags_command(setup_kaydet, capsys, mock_datetime_factory):
     captured = capsys.readouterr()
     output = captured.out
 
-    expected_output = "personal\nproject-a\nwork\n"
-    assert output.endswith(expected_output)
+    lines = [line for line in output.splitlines() if line.startswith("#")]
+    assert lines == [
+        "#personal            1 entry",
+        "#project-a           1 entry",
+        "#work                1 entry",
+    ]
 
 
 def test_doctor_command(setup_kaydet, capsys):
@@ -492,6 +496,143 @@ def test_manual_edit_sync_before_search(
     output = capsys.readouterr().out
 
     assert "Updated entry #updated" in output
+
+
+def test_edit_command_updates_entry(
+    setup_kaydet, mock_datetime_factory, capsys
+):
+    """Editing by ID should update the diary file and reindex metadata."""
+
+    fake_log_dir = setup_kaydet["fake_log_dir"]
+    monkeypatch = setup_kaydet["monkeypatch"]
+
+    mock_datetime_factory(datetime(2025, 9, 30, 9, 0, 0))
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["kaydet", "Original body text", "status:wip", "#focus"],
+    )
+    cli.main()
+    capsys.readouterr()
+
+    mock_datetime_factory(datetime(2025, 9, 30, 10, 0, 0))
+    monkeypatch.setattr(sys, "argv", ["kaydet", "Another entry #later"])
+    cli.main()
+    capsys.readouterr()
+
+    db_path = fake_log_dir / "index.db"
+    with sqlite3.connect(db_path) as db:
+        cursor = db.cursor()
+        cursor.execute(
+            "SELECT id FROM entries WHERE timestamp = '09:00'"
+        )
+        entry_id = cursor.fetchone()[0]
+
+    edited_content = (
+        f"09:00 [{entry_id}]: Updated body | status:done | #focus\n"
+        "Follow-up detail\n"
+    )
+    monkeypatch.setattr(
+        "kaydet.commands.edit.open_editor",
+        lambda *_args, **_kwargs: edited_content,
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["kaydet", "--edit", str(entry_id)],
+    )
+
+    cli.main()
+    output = capsys.readouterr().out
+    assert f"Updated entry {entry_id}" in output
+
+    day_file = fake_log_dir / "2025-09-30.txt"
+    content = day_file.read_text()
+    assert "Updated body" in content
+    assert "Follow-up detail" in content
+    assert "status:done" in content
+
+    with sqlite3.connect(db_path) as db:
+        cursor = db.cursor()
+        cursor.execute(
+            (
+                "SELECT meta_value FROM metadata "
+                "WHERE entry_id = ? AND meta_key = 'status'"
+            ),
+            (entry_id,),
+        )
+        assert cursor.fetchone()[0] == "done"
+        cursor.execute(
+            (
+                "SELECT COUNT(*) FROM tags "
+                "WHERE entry_id = ? AND tag_name = 'focus'"
+            ),
+            (entry_id,),
+        )
+        assert cursor.fetchone()[0] == 1
+
+
+def test_delete_command_removes_entry(
+    setup_kaydet, mock_datetime_factory, capsys
+):
+    """Deleting by ID should remove the entry from disk and index."""
+
+    fake_log_dir = setup_kaydet["fake_log_dir"]
+    monkeypatch = setup_kaydet["monkeypatch"]
+
+    mock_datetime_factory(datetime(2025, 9, 30, 9, 0, 0))
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["kaydet", "First entry to delete", "#temp"],
+    )
+    cli.main()
+    capsys.readouterr()
+
+    mock_datetime_factory(datetime(2025, 9, 30, 10, 0, 0))
+    monkeypatch.setattr(sys, "argv", ["kaydet", "Second entry stays"])
+    cli.main()
+    capsys.readouterr()
+
+    db_path = fake_log_dir / "index.db"
+    with sqlite3.connect(db_path) as db:
+        cursor = db.cursor()
+        cursor.execute(
+            "SELECT id FROM entries WHERE timestamp = '09:00'"
+        )
+        entry_id = cursor.fetchone()[0]
+
+    prompted = []
+
+    def fake_input(prompt=""):
+        prompted.append(prompt)
+        return "y"
+
+    monkeypatch.setattr("builtins.input", fake_input)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["kaydet", "--delete", str(entry_id)],
+    )
+
+    cli.main()
+    output = capsys.readouterr().out
+    assert f"Deleted entry {entry_id}" in output
+    assert prompted
+    assert "First entry to delete" in prompted[0]
+
+    day_file = fake_log_dir / "2025-09-30.txt"
+    content = day_file.read_text()
+    assert "First entry to delete" not in content
+    assert "Second entry stays" in content
+
+    with sqlite3.connect(db_path) as db:
+        cursor = db.cursor()
+        cursor.execute(
+            "SELECT COUNT(*) FROM entries WHERE id = ?",
+            (entry_id,),
+        )
+        assert cursor.fetchone()[0] == 0
 
 
 def test_conflicting_numeric_id_preserves_original_entry(

@@ -255,9 +255,6 @@ def sync_modified_diary_files(
         lines = raw_text.splitlines()
         header_lines = _split_header(lines)
         entries = parse_day_entries(day_file, entry_date)
-        # DEBUG
-        if day_file.name == "2025-09-30.txt":
-            print("sync entries", day_file.name, len(entries))
         db.execute("BEGIN")
         try:
             normalized_entries = _normalize_entries(db, day_file, entries)
