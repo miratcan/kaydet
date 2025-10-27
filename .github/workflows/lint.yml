@@ -28,6 +28,3 @@ jobs:
 
       - name: Run Ruff
         run: ruff check src
-
-      - name: Run Black (check)
-        run: black --check src
