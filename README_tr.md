@@ -5,406 +5,344 @@
 [![Python](https://img.shields.io/pypi/pyversions/kaydet.svg)](https://pypi.org/project/kaydet/)
 [![Lisans](https://img.shields.io/github/license/miratcan/kaydet.svg)](LICENSE)
 
-> 🚀 **Ultra hızlı komut satırı günlüğü** | 📦 **Düz metin, sıfır bağımlılık** | 🏷️ **Akıllı etiketleme** | 🤖 **Yapay zekaya hazır**
+> Toplantı bitti. Bir sonraki bildirim gelmeden önce on iki saniyeniz var.  
+> `kaydet "Prod hatasını kapattım, cache TTL düzeltildi. #work"`  
+> Not alındı. Akış bozulmadı.
 
-Kaydet, günlük düşüncelerinizi kendi makinenizdeki düz metin dosyalarında saklayan, hafif bir komut satırı günlüğüdür. Alışkın olduğunuz iş akışınıza dahil olmak için tasarlanmıştır: hızlı bir not için çağırın, daha uzun düşünceleriniz için editörünüze geçiş yapın veya nostaljik hissettiğinizde arşiv klasörünüzü açın.
+Kaydet, terminalinizde sessizce yaşayan, size yabancı olmayan bir günlük.  
+Sprint zaferlerini, market çıkışında gelen fikirleri ve gece yarısı parlayan cümleleri tutar; sizi uygulamalar arasında koşturmaz.
 
-**[📥 Şimdi Kurun](#kurulum)** • **[⚡ Hızlı Başlangıç](#hızlı-başlangıç)**
+**[📥 Hemen Kurun](#kaydete-adım-atın)** • **[⚡ Hızlı Rehber](#günlük-araç-takımı)** • **[🤖 Yapay Zeka Eşlikçileri](#yapay-zeka-eşlikçileri-dinliyor)**
 
 ## Demo
 
+Kaydet’in hareketini izleyin:
+
 <a href="https://asciinema.org/a/Rlcc9GaTQEEfTlUIicvHxm8iC" target="_blank"><img src="https://asciinema.org/a/Rlcc9GaTQEEfTlUIicvHxm8iC.svg" /></a>
 
-## Kurulum
+## Kaydet’e Adım Atın
 
-Doğrudan GitHub'dan kurun:
+Boş bir terminal, akıp giden bir düşünce, tek bir komut. Kaydet’in sizden istediği sadece bu.
+
+### Yolunuzu Seçin
 
 ```bash
+# GitHub'dan en güncel hâliyle
 pip install git+https://github.com/miratcan/kaydet.git
 ```
 
-İzole ortamlar için [pipx](https://github.com/pypa/pipx) kullanın:
-
 ```bash
+# Araçlarınızı izole tutmak isterseniz
 pipx install git+https://github.com/miratcan/kaydet.git
 ```
 
-Yapay zeka entegrasyonu için MCP desteği ile kurun:
-
 ```bash
+# Model Context Protocol desteğiyle yapay zekaya açılmak için
 pip install "git+https://github.com/miratcan/kaydet.git#egg=kaydet[mcp]"
 ```
 
-## Neden Kaydet?
+## Kaydet’i Farklı Kılan Nedir?
 
-### vs. Notion, Obsidian, Logseq
-- **🏃 Bağlam değiştirmek yok** — Terminalinizde kalın, GUI gerekmez
-- **⚡ Anında yakalama** — Bir uygulama açıp menülerde gezinmek yerine tek komut
-- **📂 Düz metin dosyaları** — Veritabanı yok, kilitlenme yok, `grep` ile aranabilir, `git` dostu
+### Notion Ağırken
+- Terminalden çıkmadan çalışırsınız. Pencere, farenin peşinden koşma yok.
+- Girdiler düz metin dosyalarına iner; `git`, senkronizasyon ve `grep` sizin kontrolünüzdedir.
 
-### vs. Düz Metin Dosyaları
-- **🔍 Dahili arama** — `grep` sihirbazlığı olmadan girdileri anında bulun
-- **🏷️ Otomatik etiketleme** — Hashtag'lerle düzenleyin, etikete göre otomatik arşivlenir
-- **📊 İstatistikler ve içgörüler** — Takvim görünümü, girdi sayıları, aktivite takibi
+### Düz Metin Yalnızken
+- Kaydet her kayıtta etiketleri, metaveriyi ve kelimeleri ayıklar; hepsini SQLite indeksine işler.
+- Arama anlık ve naziktir: `kaydet --search "status:done project:kaydet"`.
 
-### vs. Günlük Uygulamaları
-- **🔒 Önce gizlilik** — Verileriniz asla makinenizden ayrılmaz
-- **🎨 Editör özgürlüğü** — `vim`, `emacs`, `nano` veya sevdiğiniz herhangi bir editörü kullanın
-- **🔧 Tamamen özelleştirilebilir** — Dosya adlandırma, zaman damgaları, dizin yapısı
+### Günlük Uygulamaları Meraklıyken
+- Tüm günlükler diskinizde kalır. Telemetri yok, bilinmeyen sunucu yok.
+- Editörü siz belirlersiniz: `vim`, `nvim`, `nano`, `code`… neyi çağırırsanız.
 
-### 🤖 Yapay Zekaya Hazır
-- **MCP entegrasyonu** — Claude ve diğer yapay zeka asistanlarıyla kutudan çıktığı gibi çalışır
-- **Doğal dil sorguları** — Karmaşık aramalar yerine "Geçen hafta ne üzerinde çalıştım?"
-- **JSON API** — Programatik erişim ve otomasyon için yapılandırılmış çıktı
-- **Akıllı özetler** — Yapay zekanın girdilerinizden desenleri ve içgörüleri analiz etmesine izin verin
+### Yapay Zeka Yoldaşınız Olsun İsterseniz
+- Dahili MCP sunucusu arşivinizi Claude ve benzeri asistanlara açar.
+- JSON çıktılar otomasyonlara ve betiklerinize hazır veri sağlar.
 
-## Kullanım Alanları
+## Terminalden Sahneler
 
-Basit bir günlüğün ötesinde, `kaydet`'in hızlı komut satırı erişimi, zaman damgaları ve güçlü etiketleme sisteminin birleşimi, onu çeşitli kayıt tutma ihtiyaçları için çok yönlü bir araç haline getirir.
+Kaydet, oynadığınız her rolü kaydeder. İşte birkaç sahne.
 
-### 💼 İş Günlüğü
-Görevleri, ilerlemeyi ve toplantı notlarını takip edin. Projeye veya müşteriye göre sınıflandırmak için etiketleri kullanın.
+### 💼 Leyla’nın İş Günlüğü
+Gönderiyor, ispatını saklıyor.
 
 ```bash
-kaydet "Geliştirme sunucusundaki kimlik doğrulama hatası düzeltildi. #proje-apollo"
-kaydet "Tasarım ekibiyle yeni arayüz hakkında toplantı yapıldı. #toplantı #proje-apollo"
+kaydet "Staging kimlik doğrulama hatası düzeltildi." commit:38edf60 pr:76 status:done time:2h
+kaydet "Onboarding metinlerini güncelledim." status:wip project:kaydet
+
+# Sonra
+kaydet --search commit:38edf60
+kaydet --search "status:done project:kaydet"
 ```
 
-### 📚 Kişisel Bilgi Bankası (Bugün Ne Öğrendim)
-Öğrendiğiniz yeni komutları, kod parçacıklarını veya ilginç bilgileri hızla kaydedin.
+### 📚 Umut’un TÖÖ Defteri
+Öğrendiğini uzaklaştırmadan kaydeder.
 
 ```bash
-kaydet "BNÖ: `pytest --cov-report=html` komutu taranabilir bir kapsama raporu oluşturur. #python #test"
+kaydet "TÖÖ: `pytest --cov-report=html` taranabilir kapsam raporu üretir." topic:testing stack:python #til
+kaydet --search "topic:testing"
 ```
 
-### 💪 Alışkanlık ve Spor Takibi
-Antrenmanları, günlük alışkanlıkları veya zamanla takip etmek istediğiniz herhangi bir aktiviteyi kaydedin.
+### ⏱️ Defne’nin Odak Defteri
+Her derin çalışma bloğunu zamanlar, haftasını veriler yönetir.
 
 ```bash
-kaydet "5km koşu 28 dakikada tamamlandı. #spor #koşu"
-kaydet "'Pragmatik Programcı' kitabından 20 sayfa okundu. #alışkanlık #okuma"
+kaydet "Analitik ETL için derin çalışma" time:2.5h intensity:high project:valocom
+kaydet "Emre ile eşli çalışma" time:1.5h intensity:medium project:kaydet
+
+# Uzayan seansları bul
+kaydet --search "time:>2"
 ```
 
-### ⏱️ Basit Zaman Takibi
-Harcanan zaman hakkında bir fikir edinmek için görevlere ne zaman başlayıp ne zaman durduğunuzu kaydedin.
+### 💡 Efe’nin Fikir Bahçesi
+İlhamı saklar, yarına bırakır.
 
 ```bash
-kaydet "BAŞLA: Kullanıcı kimlik doğrulama modülünü yeniden düzenleme. #proje-apollo"
-kaydet "BİTTİ: Kullanıcı kimlik doğrulama modülünü yeniden düzenleme. #proje-apollo"
+kaydet "Şifrelenmiş dışa aktarma prototipi" area:security priority:high #idea
+kaydet "Stripe geçiş rehberini okudum" area:payments source:stripe-docs #research
+
+kaydet --search "area:security"
 ```
 
-### 💡 Fikir Yakalayıcı
-Terminaldeki iş akışınızı bozmadan fikirleri anında yakalayın.
+### 😊 Duru’nun Duygu Günlüğü
+Hisleri bağlamıyla birlikte saklar, dönüp bakmayı kolaylaştırır.
 
 ```bash
-kaydet "Yeni özellik fikri: günlük dosyaları için şifreleme ekle. #kaydet #fikir"
+kaydet "Sabah koşusu harikaydı" mood:energized sleep:7h #wellness
+kaydet "Öğlen toplantı öncesi enerji düşüktü" mood:tired caffeine:2 #mood
+
+kaydet --search "mood:energized"
 ```
 
-### 😊 Duygu Günlüğü
-Günün farklı saatlerinde nasıl hissettiğinizi hızlıca not alın. Zamanla `#duygu` etiketlerinizi aratarak duygu durumunuzdaki desenleri görebilirsiniz.
+### 💰 Selim’in Masraf Notları
+Fişleri ortaya çıkar çıkmaz kaydeder.
 
 ```bash
-kaydet "Bugün üretken ve odaklanmış hissediyorum. ✨ #duygu"
+kaydet "Müşteri öğle yemeği" amount:650 currency:TRY client:bbrain billable:yes #expense
+kaydet "Domain yenilemesi" amount:120 currency:USD project:kaydet billable:no
+
+kaydet --search "billable:yes"
 ```
 
-### 💰 Basit Masraf Takibi
-İş harcamalarını veya seyahat masraflarını anında kaydedin. Düz metin formatı, daha sonra bu verileri işlemeyi kolaylaştırır.
+## Hızlı Bakışta Öne Çıkanlar
+- **Terminal yerlisi** – tek tuşla çağırın, `$EDITOR` tercihinize saygı duyar.
+- **Düz metin güvencesi** – dayanıklı, senkronize edilebilir günlük dosyaları.
+- **Akıllı yapı** – etiket, metaveri ve sayılar otomatik indekslenir.
+- **Nazik hatırlatmalar** – uzun süre yazmadığınızda isteğe bağlı uyarı.
+- **Taşınabilir** – Python 3.8+ olan her yerde çalışır.
+
+## Günlük Araç Takımı
 
 ```bash
-kaydet "Müşteri ile öğle yemeği: 650.00 TL #masraf #müşteri-a"
-```
+# Bugüne hızlı bir not ekle
+kaydet "Yan projede ilerleme var."
 
-### 🤝 Kişisel CRM
-Profesyonel veya kişisel çevrenizdeki insanlarla olan etkileşimlerinizi takip edin.
-
-```bash
-kaydet "Ahmet Yılmaz'ı teklifi görüşmek için aradım. Cuma gününe kadar geri dönecek. #ahmet-yılmaz"
-```
-
-## Öne Çıkanlar
-- **Terminal yerlisi** – kabuğunuzda kalır ve yapılandırdığınız editöre saygı duyar.
-- **Verilerinize sahip çıkın** – basit zaman damgalı metin dosyaları, istediğiniz gibi senkronize etmek için mükemmeldir.
-- **Yapılandırılabilir** – dosya adlandırmayı, başlıkları, editör komutunu ve depolama konumunu ayarlayın.
-- **Nazik hatırlatıcılar** – bir süredir bir şey yazmadıysanız isteğe bağlı bir dürtme.
-- **Çapraz platform** – Python 3.8+ çalışan her yerde çalışır.
-
-## Hızlı Başlangıç
-```bash
-# Bugünün dosyasına kısa bir girdi ekle
-kaydet "Yan proje üzerinde ilerleme kaydettim."
-
-# Bir girdiyi kategorize etmek için satır içi hashtag'ler ekle
+# Satır içi hashtag’lerle kategorize et
 kaydet "Arkadaşlarla akşam yemeği #aile #şükran"
 
-# Daha uzun bir not için favori editörünüze geçin
+# Sevdiğiniz editörde devam edin
 kaydet --editor
 
-# Tüm günlük dosyalarını tutan klasörü aç
+# Arşiv klasörünü hemen açın
 kaydet --folder
 
-# Hızlı etiket yönetimi
-kaydet --folder aile   # aç
-kaydet --tags            # listele
-kaydet --doctor          # etiket arşivlerini yeniden oluştur
+# Bakım
+kaydet --tags             # etiket ve sayıları listele
+kaydet --doctor           # dosyalara dokunduysanız indeksi yenile
 
-# Geçmiş girdilerde bir kelime veya etiket parçası ara
+# Arşivde avlanın
 kaydet --search şükran
+kaydet --search "status:done"
+kaydet --search "time:>1"
+
+# Geçmiş girdileri ID ile düzenle ya da sil (ID’ler arama sonucunda görünür)
+kaydet --edit 42
+kaydet --delete 42 --yes   # onay istemeden sil
 ```
 
-Örnek `kaydet --stats` çıktısı:
+### İstatistikler Nasıl Görünür?
 
 ```
 Eylül 2025
-Pz Sa Ça Pe Cu Ct Pz
+Pt Sa Ça Pe Cu Ct Pz
  1[  ]  2[  ]  3[  ]  4[  ]  5[  ]  6[  ]  7[  ]
  8[  ]  9[  ] 10[  ] 11[  ] 12[  ] 13[  ] 14[  ]
 ...
-Bu ayki toplam girdi: 12
+Bu ay toplam: 12 girdi
 ```
 
-Her girdi günlük bir dosyaya (örneğin `~/.kaydet/2024-02-19.txt`) yazılır ve geçerli saatle ön eklenir. Mevcut bir günlük dosyasını açmak yeni bir bölüm ekler; günün ilk girdisi, kolay gezinme için bir başlıkla dosyayı oluşturur.
+### Girdiler Nasıl Yazılır?
 
-Notları kategorize etmek için satır içi hashtag'ler (örneğin `#aile`) ekleyin — Kaydet bunları satır içinde tutar, girdiyi etiket başına bir klasöre (örneğin `~/.kaydet/aile/`) yansıtır, `kaydet --folder aile` aracılığıyla doğrudan etiket klasörlerini açmanıza olanak tanır, etiketleri `kaydet --tags` içinde gösterir, `kaydet --search` ile aranabilir hale getirir ve mevcut günlükleri `kaydet --doctor` ile geriye dönük olarak doldurabilir.
+```
+14:25 [132]: Senkronizasyon yardımcılarını refaktorettim. #focus
+```
 
-## Yapılandırma
-Kaydet, ayarlarını `~/.config/kaydet/config.ini` içinde (veya `XDG_CONFIG_HOME` tarafından işaret edilen konumda) saklar. Dosya ilk çalıştırmada oluşturulur ve değerlerden herhangi birini değiştirebilirsiniz. Minimal bir örnek:
+Her not, tarihle adlandırılmış bir dosyada (ör. `~/.kaydet/2024-02-19.txt`) yaşar. Kaydet dosyayı günceller, SQLite indeksini tazeler ve ID’leri sabit tutar—ister düzenleyin ister silin.
+
+Satır içi hashtag’ler (`#aile`) ve metaveri (`project:valocom`, `time:45m`) birlikte saklanır. Arama her ikisini de kullanabilir.
+
+## Kaydet’i Size Göre Ayarlayın
+
+Kaydet ayarlarını `~/.config/kaydet/config.ini` dosyasına yazar (veya `XDG_CONFIG_HOME` ile tanımladığınız yere). İlk çalıştırmada dosya oluşur, sonrası size ait.
 
 ```ini
 [SETTINGS]
 DAY_FILE_PATTERN = %Y-%m-%d.txt
 DAY_TITLE_PATTERN = %Y/%m/%d - %A
 LOG_DIR = /Users/siz/.kaydet
-EDITOR = nvim
+EDITOR = nvim +'startinsert'
+REMIND_AFTER_HOURS = 4
 ```
 
-- `DAY_FILE_PATTERN` günlük dosya adını kontrol eder.
-- `DAY_TITLE_PATTERN` yeni dosyaların en üstüne yazılan başlığı ayarlar.
-- `LOG_DIR` girdilerin yaşadığı dizini gösterir.
-- `EDITOR` Kaydet'in uzun biçimli girdiler (`--editor`) için çalıştırdığı komuttur.
+### Alan Notları
+- İstediğiniz zaman `kaydet --editor` diyerek editörü zorlayabilirsiniz.
+- `anahtar:değer` desenindeki her şey sorgulanabilir metaveridir (`kaydet --search "status:done"`).
+- `2h`, `90m`, `3.5` gibi süreler sayısallaştırılır (`kaydet --search "time:>2"`).
+- Satır içi ve açık etiketler aynı indeks altında birleşir (`kaydet --tags`).
+- Dosyaları manuel değiştirdiniz mi? `kaydet --doctor` ID’leri onarır, arama tablolarını yeniler.
 
-Herhangi bir düzenleme, Kaydet'i bir sonraki çağrışınızda etkili olur.
+## Yapay Zeka Eşlikçileri Dinliyor
 
-## Hatırlatıcılar
-Son zamanlarda bir şey kaydetmediyseniz bir uyarı ister misiniz? Hatırlatıcı bayrağını kabuk başlangıcınıza (örneğin `~/.zshrc` içinde) ekleyin:
+`pip install "kaydet[mcp]"` komutuyla MCP eklentilerini kurun, `kaydet-mcp` çalıştırın ve güvendiğiniz günlükleri asistanlarınızla paylaşın.
 
-```bash
-# ~/.zshrc
-kaydet --reminder
+### Diyalog Örnekleri
+
+#### 🔎 Sprint Retrosu
+```
+Sen: "Geçen sprint ne gönderdim?"
+
+YZ: *#work girdilerini tarar*
+"Sprint özeti:
+- Analitik toplu işlemler dağıtıldı (commit 38edf60)
+- Onboarding kopyası güncellendi (status:done)
+- Auth hatası incelendi (status:wip)"
 ```
 
-Son girdi iki saatten eskiyse Kaydet şunu yazdırır:
-
+#### 📚 Öğrenme Güncesi
 ```
-Son Kaydet girdinizden bu yana iki saatten fazla zaman geçti. `kaydet --editor` ile neler yaptığınızı yakalayın.
-```
+Sen: "Geçen ay test hakkında ne çalışmıştım?"
 
-## Yapay Zeka Entegrasyonu (MCP Sunucusu)
-
-Kaydet, [Model Bağlam Protokolü (MCP)](https://modelcontextprotocol.io/)'nü destekleyerek MCP-uyumlu yapay zeka asistanlarının günlük girdilerinizle doğal dil kullanarak etkileşime girmesine olanak tanır.
-
-**Desteklenen Yapay Zeka Araçları:**
-- [Claude Desktop](https://claude.ai/download) - Anthropic'in masaüstü uygulaması
-- [Cline](https://github.com/cline/cline) - VS Code AI asistanı
-- [Codex](https://github.com/openai/codex) - OpenAI'ın kod asistanı
-- Diğer tüm MCP-uyumlu araçlar
-
-### Kurulum
-
-```bash
-pip install kaydet[mcp]
+YZ: *topic:testing girdilerini süzer*
+"Öne çıkanlar:
+- Pytest kapsam bayrakları ve HTML raporu (3 Eylül)
+- Hypothesis ile özelliğe dayalı test (11 Eylül)"
 ```
 
-### Yapılandırma
+#### 💪 Fitness Nabzı
+```
+Sen: "Bu ay geçen aydan daha fazla mı spor yaptım?"
 
-#### Claude Desktop için
-`~/.config/Claude/claude_desktop_config.json` dosyasına ekleyin:
-
-```json
-{
-  "mcpServers": {
-    "kaydet": {
-      "command": "kaydet-mcp"
-    }
-  }
-}
+YZ: *#fitness girdilerini sayar*
+"Bu ay: 18 girdi (haftalık ortalama 4,5)
+Geçen ay: 12 girdi (haftalık ortalama 3)
+%50 artış. En sık aktivite: koşu (8 girdi)."
 ```
 
-#### Cline (VS Code) için
-Cline MCP ayarlarınıza ekleyin:
+#### 🎯 Üretkenlik Desenleri
+```
+Sen: "Çalışma alışkanlıklarımda ne görüyorsun?"
 
-```json
-{
-  "mcpServers": {
-    "kaydet": {
-      "command": "kaydet-mcp"
-    }
-  }
-}
+YZ: *etiket ve zaman damgalarını eşler*
+"Gözlemler:
+- En yüksek odak: 09:00–11:00
+- Derin çalışma Salı/Perşembe günleri yoğun
+- Hata düzeltmeleri öğleden sonra
+- #frontend görevlerinde mola sıklığı artıyor"
 ```
 
-#### Diğer MCP Araçları için
-MCP sunucu yapılandırması için aracınızın belgelerine bakın. Komut olarak `kaydet-mcp` kullanın.
-
-### Mevcut Araçlar
-
-MCP sunucusu bu araçları yapay zeka asistanlarına sunar:
-
-- **add_entry** - Yeni günlük girdileri ekleyin
-- **search_entries** - Günlüğünüzde arama yapın
-- **list_tags** - Tüm etiketlerinizi alın
-- **get_stats** - Girdi istatistiklerini görüntüleyin
-
-### Gerçek Dünya Kullanım Senaryoları
-
-Yapılandırıldıktan sonra, günlüğünüzle doğal dil kullanarak etkileşime geçebilirsiniz:
-
-#### 📊 **Proje Retrospektifleri**
+#### 💼 Toplantı Takipleri
 ```
-Siz: "Geçen ay kimlik doğrulama projesi için neler yaptım?"
+Sen: "Tasarım ekibi toplantılarından hangi işler çıktı?"
 
-AI: *#auth etiketli girdileri arar ve özetler*
-"Geçen ay kimlik doğrulama projesi üzerinde 12 kez çalıştınız:
-- OAuth token yenileme hatasını düzelttiniz
-- 2FA uyguladınız
-- JWT token'lara geçiş yaptınız
-- Şifre sıfırlama akışı eklediniz
-En aktif hafta 15-20 Eylül arası 5 girdi ile."
+YZ: *#meeting #design girdilerini bulur*
+"Altı toplantı kaydedildi. Açık işler:
+- Dashboard renk paletini netleştir (5 Eylül)
+- Mobil taslakları gözden geçir (12 Eylül)
+- Navigasyon geri bildirimi topla (19 Eylül)
+- Kullanıcı testi planla (26 Eylül — beklemede)"
 ```
 
-#### 🧠 **Öğrenme Pattern Analizi**
+#### 🤝 Kişisel CRM
 ```
-Siz: "Bu yıl Python testing hakkında neler öğrendim?"
+Sen: "Marketing'den John ile en son ne zaman görüştüm?"
 
-AI: *#python #testing etiketli girdileri arar*
-"TIL girdilerinize göre öğrendikleriniz:
-- pytest fixtures ve parametrization (Mart)
-- pytest-cov ile coverage raporlama (Haziran)
-- unittest.mock ile mocking (Ağustos)
-- Hypothesis ile property-based testing (Eylül)"
+YZ: *'John' ve #marketing etiketlerini arar*
+"20 Eylül:
+'Q4 kampanyası için John ile kısa sync. Cuma'ya kadar brief gönderecek. Haftaya hatırlat. #marketing #john'"
 ```
 
-#### 💪 **Fitness İlerleme Takibi**
+#### 💡 Fikir Arşivi
 ```
-Siz: "Bu ay geçen aya göre daha fazla egzersiz yapıyor muyum?"
+Sen: "Kaydet için kaydettiğim tüm özellik fikirlerini göster."
 
-AI: *#spor girdilerini analiz eder*
-"Bu ay: 18 spor girdisi (ort. 4.5/hafta)
-Geçen ay: 12 spor girdisi (ort. 3/hafta)
-%50 artış var! En tutarlı aktivite: koşu (8 girdi)"
-```
-
-#### 🎯 **Verimlilik İçgörüleri**
-```
-Siz: "Çalışma alışkanlıklarımda ne gibi paternler görüyorsun?"
-
-AI: *#iş girdilerini zaman ve etiketlere göre analiz eder*
-"İş günlüğünüzden paternler:
-- En verimli saatler: 09:00-11:00 (en yoğun girdi yoğunluğu)
-- Salı ve Perşembe günleri derin çalışma yapma eğilimindesiniz
-- Bug fix'ler genellikle öğleden sonra oluyor
-- #frontend görevlerinde daha düzenli mola veriyorsunuz"
-```
-
-#### 💼 **Toplantı Takipleri**
-```
-Siz: "Tasarım ekibiyle yapılan toplantılardan çıkan aksiyon maddeleri neler?"
-
-AI: *#toplantı #tasarım girdilerini arar*
-"6 tasarım ekibi toplantısı bulundu. Bahsedilen aksiyon maddeleri:
-- Dashboard için renk paletini tamamla (5 Eylül)
-- Mobil mockup'ları incele (12 Eylül)
-- Yeni navigasyon hakkında geri bildirim al (19 Eylül)
-- Kullanıcı test oturumu planla (26 Eylül - hala beklemede)"
-```
-
-#### 🤝 **Kişisel CRM**
-```
-Siz: "Pazarlamadan Ahmet ile son etkileşimim ne zamandı?"
-
-AI: *'Ahmet' ve #pazarlama içeren girdileri arar*
-"Son iletişim: 20 Eylül
-'Pazarlamadan Ahmet ile Q4 kampanyası hakkında hızlı senkronizasyon.
-Cuma'ya kadar brief'i gönderecek. Önümüzdeki hafta takip et. #pazarlama #ahmet'"
-```
-
-#### 💡 **Fikir Bulma**
-```
-Siz: "Kaydet için aklıma gelen tüm özellikleri göster"
-
-AI: *#kaydet #fikir etiketli girdileri arar*
-"Kaydet için 8 özellik fikri kaydetmişsiniz:
-- Günlük dosyaları için şifreleme ekle (2 Eylül)
-- PDF formatına export (10 Eylül)
-- Mobil yardımcı uygulama (15 Eylül)
-- Sesli girdi özelliği (18 Eylül)
+YZ: *#kaydet #idea girdilerini listeler*
+"Sekiz fikir bulundu:
+- Günlük dosyaları için şifreleme (2 Eylül)
+- PDF dışa aktarma (10 Eylül)
+- Mobil eşlikçi uygulama (15 Eylül)
+- Sesli nottan metne giriş (18 Eylül)
 ..."
 ```
 
-#### ✍️ **AI ile Hızlı Girdi**
+#### ✍️ Eller Serbest Kayıt
 ```
-Siz: "Günlük girdisi ekle: Kullanıcı dashboard yeniden tasarımını bitirdim.
-Responsive layout sorunları yüzünden beklenenden uzun sürdü.
-Sonuçtan memnunum. #iş #frontend #tasarım"
+Sen: "Girdi ekle: Dashboard yeniden tasarımını bitirdim.
+Responsive düzen sandığımdan uzun sürdü.
+Sonuçtan memnunum. #work #frontend #design"
 
-AI: ✅ Günlük girdiniz 14:32'de eklendi
+YZ: ✅ 14:32'de kaydedildi
 ```
 
-### Basit Komutlar
+### Kısa Komutlar Hâlâ Geçerli
+- “Bir günlük girdisi ekle: Bugün auth hatasını düzelttim #work”
+- “Günlüğümde ‘Apollo projesi’ni ara”
+- “Bu ayki günlük istatistiklerim ne?”
+- “Tüm etiketleri listele”
+- “Geçen haftaki #fitness girdilerini göster”
 
-Tek satırlık komutlar da kullanabilirsiniz:
-
-- "Günlük girdisi ekle: Bugün kimlik doğrulama hatasını düzelttim #iş"
-- "Günlüğümde 'Apollo projesi' ara"
-- "Bu ayki günlük istatistiklerim neler?"
-- "Tüm etiketlerimi listele"
-- "Geçen haftaki tüm #spor girdilerimi göster"
-
-### JSON Çıktısı
-
-Kaydet ayrıca programatik erişim için JSON çıktısını da destekler:
+### Her Şey JSON Olabilir
 
 ```bash
-kaydet --search iş --format json
+kaydet --search work --format json
 kaydet --tags --format json
 kaydet --stats --format json
 ```
 
 ## Geliştirme
-Kaydet üzerinde yerel olarak çalışmak için depoyu klonlayın ve düzenlenebilir modda kurun:
+
+Kaydet’i yakından incelemek isterseniz depoyu klonlayıp kaynağından çalıştırabilirsiniz:
 
 ```bash
 git clone https://github.com/miratcan/kaydet.git
 cd kaydet
 pip install -e .
 
-# isteğe bağlı: formatlama/lint ekstralarını kurun
+# İsteğe bağlı araçlar
 pip install -e .[dev]
-
-# stil denetimlerini çalıştırın
 ruff check src
 black --check src
 ```
 
-CLI'yi kaynaktan `python -m kaydet` ile çalıştırın.
+CLI’yi kaynak kodundan `python -m kaydet` ile başlatabilirsiniz.
 
-## Katkıda Bulunma
+## Katkıda Bulunun
 
-Katkılarınızı bekliyoruz! Hata raporları, özellik istekleri veya kod katkıları olsun, bir sorun açmaktan veya bir pull isteği göndermekten çekinmeyin.
+Hata raporları, özellik önerileri ve pull request'ler hoş karşılanır.  
+Bir issue açın, PR gönderin veya Kaydet’i nasıl kullandığınızı anlatın; birlikte daha hızlı gelişiriz.
 
 ## Lisans
 
-Kaydet, müsamahakâr [MIT Lisansı](LICENSE) altında yayınlanmıştır.
-
-Sürüm geçmişi için [CHANGELOG.md](CHANGELOG.md) dosyasına bakın.
+Kaydet, esnek [MIT Lisansı](LICENSE) ile dağıtılır.  
+Sürüm notları için [CHANGELOG.md](CHANGELOG.md) dosyasına bakın.
 
 ---
 
 <div align="center">
 
-💡 **Kaydet'i faydalı buldunuz mu?**
+💡 **Kaydet’i faydalı buldunuz mu?**
 
-[⭐ Depoyu yıldızlayın](https://github.com/miratcan/kaydet) başkalarının da keşfetmesine yardımcı olmak için!
+[⭐ Depoyu yıldızlayın](https://github.com/miratcan/kaydet) ki daha çok kişi keşfetsin.
 
-[Mirat Can Bayrak](https://github.com/miratcan) tarafından Concerta ile yapılmıştır
+Concerta ile yazıldı – [Mirat Can Bayrak](https://github.com/miratcan)
 
 </div>
