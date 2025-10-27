@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kaydet — Your Thoughts, One Command Away</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="termynal.css" />
+  </head>
+  <body>
+    <header class="hero">
+      <div class="container hero__content">
+        <div class="hero__text">
+          <h1>Kaydet</h1>
+          <p>
+            A lightning-fast command-line diary that keeps your thoughts in
+            plain text, ready for search, tags, and AI-powered insights.
+          </p>
+          <div class="hero__actions">
+            <a
+              class="button button--primary"
+              href="https://github.com/miratcan/kaydet"
+              target="_blank"
+              rel="noopener"
+              >View on GitHub</a
+            >
+            <a
+              class="button button--ghost"
+              href="https://pypi.org/project/kaydet/"
+              target="_blank"
+              rel="noopener"
+              >PyPI Package</a
+            >
+          </div>
+        </div>
+        <div class="hero__terminal">
+          <div
+            class="termynal"
+            data-termynal
+            data-termynal-loop
+            data-ty-start-delay="600"
+          >
+            <span data-ty="input">pip install kaydet</span>
+            <span data-ty>Collecting kaydet...</span>
+            <span data-ty>Successfully installed kaydet</span>
+            <span data-ty="input">kaydet "Deep work on analytics ETL #work"</span>
+            <span data-ty>Entry added to: ~/.kaydet/2025-10-26.txt</span>
+            <span data-ty="input">kaydet --search "status:done"</span>
+            <span data-ty>Found 12 entries containing 'status:done'</span>
+            <span data-ty="input">kaydet --edit 42</span>
+            <span data-ty>Updated entry 42 in 2025-10-26.txt</span>
+            <span data-ty="input">kaydet --tags</span>
+            <span data-ty>#focus&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;18 entries</span>
+            <span data-ty>#work&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;42 entries</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="section">
+        <div class="container section__grid">
+          <article class="card">
+            <h2>Terminal Native</h2>
+            <p>
+              Capture ideas without leaving your shell. Kaydet honours your
+              <code>$EDITOR</code>, plays nicely with <code>git</code>, and stores
+              everything in timestamped text files.
+            </p>
+          </article>
+          <article class="card">
+            <h2>Structured On Save</h2>
+            <p>
+              Tags, metadata, and words are indexed automatically. Combine
+              natural text with filters like <code>time:>2</code> or
+              <code>status:done</code> to surface anything instantly.
+            </p>
+          </article>
+          <article class="card">
+            <h2>Edit &amp; Delete by ID</h2>
+            <p>
+              Adjust any entry using <code>kaydet --edit 42</code> or remove it
+              with <code>kaydet --delete 42</code>. IDs stay stable, files and
+              SQLite index stay in sync.
+            </p>
+          </article>
+          <article class="card">
+            <h2>AI-Ready Output</h2>
+            <p>
+              JSON responses, tag counts, and an optional MCP server make Kaydet
+              ready for automation, dashboards, or your favourite AI copilot.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section section--alt">
+        <div class="container section__split">
+          <div>
+            <h2>Install &amp; Capture in Seconds</h2>
+            <p>
+              Choose the workflow that matches your toolbox. Kaydet takes less
+              than a minute to install and start logging.
+            </p>
+            <ul class="install-list">
+              <li><code>pip install kaydet</code></li>
+              <li><code>pipx install git+https://github.com/miratcan/kaydet.git</code></li>
+              <li>
+                <code>pip install "kaydet[mcp]"</code> for Model Context Protocol
+                integrations
+              </li>
+            </ul>
+          </div>
+          <div>
+            <div class="termynal termynal--small" data-termynal>
+              <span data-ty="input">kaydet --tags</span>
+              <span data-ty>#focus&nbsp;&nbsp;&nbsp;&nbsp;18 entries</span>
+              <span data-ty>#personal&nbsp;9 entries</span>
+              <span data-ty>#idea&nbsp;&nbsp;&nbsp;&nbsp;4 entries</span>
+              <span data-ty="input">kaydet --delete 18</span>
+              <span data-ty>Delete entry 18? [y/N]</span>
+              <span data-ty data-ty-delay="1200">Deleted entry 18 from 2025-10-21.txt</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <h2 class="section__title">Build Narratives, Not Just Notes</h2>
+          <p class="section__lead">
+            Kaydet keeps your diary, work log, and learning journal in one
+            searchable archive. It’s lightweight enough for a thought, powerful
+            enough for a personal knowledge base.
+          </p>
+          <div class="grid-two">
+            <div class="story-card">
+              <h3>Keep up with shifting projects</h3>
+              <p>
+                “Each morning I log goals; each evening I mark them
+                <code>status:done</code>. When it’s retro time,
+                <code>kaydet --search "status:done project:kaydet"</code> shows
+                everything shipped.”
+              </p>
+            </div>
+            <div class="story-card">
+              <h3>Surface helpful patterns</h3>
+              <p>
+                “I tag energy levels and sleep. Searching
+                <code>kaydet --search "mood:energized time:>1"</code> reveals when
+                deep work actually happens.”
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="container footer__content">
+        <div>
+          <h2>Ready to start journaling faster?</h2>
+          <p>
+            Install Kaydet, open your editor, and give your thoughts the terminal
+            they deserve.
+          </p>
+        </div>
+        <a
+          class="button button--primary"
+          href="https://github.com/miratcan/kaydet"
+          target="_blank"
+          rel="noopener"
+          >Get Started</a
+        >
+      </div>
+      <p class="footer__credits">
+        Crafted with plain text and care by
+        <a href="https://github.com/miratcan" target="_blank" rel="noopener"
+          >Mirat Can Bayrak</a
+        >
+      </p>
+    </footer>
+
+    <script src="termynal.js"></script>
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        document.querySelectorAll(".termynal").forEach((el) => {
+          new Termynal(el, {
+            lineDelay: 900,
+            typeDelay: 55,
+            loop: el.dataset.termynalLoop !== undefined,
+          });
+        });
+      });
+    </script>
+  </body>
+</html>
