@@ -7,6 +7,7 @@ from configparser import SectionProxy
 from datetime import date
 from pathlib import Path
 
+from ..indexing import rebuild_index_if_empty
 from ..parsers import (
     parse_comparison_expression,
     parse_day_entries,
@@ -14,7 +15,6 @@ from ..parsers import (
     resolve_entry_date,
     tokenize_query,
 )
-from ..indexing import rebuild_index_if_empty
 
 SELECT_MATCHES_TEMPLATE = (
     "SELECT DISTINCT e.source_file, e.id "
