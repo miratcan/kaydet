@@ -5,164 +5,162 @@
 [![Python](https://img.shields.io/pypi/pyversions/kaydet.svg)](https://pypi.org/project/kaydet/)
 [![License](https://img.shields.io/github/license/miratcan/kaydet.svg)](LICENSE)
 
-> 🚀 **Ultra-fast command-line diary** | 📦 **Plain text, zero lock-in** | 🏷️ **Smart tagging** | 🤖 **AI-ready**
+> The stand-up ends. You have twelve seconds before the next tab steals your attention.  
+> `kaydet "Filed the prod incident and fixed cache TTL #work"`.  
+> Thought captured. Flow preserved.
 
-Kaydet is a lightweight command-line diary that keeps your daily thoughts in
-plain text files on your own machine. It is designed to disappear into your
-workflow: invoke it for a quick note, drop into your editor for longer
-reflections, or pop open the archive folder when you feel nostalgic.
+Kaydet is the command-line diary that slips into your day like a trusted confidant.  
+It remembers every sprint victory, grocery epiphany, and late-night spark—without dragging you out of the terminal.
 
-**[📥 Install Now](#installation)** • **[⚡ Quick Start](#quick-start)**
+**[📥 Install Now](#step-into-kaydet)** • **[⚡ Quick Start](#the-daily-toolkit)** • **[🤖 AI Companions](#ai-companions-listen-in)**
 
 ## Demo
 
+Watch Kaydet in motion:
+
 <a href="https://asciinema.org/a/Rlcc9GaTQEEfTlUIicvHxm8iC" target="_blank"><img src="https://asciinema.org/a/Rlcc9GaTQEEfTlUIicvHxm8iC.svg" /></a>
 
+## Step Into Kaydet
 
-## Installation
+A blank terminal, a passing thought, a single command. That’s all Kaydet asks.
 
-Install directly from GitHub:
+### Choose Your Arrival
 
 ```bash
+# Direct from GitHub, latest cut
 pip install git+https://github.com/miratcan/kaydet.git
 ```
 
-For isolated environments, use [pipx](https://github.com/pypa/pipx):
-
 ```bash
+# Prefer isolated tools?
 pipx install git+https://github.com/miratcan/kaydet.git
 ```
 
-For AI integration, install with MCP support:
-
 ```bash
+# Want Model Context Protocol access for your AI copilots?
 pip install "git+https://github.com/miratcan/kaydet.git#egg=kaydet[mcp]"
 ```
 
-## Why Kaydet?
+## Why Kaydet Feels Different
 
-### vs. Notion, Obsidian, Logseq
-- **🏃 No context switching** — Stay in your terminal, no GUI required
-- **⚡ Instant capture** — One command vs. opening an app and navigating menus
-- **📂 Plain text files** — No database, no lock-in, grep-able, git-friendly
+### When Notion Feels Heavy
+- You stay in your shell. No app windows, no cursor detours—just a command.
+- Entries land in plain text files you can grep, version, or sync however you like.
 
-### vs. Plain Text Files
-- **🔍 Built-in search** — Find entries instantly without `grep` wizardry
-- **🏷️ Automatic tagging** — Organize with hashtags, auto-archived by tag
-- **📊 Stats & insights** — Calendar view, entry counts, activity tracking
+### When Plain Text Feels Lonely
+- Kaydet extracts tags, metadata, and words on each save, stitching them into a SQLite index.
+- Search is instant, nuanced, and forgiving: `kaydet --search "status:done project:kaydet"`.
 
-### vs. Journaling Apps
-- **🔒 Privacy first** — Your data never leaves your machine
-- **🎨 Editor freedom** — Use vim, emacs, nano, or any editor you love
-- **🔧 Fully customizable** — File naming, timestamps, directory structure
+### When Journaling Apps Feel Nosy
+- Your diary lives on your disk. No telemetry, no mystery servers.
+- You pick the editor: `vim`, `nvim`, `nano`, `code`, or anything else you alias.
 
-### 🤖 AI-Ready
-- **MCP integration** — Works with Claude and other AI assistants out of the box
-- **Natural language queries** — "What did I work on last week?" instead of complex searches
-- **JSON API** — Structured output for programmatic access and automation
-- **Smart summaries** — Let AI analyze patterns and insights from your entries
+### When You Want an AI Wingmate
+- Built-in MCP server exposes your archive to Claude and friends.
+- JSON output turns every entry into structured data for scripts and assistants.
 
-## Use Cases
+## Scenes From The Terminal
 
-Kaydet's structured metadata, hashtagging, and instant search make it useful far beyond a basic diary.
+Kaydet chronicles every role you play. Here are a few cameos.
 
-### 💼 Work Log & Git Notes
-Keep a running changelog for your projects. Add metadata for commits, PRs, or status updates so you can pivot on them later.
+### 💼 Leyla’s Work Log
+She keeps shipping, keeps receipts.
 
 ```bash
 kaydet "Fixed staging authentication bug" commit:38edf60 pr:76 status:done time:2h
 kaydet "Reviewed onboarding flow copy" status:wip project:kaydet
 
 # Later
-kaydet search commit:38edf60
-kaydet search "status:done project:kaydet"
+kaydet --search commit:38edf60
+kaydet --search "status:done project:kaydet"
 ```
 
-### 📚 Personal Knowledge Base (Today I Learned)
-Capture commands, code snippets, or references and tag them for future discovery.
+### 📚 Umut’s TIL Notebook
+Always learning, always searchable.
 
 ```bash
 kaydet "TIL: `pytest --cov-report=html` generates a browsable coverage report." topic:testing stack:python #til
-kaydet search "topic:testing"
+kaydet --search "topic:testing"
 ```
 
-### ⏱️ Time & Energy Tracking
-Structure your day with explicit durations or effort levels and surface them with numeric searches.
+### ⏱️ Defne’s Focus Ledger
+She times every deep work block and lets the data guide her week.
 
 ```bash
 kaydet "Deep work on analytics ETL" time:2.5h intensity:high project:valocom
 kaydet "Pairing session with Emre" time:1.5h intensity:medium project:kaydet
 
-# Find the long sessions
-kaydet search "time:>2"
+# Find the long hauls
+kaydet --search "time:>2"
 ```
 
-### 💡 Idea & Research Log
-Jot down ideas or research findings along with context, so you can filter them when planning.
+### 💡 Efe’s Idea Garden
+Sparks filed for a calmer tomorrow.
 
 ```bash
 kaydet "Prototype encrypted export flow" area:security priority:high #idea
 kaydet "Read Stripe's migration playbook" area:payments source:stripe-docs #research
 
-kaydet search "area:security"
+kaydet --search "area:security"
 ```
 
-### 😊 Mood & Wellness Journal
-Track your wellbeing with tags and metadata that make reflective searches easy.
+### 😊 Duru’s Mood Journal
+Feelings with context, ready for reflection.
 
 ```bash
 kaydet "Morning run felt amazing" mood:energized sleep:7h #wellness
 kaydet "Afternoon slump before standup" mood:tired caffeine:2 cups #mood
 
-kaydet search "mood:energized"
+kaydet --search "mood:energized"
 ```
 
-### 💰 Lightweight Expense Tracker
-Log expenses on the go with structured fields you can later parse or export.
+### 💰 Selim’s Expense Whisperer
+Receipts recorded the second they appear.
 
 ```bash
 kaydet "Lunch with client" amount:650 currency:TRY client:bbrain billable:yes #expense
 kaydet "Domain renewal" amount:120 currency:USD project:kaydet billable:no
 
-kaydet search "billable:yes"
+kaydet --search "billable:yes"
 ```
 
-## Highlights
-- **Terminal native** – stays in your shell and respects your configured editor.
-- **Own your data** – simple timestamped text files, perfect for syncing however you like.
-- **Configurable** – adjust file naming, headings, the editor command, and storage location.
-- **Gentle reminders** – optional nudge when you have not written anything for a while.
-- **Cross-platform** – works anywhere Python 3.8+ runs.
+## Highlights At A Glance
+- **Terminal native** – summon Kaydet with a keystroke, honour your `$EDITOR`.
+- **Plain text forever** – durable, syncable, versionable daily files.
+- **Smart structure** – automatic tags, metadata, and numeric parsing feed rich search.
+- **Gentle cues** – optional reminders nudge you if hours pass without writing.
+- **Portable** – runs anywhere Python 3.8+ lives.
 
-## Quick Start
+## The Daily Toolkit
+
 ```bash
-# Append a short entry to today's file
+# Append a quick thought to today
 kaydet "Made progress on the side project."
 
-# Add inline hashtags to categorize an entry
+# Weave explicit hashtags into the record
 kaydet "Dinner with friends #family #gratitude"
 
-# Drop into your favourite editor for a longer note
+# Linger in your preferred editor
 kaydet --editor
 
-# Open the folder that keeps all diary files
+# Jump straight to the archive folder
 kaydet --folder
 
-# Quick tag & metadata housekeeping
-kaydet --tags            # list tags from the index
-kaydet --doctor          # rebuild the search index
+# Housekeeping
+kaydet --tags             # list tags with counts
+kaydet --doctor           # rebuild the index if files changed on disk
 
-# Search past entries for a word or tag fragment
+# Hunt through the archive
 kaydet --search gratitude
 kaydet --search "status:done"
 kaydet --search "time:>1"
 
-# Update or remove past entries by ID (IDs are shown in search results)
+# Revise or retire past entries by ID (IDs surface in search output)
 kaydet --edit 42
-kaydet --delete 42 --yes  # skip confirmation prompts
+kaydet --delete 42 --yes   # skip confirmation prompts
 ```
 
-Example `kaydet --stats` output:
+### How Stats Feel
 
 ```
 September 2025
@@ -173,224 +171,136 @@ Mo Tu We Th Fr Sa Su
 Total entries this month: 12
 ```
 
-Each entry is written to a daily file (for example `~/.kaydet/2024-02-19.txt`)
-and prefixed with the current time plus a durable numeric identifier:
+### How Entries Are Written
 
 ```
 14:25 [132]: Finished refactoring the sync helper #focus
 ```
 
-Opening an existing daily file will append a new section; the first entry of the
-day creates the file with a heading for easy navigating. Kaydet keeps those
-files and the SQLite index in sync automatically—any command that touches the
-database refreshes changed files, assigns missing IDs, and lets you know when a
-file was rewritten.
+Each note lives in a dated file (for example `~/.kaydet/2024-02-19.txt`). Kaydet updates the file, refreshes the SQLite index, and keeps IDs stable—even if you circle back to edit or delete.
 
-Add inline hashtags (for example `#family`) or structured metadata (`project:valocom`,
-`time:45m`) to enrich your notes. Kaydet stores everything in the daily file,
-indexes it for instant search, lists tags with `kaydet --tags`, and rebuilds the
-index with `kaydet --doctor`. The `kaydet --folder` command opens your main log
-directory so you can browse or sync the raw files whenever you like.
+Inline hashtags (`#family`) and metadata (`project:valocom`, `time:45m`) travel together. Search can pivot on either style without extra effort.
 
-## Configuration
-Kaydet stores its settings in `~/.config/kaydet/config.ini` (or the location
-pointed to by `XDG_CONFIG_HOME`). The file is created on first run and you can
-change any of the values. A minimal example:
+## Configure Kaydet To Your Taste
+
+Kaydet writes its settings to `~/.config/kaydet/config.ini` (or the path defined by `XDG_CONFIG_HOME`). First run creates the file; after that, it’s yours to edit.
 
 ```ini
 [SETTINGS]
 DAY_FILE_PATTERN = %Y-%m-%d.txt
 DAY_TITLE_PATTERN = %Y/%m/%d - %A
 LOG_DIR = /Users/you/.kaydet
-EDITOR = nvim
+EDITOR = nvim +'startinsert'
+REMIND_AFTER_HOURS = 4
 ```
 
-- `DAY_FILE_PATTERN` controls the diary file name.
-- `DAY_TITLE_PATTERN` sets the heading written at the top of new files.
-- `LOG_DIR` points to the directory where entries live.
-- `EDITOR` is the command Kaydet runs for long-form entries (`--editor`).
+### Field Notes
+- Override the editor anytime with `kaydet --editor`.
+- Anything shaped like `key:value` becomes queryable metadata (`kaydet --search "status:done"`).
+- Durations like `2h`, `90m`, or `3.5` become numerics (`kaydet --search "time:>2"`).
+- Inline and explicit tags merge into one tidy index (`kaydet --tags`).
+- Manual file edits? Run `kaydet --doctor` to repair IDs and refresh search tables.
 
-Any edits take effect the next time you invoke Kaydet.
+## AI Companions Listen In
 
-## Reminders
-Want a heads-up if you have not logged anything lately? Add the reminder flag to
-your shell startup (for example in `~/.zshrc`):
+Install the MCP extras (`pip install "kaydet[mcp]"`), launch `kaydet-mcp`, and let your assistants read the diary you trust.
 
-```bash
-# ~/.zshrc
-kaydet --reminder
+### Sample Dialogues
+
+#### 🔎 Sprint Retro in Seconds
+```
+You: "What did I ship last sprint?"
+
+AI: *scans #work entries*
+"Sprint summary:
+- Shipped analytics batching (commit 38edf60)
+- Updated onboarding copy (status:done)
+- Investigated auth regression (status:wip)"
 ```
 
-When the last entry is older than two hours Kaydet prints:
-
+#### 📚 Learning Ledger
 ```
-It's been over two hours since your last Kaydet entry. Capture what you've been up to with `kaydet --editor`.
-```
+You: "Remind me what I studied about testing last month."
 
-## AI Integration (MCP Server)
-
-Kaydet supports the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/), allowing MCP-compatible AI assistants to interact with your diary entries using natural language.
-
-**Supported AI Tools:**
-- [Claude Desktop](https://claude.ai/download) - Anthropic's desktop app
-- [Cline](https://github.com/cline/cline) - VS Code AI assistant
-- [Codex](https://github.com/openai/codex) - OpenAI's code assistant
-- Any other MCP-compatible tool
-
-### Installation
-
-```bash
-pip install kaydet[mcp]
+AI: *filters topic:testing*
+"Highlights:
+- Pytest coverage flags and HTML export (Sept 3)
+- Property-based testing with Hypothesis (Sept 11)"
 ```
 
-### Configuration
-
-#### For Claude Desktop
-Add to `~/.config/Claude/claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "kaydet": {
-      "command": "kaydet-mcp"
-    }
-  }
-}
-```
-
-#### For Cline (VS Code)
-Add to your Cline MCP settings:
-
-```json
-{
-  "mcpServers": {
-    "kaydet": {
-      "command": "kaydet-mcp"
-    }
-  }
-}
-```
-
-#### For Other MCP Tools
-Refer to your tool's documentation for MCP server configuration. Use `kaydet-mcp` as the command.
-
-### Available Tools
-
-The MCP server exposes these tools to AI assistants:
-
-- **add_entry** - Add new diary entries
-- **search_entries** - Search through your diary
-- **list_tags** - Get all your tags
-- **get_stats** - View entry statistics
-
-### Real-World Use Cases
-
-Once configured, you can interact with your diary using natural language:
-
-#### 📊 **Project Retrospectives**
-```
-You: "What did I accomplish on the authentication project last month?"
-
-AI: *Searches #auth entries and summarizes*
-"You worked on the authentication project 12 times last month:
-- Fixed OAuth token refresh bug
-- Implemented 2FA
-- Migrated to JWT tokens
-- Added password reset flow
-Most active week was Sept 15-20 with 5 entries."
-```
-
-#### 🧠 **Learning Pattern Analysis**
-```
-You: "What have I learned about Python testing this year?"
-
-AI: *Searches entries tagged #python #testing*
-"Based on your TIL entries, you've learned:
-- pytest fixtures and parametrization (March)
-- Coverage reporting with pytest-cov (June)
-- Mocking with unittest.mock (August)
-- Property-based testing with Hypothesis (September)"
-```
-
-#### 💪 **Fitness Progress Tracking**
+#### 💪 Fitness Pulse
 ```
 You: "Am I exercising more this month than last month?"
 
-AI: *Analyzes #fitness entries*
-"This month: 18 fitness entries (avg 4.5/week)
-Last month: 12 fitness entries (avg 3/week)
-You're up 50%! Most consistent activity: running (8 entries)"
+AI: *counts #fitness entries*
+"This month: 18 entries (avg 4.5/week)
+Last month: 12 entries (avg 3/week)
+You're up 50%. Most frequent activity: running (8 entries)."
 ```
 
-#### 🎯 **Productivity Insights**
+#### 🎯 Productivity Patterns
 ```
 You: "What patterns do you see in my work habits?"
 
-AI: *Analyzes #work entries by time and tags*
-"Patterns from your work diary:
-- Most productive hours: 9-11 AM (highest entry density)
-- You tend to do deep work on Tuesdays and Thursdays
-- Bug fixes usually happen in the afternoon
-- You take breaks more consistently when working on #frontend tasks"
+AI: *maps tags and timestamps*
+"Observations:
+- Peak focus: 09:00–11:00
+- Deep work appears most on Tuesdays/Thursdays
+- Bug fixes cluster after lunch
+- Breaks happen more when tasks are tagged #frontend"
 ```
 
-#### 💼 **Meeting Follow-ups**
+#### 💼 Meeting Follow-ups
 ```
 You: "What action items came out of meetings with the design team?"
 
-AI: *Searches #meeting #design entries*
-"Found 6 design team meetings. Action items mentioned:
-- Finalize color palette for dashboard (Sept 5)
+AI: *finds #meeting #design*
+"Six meetings logged. Open items:
+- Finalize dashboard palette (Sept 5)
 - Review mobile mockups (Sept 12)
-- Get feedback on new navigation (Sept 19)
-- Schedule user testing session (Sept 26 - still pending)"
+- Collect navigation feedback (Sept 19)
+- Schedule user testing (Sept 26 — pending)"
 ```
 
-#### 🤝 **Personal CRM**
+#### 🤝 Personal CRM
 ```
-You: "When was my last interaction with John from Marketing?"
+You: "When did I last sync with John from Marketing?"
 
-AI: *Searches entries mentioning 'John' with #marketing*
-"Last contact: September 20
-'Quick sync with John from Marketing about Q4 campaign. He'll send
-the brief by Friday. Follow up next week. #marketing #john'"
+AI: *searches for 'John' and #marketing*
+"September 20:
+'Quick sync with John from Marketing about Q4 campaign. He'll send the brief by Friday. Follow up next week. #marketing #john'"
 ```
 
-#### 💡 **Idea Retrieval**
+#### 💡 Feature-Finding
 ```
-You: "Show me all the feature ideas I've had for Kaydet"
+You: "Show every Kaydet feature idea I've logged."
 
-AI: *Searches #kaydet #idea*
-"You've logged 8 feature ideas for Kaydet:
-- Add encryption for diary files (Sept 2)
-- Export to PDF format (Sept 10)
+AI: *queries #kaydet #idea*
+"Eight ideas spotted:
+- Add diary encryption (Sept 2)
+- Export to PDF (Sept 10)
 - Mobile companion app (Sept 15)
 - Voice-to-text entry (Sept 18)
 ..."
 ```
 
-#### ✍️ **Quick Entry via AI**
+#### ✍️ Hands-Free Capture
 ```
-You: "Add diary entry: Finished the user dashboard redesign.
+You: "Add entry: Finished the dashboard redesign.
 Took longer than expected due to responsive layout issues.
-Happy with the final result. #work #frontend #design"
+Happy with the result. #work #frontend #design"
 
-AI: ✅ Entry added to your diary at 14:32
+AI: ✅ Logged at 14:32
 ```
 
-### Simple Commands
+### Simple Prompts Still Work
+- “Add a diary entry: Today I fixed the auth bug #work”
+- “Search my diary for ‘Apollo project’”
+- “What are my diary stats for this month?”
+- “List all my tags”
+- “Show #fitness entries from last week”
 
-You can also use simple one-liners:
-
-- "Add a diary entry: Today I fixed the auth bug #work"
-- "Search my diary for 'Apollo project'"
-- "What are my diary stats for this month?"
-- "List all my tags"
-- "Show me all my #fitness entries from last week"
-
-### JSON Output
-
-Kaydet also supports JSON output for programmatic access:
+### JSON For Everything
 
 ```bash
 kaydet --search work --format json
@@ -399,32 +309,31 @@ kaydet --stats --format json
 ```
 
 ## Development
-Clone the repository and install in editable mode to hack on Kaydet locally:
+
+Want to tinker under the hood? Clone and run Kaydet from source:
 
 ```bash
 git clone https://github.com/miratcan/kaydet.git
 cd kaydet
 pip install -e .
 
-# optional: install formatting/lint extras
+# Optional tooling
 pip install -e .[dev]
-
-# run style checks
 ruff check src
 black --check src
 ```
 
-Run the CLI from source with `python -m kaydet`.
+Launch the CLI locally with `python -m kaydet`.
 
 ## Contributing
 
-We welcome contributions! Whether it's bug reports, feature requests, or code contributions, please feel free to open an issue or submit a pull request.
+Bug reports, feature ideas, and pull requests are all welcome.  
+Raise an issue, open a PR, or share how you use Kaydet—we build faster together.
 
 ## License
 
-Kaydet is released under the permissive [MIT License](LICENSE).
-
-See [CHANGELOG.md](CHANGELOG.md) for release history.
+Kaydet ships under the permissive [MIT License](LICENSE).  
+Release notes live in [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
@@ -432,8 +341,8 @@ See [CHANGELOG.md](CHANGELOG.md) for release history.
 
 💡 **Found Kaydet useful?**
 
-[⭐ Star the repo](https://github.com/miratcan/kaydet) to help others discover it!
+[⭐ Star the repo](https://github.com/miratcan/kaydet) so more people discover it.
 
-Made with Concerta by [Mirat Can Bayrak](https://github.com/miratcan)
+Written with Concerta by [Mirat Can Bayrak](https://github.com/miratcan)
 
 </div>
