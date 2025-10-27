@@ -13,7 +13,9 @@ from startfile import startfile
 from . import __description__, __version__, database
 from .commands import (
     add_entry_command,
+    delete_entry_command,
     doctor_command,
+    edit_entry_command,
     reminder_command,
     search_command,
     stats_command,
@@ -81,6 +83,26 @@ def build_parser(config_path: Path) -> argparse.ArgumentParser:
         help="Rebuild search index.",
     )
     parser.add_argument(
+        "--edit",
+        dest="edit",
+        type=int,
+        metavar="ID",
+        help="Edit an entry by numeric identifier.",
+    )
+    parser.add_argument(
+        "--delete",
+        dest="delete",
+        type=int,
+        metavar="ID",
+        help="Delete an entry by numeric identifier.",
+    )
+    parser.add_argument(
+        "--yes",
+        dest="assume_yes",
+        action="store_true",
+        help="Automatically confirm prompts.",
+    )
+    parser.add_argument(
         "--format",
         dest="output_format",
         choices=["text", "json"],
@@ -131,7 +153,23 @@ def main() -> None:
         return
 
     if args.search:
-        search_command( db, log_dir, config, args.search, args.output_format)
+        search_command(db, log_dir, config, args.search, args.output_format)
+        return
+    if args.edit is not None and args.delete is not None:
+        print("Use either --edit or --delete, not both.")
+        return
+    if args.edit is not None:
+        edit_entry_command(db, log_dir, config, args.edit, now)
+        return
+    if args.delete is not None:
+        delete_entry_command(
+            db,
+            log_dir,
+            config,
+            args.delete,
+            assume_yes=args.assume_yes,
+            now=now,
+        )
         return
 
     add_entry_command(

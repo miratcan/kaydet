@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.29.0] - 2025-10-26
+### Added
+- Introduced `--edit ID` and `--delete ID` commands to update or remove entries in place while keeping IDs stable.
+- Added interactive delete confirmation that previews the entry text before removal and a `--yes` flag for non-interactive execution.
+- Text search results now display entry IDs inline, making it easy to target entries for follow-up commands.
+- `--tags` output now includes a `#tag` prefix alongside entry counts, and JSON output reports `{name, count}` objects.
+
+### Developer Notes
+- New utilities in `kaydet.commands.entry_ops` centralize diary file parsing for edit/delete flows.
+- Tests updated to cover command additions, delete confirmation preview, and tag count formatting.
+
 ## [0.28.0] - 2025-10-25
 ### Changed
 - Split the CLI into a dedicated `kaydet.commands` package with focused modules for add/search/stats/tags/reminder/doctor flows.
