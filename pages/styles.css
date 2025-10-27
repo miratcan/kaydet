@@ -61,6 +61,13 @@ a {
   max-width: 34ch;
 }
 
+.hero__lead {
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: var(--text);
+  max-width: 40ch;
+}
+
 .hero__actions {
   display: flex;
   gap: 1rem;
