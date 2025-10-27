@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.29.1] - 2025-10-27
+### Changed
+- Rewrote English and Turkish READMEs with a narrative introduction, character-focused use cases, and clearer quick-start guidance.
+- Highlighted the new edit/delete workflow and tagged search output improvements directly in the docs.
+
+### Developer Notes
+- Simplified the lint workflow to rely on Ruff formatting checks only.
+- Packaging artifacts rebuilt with version bump to 0.29.1.
+
 ## [0.29.0] - 2025-10-26
 ### Added
 - Introduced `--edit ID` and `--delete ID` commands to update or remove entries in place while keeping IDs stable.
