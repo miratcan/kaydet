@@ -1,13 +1,13 @@
 :root {
   color-scheme: light dark;
-  --bg: #0b0f1a;
-  --bg-alt: #0f1729;
-  --text: #e4ecff;
-  --text-muted: #a9b7d1;
-  --accent: #5b7cfa;
-  --accent-soft: rgba(91, 124, 250, 0.12);
-  --card-bg: rgba(12, 18, 34, 0.7);
-  --border: rgba(255, 255, 255, 0.08);
+  --bg: #020617;
+  --bg-alt: rgba(15, 23, 42, 0.88);
+  --text: #f8fafc;
+  --text-muted: #cbd5f5;
+  --accent: #38bdf8;
+  --accent-soft: rgba(56, 189, 248, 0.18);
+  --card-bg: rgba(15, 23, 42, 0.8);
+  --border: rgba(148, 163, 184, 0.18);
   --font-stack: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont,
     "Helvetica Neue", Arial, sans-serif;
   --mono: "JetBrains Mono", "Fira Code", "SFMono-Regular", Menlo, Consolas,
@@ -21,7 +21,7 @@
 body {
   margin: 0;
   font-family: var(--font-stack);
-  background: radial-gradient(circle at top, #1b2542, #05070e 55%);
+  background: radial-gradient(circle at 10% -10%, #1e3a8a, #020617 60%);
   color: var(--text);
   line-height: 1.6;
   min-height: 100vh;
@@ -82,12 +82,12 @@ a {
 
 .button--primary {
   background: var(--accent);
-  box-shadow: 0 20px 35px -18px rgba(91, 124, 250, 0.65);
+  box-shadow: 0 22px 40px -22px rgba(56, 189, 248, 0.65);
 }
 
 .button--primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 25px 45px -20px rgba(91, 124, 250, 0.75);
+  box-shadow: 0 26px 55px -24px rgba(56, 189, 248, 0.78);
 }
 
 .button--ghost {
@@ -98,13 +98,14 @@ a {
 .button--ghost:hover {
   border-color: var(--accent);
   color: var(--accent);
+  background: rgba(56, 189, 248, 0.08);
 }
 
 .hero__terminal {
-  background: rgba(8, 12, 23, 0.8);
+  background: rgba(2, 8, 23, 0.85);
   border-radius: 1rem;
   padding: 1.75rem 1.5rem;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(148, 163, 184, 0.16);
   backdrop-filter: blur(10px);
 }
 
@@ -127,7 +128,7 @@ a {
   border-radius: 1rem;
   padding: 2.2rem;
   border: 1px solid var(--border);
-  box-shadow: 0 20px 35px -28px rgba(5, 9, 16, 0.8);
+  box-shadow: 0 24px 45px -28px rgba(2, 8, 23, 0.78);
 }
 
 .card h2 {
@@ -143,7 +144,7 @@ a {
 
 code {
   font-family: var(--mono);
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(148, 163, 184, 0.12);
   padding: 0.1rem 0.45rem;
   border-radius: 0.4rem;
   font-size: 0.95rem;
@@ -165,7 +166,7 @@ code {
 }
 
 .install-list li {
-  background: rgba(11, 17, 32, 0.6);
+  background: rgba(15, 23, 42, 0.7);
   padding: 0.85rem 1rem;
   border-radius: 0.75rem;
   border: 1px solid var(--border);
@@ -195,9 +196,9 @@ code {
 .story-card {
   border-radius: 1rem;
   padding: 2rem;
-  background: rgba(16, 22, 37, 0.7);
+  background: rgba(30, 41, 59, 0.78);
   border: 1px solid var(--border);
-  box-shadow: 0 20px 40px -30px rgba(7, 13, 25, 0.9);
+  box-shadow: 0 24px 50px -32px rgba(8, 16, 35, 0.85);
 }
 
 .story-card h3 {
@@ -212,7 +213,7 @@ code {
 .footer {
   border-top: 1px solid var(--border);
   padding: 3.5rem 0 2rem;
-  background: rgba(5, 7, 14, 0.85);
+  background: rgba(2, 6, 23, 0.92);
 }
 
 .footer__content {
@@ -235,7 +236,7 @@ code {
 .footer__credits {
   margin-top: 2rem;
   text-align: center;
-  color: rgba(255, 255, 255, 0.45);
+  color: rgba(203, 213, 225, 0.52);
   font-size: 0.9rem;
 }
 
