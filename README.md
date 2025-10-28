@@ -8,6 +8,10 @@
 [![Tests](https://github.com/miratcan/kaydet/workflows/Tests/badge.svg)](https://github.com/miratcan/kaydet/actions)
 [![License](https://img.shields.io/github/license/miratcan/kaydet.svg)](LICENSE)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
+[![Maintained](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/miratcan/kaydet/graphs/commit-activity)
+[![GitHub stars](https://img.shields.io/github/stars/miratcan/kaydet?style=social)](https://github.com/miratcan/kaydet/stargazers)
+[![Last commit](https://img.shields.io/github/last-commit/miratcan/kaydet)](https://github.com/miratcan/kaydet/commits/master)
 
 > Your queryable personal database. Plain text storage, SQLite search, zero friction.
 
