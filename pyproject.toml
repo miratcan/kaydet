@@ -7,7 +7,7 @@ name = "kaydet"
 dynamic = ["version", "readme"]
 description = "Simple and terminal-based personal diary app for your shell."
 authors = [{name = "Mirat Can Bayrak"}]
-license = "MIT"
+license = {text = "MIT"}
 license-files = ["LICENSE"]
 keywords = ["diary", "terminal", "cli"]
 classifiers = [
