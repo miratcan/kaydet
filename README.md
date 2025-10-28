@@ -1,12 +1,17 @@
-# Kaydet — Your Thoughts, One Command Away
+# Kaydet — Capture • Query • Remember
+
+<div align="center">
+  <img src="logo.png" alt="Kaydet Logo" width="400">
+  <br><br>
+</div>
 
 [![PyPI version](https://img.shields.io/pypi/v/kaydet.svg)](https://pypi.org/project/kaydet/)
 [![Downloads](https://img.shields.io/pypi/dm/kaydet.svg)](https://pypi.org/project/kaydet/)
 [![Python](https://img.shields.io/pypi/pyversions/kaydet.svg)](https://pypi.org/project/kaydet/)
 [![License](https://img.shields.io/github/license/miratcan/kaydet.svg)](LICENSE)
 
-> The stand-up ends. You have twelve seconds before the next tab steals your attention.  
-> `kaydet "Filed the prod incident and fixed cache TTL #work"`.  
+> The stand-up ends. You have twelve seconds before the next tab steals your attention.
+> `kaydet "Filed the prod incident and fixed cache TTL #work"`.
 > Thought captured. Flow preserved.
 
 Kaydet is your queryable personal database—with zero friction.
