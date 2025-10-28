@@ -89,25 +89,46 @@ def build_numeric_metadata(metadata: Dict[str, str]) -> Dict[str, float]:
 def partition_entry_tokens(
     tokens: Iterable[str],
 ) -> Tuple[List[str], Dict[str, str], List[str]]:
-    """Split CLI tokens into message text, metadata, and explicit tags.
+    """Extract message text, metadata, and tags from CLI tokens.
+
+    Everything goes in one string - tags with # prefix, metadata as key:value.
+    The parser extracts and removes them, leaving clean message text.
+
+    Preferred usage:
+        kaydet "Fixed bug #work #urgent status:done time:2h"
 
     Example:
-        >>> partition_entry_tokens(["Fix", "bug", "time:1h", "#work"])
-        (['Fix', 'bug'], {'time': '1h'}, ['work'])
+        >>> partition_entry_tokens(["Fixed bug #work status:done time:2h"])
+        (['Fixed bug'], {'status': 'done', 'time': '2h'}, ['work'])
     """
-    message_tokens: List[str] = []
+    # Join all tokens into one text (in case user passes multiple strings)
+    full_text = " ".join(tokens)
+
+    # Extract tags using the existing function
+    tags = list(extract_tags_from_text(full_text))
+
+    # Remove hashtags from text
+    text_without_tags = re.sub(r'#[a-z][a-z0-9_-]*', '', full_text)
+
+    # Extract and remove metadata (key:value pairs)
     metadata: Dict[str, str] = {}
-    explicit_tags: List[str] = []
-    for token in tokens:
-        if token.startswith("#"):
-            if tag := normalize_tag(token):
-                explicit_tags.append(tag)
-        elif parsed := parse_metadata_token(token):
+    words = text_without_tags.split()
+    clean_words: List[str] = []
+
+    for word in words:
+        if parsed := parse_metadata_token(word):
+            # Extract metadata
             key, value = parsed
             metadata[key] = value
         else:
-            message_tokens.append(token)
-    return message_tokens, metadata, explicit_tags
+            # Keep as message text
+            clean_words.append(word)
+
+    # Join and clean up extra spaces
+    message_text = " ".join(clean_words).strip()
+    message_tokens = [message_text] if message_text else []
+
+    return message_tokens, metadata, tags
 
 
 def format_entry_header(

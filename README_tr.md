@@ -9,8 +9,9 @@
 > `kaydet "Prod hatasını kapattım, cache TTL düzeltildi. #work"`  
 > Not alındı. Akış bozulmadı.
 
-Kaydet, terminalinizde sessizce yaşayan, size yabancı olmayan bir günlük.  
-Sprint zaferlerini, market çıkışında gelen fikirleri ve gece yarısı parlayan cümleleri tutar; sizi uygulamalar arasında koşturmaz.
+Kaydet, sorgulanabilir kişisel veritabanınız—sıfır sürtünmeyle.
+Okuduğunuz bir günlük değil, sorguladığınız bir veritabanı.
+Düşünceler yakalayın, işleri takip edin, hayatı kaydedin—terminalinizden, düz metinde.
 
 **[📥 Hemen Kurun](#kaydete-adım-atın)** • **[⚡ Hızlı Rehber](#günlük-araç-takımı)** • **[🤖 Yapay Zeka Eşlikçileri](#yapay-zeka-eşlikçileri-dinliyor)**
 
@@ -52,7 +53,7 @@ pip install "git+https://github.com/miratcan/kaydet.git#egg=kaydet[mcp]"
 - Arama anlık ve naziktir: `kaydet --search "status:done project:kaydet"`.
 
 ### Günlük Uygulamaları Meraklıyken
-- Tüm günlükler diskinizde kalır. Telemetri yok, bilinmeyen sunucu yok.
+- Tüm verileriniz diskinizde kalır. Telemetri yok, bilinmeyen sunucu yok.
 - Editörü siz belirlersiniz: `vim`, `nvim`, `nano`, `code`… neyi çağırırsanız.
 
 ### Yapay Zeka Yoldaşınız Olsun İsterseniz
@@ -67,8 +68,8 @@ Kaydet, oynadığınız her rolü kaydeder. İşte birkaç sahne.
 Gönderiyor, ispatını saklıyor.
 
 ```bash
-kaydet "Staging kimlik doğrulama hatası düzeltildi." commit:38edf60 pr:76 status:done time:2h
-kaydet "Onboarding metinlerini güncelledim." status:wip project:kaydet
+kaydet "Staging kimlik doğrulama hatası düzeltildi #work commit:38edf60 pr:76 status:done time:2h"
+kaydet "Onboarding metinlerini güncelledim #kaydet status:wip project:kaydet"
 
 # Sonra
 kaydet --search commit:38edf60
@@ -79,7 +80,7 @@ kaydet --search "status:done project:kaydet"
 Öğrendiğini uzaklaştırmadan kaydeder.
 
 ```bash
-kaydet "TÖÖ: `pytest --cov-report=html` taranabilir kapsam raporu üretir." topic:testing stack:python #til
+kaydet "TÖÖ: pytest --cov-report=html taranabilir kapsam raporu üretir #til topic:testing stack:python"
 kaydet --search "topic:testing"
 ```
 
@@ -87,8 +88,8 @@ kaydet --search "topic:testing"
 Her derin çalışma bloğunu zamanlar, haftasını veriler yönetir.
 
 ```bash
-kaydet "Analitik ETL için derin çalışma" time:2.5h intensity:high project:valocom
-kaydet "Emre ile eşli çalışma" time:1.5h intensity:medium project:kaydet
+kaydet "Analitik ETL için derin çalışma #focus time:2.5h intensity:high project:valocom"
+kaydet "Emre ile eşli çalışma #pair time:1.5h intensity:medium project:kaydet"
 
 # Uzayan seansları bul
 kaydet --search "time:>2"
@@ -98,8 +99,8 @@ kaydet --search "time:>2"
 İlhamı saklar, yarına bırakır.
 
 ```bash
-kaydet "Şifrelenmiş dışa aktarma prototipi" area:security priority:high #idea
-kaydet "Stripe geçiş rehberini okudum" area:payments source:stripe-docs #research
+kaydet "Şifrelenmiş dışa aktarma prototipi #idea area:security priority:high"
+kaydet "Stripe geçiş rehberini okudum #research area:payments source:stripe-docs"
 
 kaydet --search "area:security"
 ```
@@ -108,8 +109,8 @@ kaydet --search "area:security"
 Hisleri bağlamıyla birlikte saklar, dönüp bakmayı kolaylaştırır.
 
 ```bash
-kaydet "Sabah koşusu harikaydı" mood:energized sleep:7h #wellness
-kaydet "Öğlen toplantı öncesi enerji düşüktü" mood:tired caffeine:2 #mood
+kaydet "Sabah koşusu harikaydı #wellness mood:energized sleep:7h"
+kaydet "Öğlen toplantı öncesi enerji düşüktü #mood mood:tired caffeine:2cups"
 
 kaydet --search "mood:energized"
 ```
@@ -118,15 +119,15 @@ kaydet --search "mood:energized"
 Fişleri ortaya çıkar çıkmaz kaydeder.
 
 ```bash
-kaydet "Müşteri öğle yemeği" amount:650 currency:TRY client:bbrain billable:yes #expense
-kaydet "Domain yenilemesi" amount:120 currency:USD project:kaydet billable:no
+kaydet "Müşteri öğle yemeği #expense amount:650 currency:TRY client:bbrain billable:yes"
+kaydet "Domain yenilemesi #expense amount:120 currency:USD project:kaydet billable:no"
 
 kaydet --search "billable:yes"
 ```
 
 ## Hızlı Bakışta Öne Çıkanlar
 - **Terminal yerlisi** – tek tuşla çağırın, `$EDITOR` tercihinize saygı duyar.
-- **Düz metin güvencesi** – dayanıklı, senkronize edilebilir günlük dosyaları.
+- **Düz metin güvencesi** – dayanıklı, senkronize edilebilir veri dosyaları.
 - **Akıllı yapı** – etiket, metaveri ve sayılar otomatik indekslenir.
 - **Nazik hatırlatmalar** – uzun süre yazmadığınızda isteğe bağlı uyarı.
 - **Taşınabilir** – Python 3.8+ olan her yerde çalışır.
@@ -135,10 +136,10 @@ kaydet --search "billable:yes"
 
 ```bash
 # Bugüne hızlı bir not ekle
-kaydet "Yan projede ilerleme var."
+kaydet "Yan projede ilerleme var #coding time:3h"
 
-# Satır içi hashtag’lerle kategorize et
-kaydet "Arkadaşlarla akşam yemeği #aile #şükran"
+# Hashtag ve metadata'yı tek string'de yaz
+kaydet "Arkadaşlarla akşam yemeği #aile #şükran mood:mutlu"
 
 # Sevdiğiniz editörde devam edin
 kaydet --editor
@@ -149,6 +150,7 @@ kaydet --folder
 # Bakım
 kaydet --tags             # etiket ve sayıları listele
 kaydet --doctor           # dosyalara dokunduysanız indeksi yenile
+kaydet --browse           # isteğe bağlı Textual tarayıcısını aç
 
 # Arşivde avlanın
 kaydet --search şükran
@@ -159,6 +161,8 @@ kaydet --search "time:>1"
 kaydet --edit 42
 kaydet --delete 42 --yes   # onay istemeden sil
 ```
+
+> Etkileşimli gezinme arayüzü için `pip install "kaydet[browse]"` komutunu çalıştırın.
 
 ### İstatistikler Nasıl Görünür?
 
@@ -203,7 +207,12 @@ REMIND_AFTER_HOURS = 4
 
 ## Yapay Zeka Eşlikçileri Dinliyor
 
-`pip install "kaydet[mcp]"` komutuyla MCP eklentilerini kurun, `kaydet-mcp` çalıştırın ve güvendiğiniz günlükleri asistanlarınızla paylaşın.
+`kaydet-mcp` komutunu çalıştırın; asistanlarınız kişisel veritabanınızı sorgulasın. Artık şu araçlar mevcut:
+
+- `add_entry` – yeni kaydın ID’si, dosya yolu ve zaman damgasını JSON olarak döner
+- `update_entry`, `delete_entry` – editör açmadan düzenleme veya silme
+- `search_entries`, `list_recent_entries`, `entries_by_tag`
+- `list_tags`, `get_stats` (isteğe bağlı `year` / `month` parametreleriyle)
 
 ### Diyalog Örnekleri
 
@@ -294,9 +303,9 @@ YZ: ✅ 14:32'de kaydedildi
 ```
 
 ### Kısa Komutlar Hâlâ Geçerli
-- “Bir günlük girdisi ekle: Bugün auth hatasını düzelttim #work”
-- “Günlüğümde ‘Apollo projesi’ni ara”
-- “Bu ayki günlük istatistiklerim ne?”
+- "Bir girdi ekle: Bugün auth hatasını düzelttim #work"
+- "Kayıtlarımda 'Apollo projesi'ni ara"
+- "Bu ayki istatistiklerim ne?"
 - “Tüm etiketleri listele”
 - “Geçen haftaki #fitness girdilerini göster”
 

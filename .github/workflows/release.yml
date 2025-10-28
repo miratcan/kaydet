@@ -1,0 +1,64 @@
+name: Create GitHub Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev]
+
+      - name: Run tests
+        run: pytest
+
+      - name: Extract release notes from changelog
+        id: notes
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          python - <<'PY'
+          import os
+          import pathlib
+          import re
+
+          tag = os.environ["TAG_NAME"]
+          version = tag.lstrip("v")
+          changelog = pathlib.Path("CHANGELOG.md").read_text(encoding="utf-8")
+
+          pattern = re.compile(
+              r"## \\[" + re.escape(version) + r"\\](.*?)(?:\\n## \\[|\\Z)",
+              re.S,
+          )
+          match = pattern.search(changelog)
+          notes = match.group(1).strip() if match else "Release notes pending."
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+              fh.write("notes<<EOF\n")
+              fh.write(notes)
+              fh.write("\nEOF\n")
+          PY
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          body: ${{ steps.notes.outputs.notes }}

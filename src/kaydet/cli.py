@@ -13,6 +13,8 @@ from startfile import startfile
 from . import __description__, __version__, database
 from .commands import (
     add_entry_command,
+    browse_command,
+    BrowseDependencyError,
     delete_entry_command,
     doctor_command,
     edit_entry_command,
@@ -37,7 +39,7 @@ def build_parser(config_path: Path) -> argparse.ArgumentParser:
         epilog=dedent(
             f"""You can configure this by editing: {config_path}\n\n"""
             "  $ kaydet 'I am feeling grateful now.'\n"
-            '  $ kaydet "Fixed issue" status:done time:45m #work\n'
+            '  $ kaydet "Fixed bug #work #urgent status:done time:2h"\n'
             "  $ kaydet --editor"
             ""
         ),
@@ -77,6 +79,12 @@ def build_parser(config_path: Path) -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--search", dest="search", metavar="TEXT", help="Search entries."
+    )
+    parser.add_argument(
+        "--browse",
+        dest="browse",
+        action="store_true",
+        help="Open the interactive browser.",
     )
     parser.add_argument(
         "--doctor", dest="doctor", action="store_true",
@@ -143,6 +151,13 @@ def main() -> None:
 
     sync_modified_diary_files(db, log_dir, config, now)
     rebuild_index_if_empty(db, log_dir, config, now)
+
+    if args.browse:
+        try:
+            browse_command(db, log_dir, config)
+        except BrowseDependencyError as error:
+            print(error)
+        return
 
     if args.stats:
         stats_command(log_dir, config, now, args.output_format)
