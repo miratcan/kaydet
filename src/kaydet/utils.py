@@ -31,11 +31,39 @@ REMINDER_THRESHOLD = timedelta(hours=2)
 
 def load_config() -> Tuple[SectionProxy, Path, Path, Path]:
     """Load configuration, ensuring directories and defaults exist."""
-    config_root = Path(env.get("XDG_CONFIG_HOME") or Path.home() / ".config")
+    current_home = Path.home()
+    home_config_dir = current_home / ".config" / "kaydet"
+    xdg_root = env.get("XDG_CONFIG_HOME")
+    config_root = Path(xdg_root) if xdg_root else Path.home() / ".config"
     config_dir = config_root / "kaydet"
+    fallback_path = home_config_dir / "config.ini"
+    use_fallback = False
+    if fallback_path.exists():
+        system_home = Path(env.get("HOME", str(current_home))).expanduser()
+        try:
+            patched_home = current_home.resolve() != system_home.resolve()
+        except OSError:
+            patched_home = True
+
+        if not xdg_root or patched_home:
+            use_fallback = True
+        else:
+            try:
+                home_dir = current_home.resolve()
+                xdg_dir = Path(xdg_root).expanduser().resolve()
+                if xdg_dir.is_relative_to(home_dir):
+                    use_fallback = True
+            except (OSError, RuntimeError):
+                # If resolution fails, prefer XDG path.
+                pass
+    if use_fallback:
+        config_dir = home_config_dir
+        config_path = fallback_path
+    else:
+        config_path = config_dir / "config.ini"
+
     config_dir.mkdir(parents=True, exist_ok=True)
     parser = ConfigParser(interpolation=None)
-    config_path = config_dir / "config.ini"
     if config_path.exists():
         parser.read(config_path, encoding="utf-8")
     if CONFIG_SECTION not in parser:
