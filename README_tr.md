@@ -130,7 +130,7 @@ kaydet --search "billable:yes"
 - **Düz metin güvencesi** – dayanıklı, senkronize edilebilir veri dosyaları.
 - **Akıllı yapı** – etiket, metaveri ve sayılar otomatik indekslenir.
 - **Nazik hatırlatmalar** – uzun süre yazmadığınızda isteğe bağlı uyarı.
-- **Taşınabilir** – Python 3.8+ olan her yerde çalışır.
+- **Taşınabilir** – Python 3.10+ olan her yerde çalışır.
 
 ## Günlük Araç Takımı
 
