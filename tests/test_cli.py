@@ -958,29 +958,47 @@ def test_search_no_results(setup_kaydet, capsys):
     assert "No entries matched 'nonexistent'." in captured.out
 
 
-def test_browse_requires_optional_dependency(
-    setup_kaydet, capsys, mock_datetime_factory
+def test_browse_launches_textual_app(
+    setup_kaydet, capsys, mock_datetime_factory, tmp_path
 ):
-    """CLI should hint at installing the optional browse dependency."""
+    """CLI should invoke the Textual browse UI when requested."""
     monkeypatch = setup_kaydet["monkeypatch"]
     mock_datetime_factory(datetime(2025, 9, 30, 10, 0, 0))
 
+    fake_entry = Entry(
+        entry_id="42",
+        day=date(2025, 9, 30),
+        timestamp="10:00",
+        lines=("Test entry body",),
+        tags=("focus",),
+        metadata={},
+        metadata_numbers={},
+        source=tmp_path / "2025-09-30.txt",
+    )
+
     monkeypatch.setattr(sys, "argv", ["kaydet", "--browse"])
     monkeypatch.setattr(
-        browse_module, "TEXTUAL_AVAILABLE", False, raising=False
+        browse_module,
+        "_collect_entries",
+        lambda *args, **kwargs: [fake_entry],
     )
+
+    run_calls: list[browse_module.BrowseApp] = []
+
+    def fake_run(self):
+        run_calls.append(self)
+
+    monkeypatch.setattr(browse_module.BrowseApp, "run", fake_run)
 
     cli.main()
 
+    assert run_calls, "BrowseApp.run should be invoked"
     output = capsys.readouterr().out
-    assert "pip install kaydet[browse]" in output
+    assert "No diary entries to browse yet." not in output
 
 
 def test_browse_app_updates_detail(tmp_path: Path):
     """Textual browse view updates the detail panel when navigating."""
-    if not browse_module.TEXTUAL_AVAILABLE:
-        pytest.skip("textual is not installed")
-
     log_file = tmp_path / "2025-09-30.txt"
     log_file.write_text("placeholder\n", encoding="utf-8")
 
@@ -1035,14 +1053,13 @@ def test_browse_app_updates_detail(tmp_path: Path):
 
 def test_make_entry_text_truncates():
     """Entry summaries should be ellipsized to fit sidebar width."""
-    if not browse_module.TEXTUAL_AVAILABLE:
-        pytest.skip("textual is not installed")
     entry = Entry(
         entry_id="200",
         day=date(2025, 9, 28),
         timestamp="08:00",
         lines=(
-            "This is a very long entry that should be truncated in the sidebar",
+            "This is a very long entry that should be "
+            "truncated in the sidebar",
         ),
         tags=(),
         metadata={},

@@ -14,7 +14,6 @@ from . import __description__, __version__, database
 from .commands import (
     add_entry_command,
     browse_command,
-    BrowseDependencyError,
     delete_entry_command,
     doctor_command,
     edit_entry_command,
@@ -153,10 +152,7 @@ def main() -> None:
     rebuild_index_if_empty(db, log_dir, config, now)
 
     if args.browse:
-        try:
-            browse_command(db, log_dir, config)
-        except BrowseDependencyError as error:
-            print(error)
+        browse_command(db, log_dir, config)
         return
 
     if args.stats:
