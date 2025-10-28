@@ -57,7 +57,12 @@ class KaydetService:
         db_path = log_dir / INDEX_FILENAME
         db = database.get_db_connection(db_path)
         database.initialize_database(db)
-        return cls(config=config, config_dir=config_dir, log_dir=log_dir, db=db)
+        return cls(
+            config=config,
+            config_dir=config_dir,
+            log_dir=log_dir,
+            db=db,
+        )
 
     def _ensure_index(self, now: datetime) -> None:
         sync_modified_diary_files(self.db, self.log_dir, self.config, now)
@@ -75,7 +80,10 @@ class KaydetService:
         metadata = metadata or {}
         tags = list(tags or [])
         if timestamp:
-            now = now.replace(hour=int(timestamp[:2]), minute=int(timestamp[3:]))
+            now = now.replace(
+                hour=int(timestamp[:2]),
+                minute=int(timestamp[3:]),
+            )
 
         try:
             result = create_entry(
@@ -160,12 +168,22 @@ class KaydetService:
             reverse=True,
         )
         payload = [match.to_dict() for match in matches]
-        return {"success": True, "query": query, "matches": payload, "total": len(payload)}
+        return {
+            "success": True,
+            "query": query,
+            "matches": payload,
+            "total": len(payload),
+        }
 
     def list_tags(self) -> dict[str, Any]:
         cursor = self.db.cursor()
         cursor.execute(
-            "SELECT tag_name, COUNT(*) FROM tags GROUP BY tag_name ORDER BY tag_name"
+            (
+                "SELECT tag_name, COUNT(*) "
+                "FROM tags "
+                "GROUP BY tag_name "
+                "ORDER BY tag_name"
+            )
         )
         rows = cursor.fetchall()
         tags = [
@@ -174,11 +192,18 @@ class KaydetService:
         ]
         return {"success": True, "tags": tags}
 
-    def get_stats(self, *, year: int | None = None, month: int | None = None) -> dict[str, Any]:
+    def get_stats(
+        self, *, year: int | None = None, month: int | None = None
+    ) -> dict[str, Any]:
         now = datetime.now()
         target_year = year or now.year
         target_month = month or now.month
-        counts = collect_month_counts(self.log_dir, self.config, target_year, target_month)
+        counts = collect_month_counts(
+            self.log_dir,
+            self.config,
+            target_year,
+            target_month,
+        )
         total = sum(counts.values())
         return {
             "success": True,
@@ -264,7 +289,9 @@ async def serve() -> None:
             ),
             Tool(
                 name="update_entry",
-                description="Update an existing entry without opening an editor",
+                description=(
+                    "Update an existing entry without opening an editor"
+                ),
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -345,7 +372,11 @@ async def serve() -> None:
                     "type": "object",
                     "properties": {
                         "year": {"type": "integer", "minimum": 1900},
-                        "month": {"type": "integer", "minimum": 1, "maximum": 12},
+                        "month": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 12,
+                        },
                     },
                 },
             ),
@@ -354,10 +385,20 @@ async def serve() -> None:
     @server.call_tool()
     async def call_tool(name: str, arguments: Any) -> list[TextContent]:
         """Handle tool calls."""
+        def error_response(message: str) -> list[TextContent]:
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(
+                        {"success": False, "error": message}
+                    ),
+                )
+            ]
+
         if name == "add_entry":
             text = arguments.get("text", "")
             if not text:
-                return [TextContent(type="text", text=json.dumps({"success": False, "error": "Entry text is required"}))]
+                return error_response("Entry text is required")
             result = service.add_entry(
                 text=text,
                 metadata=arguments.get("metadata"),
@@ -369,7 +410,7 @@ async def serve() -> None:
         if name == "update_entry":
             entry_id = arguments.get("entry_id")
             if entry_id is None:
-                return [TextContent(type="text", text=json.dumps({"success": False, "error": "entry_id is required"}))]
+                return error_response("entry_id is required")
             result = service.update_entry(
                 entry_id,
                 text=arguments.get("text"),
@@ -382,14 +423,14 @@ async def serve() -> None:
         if name == "delete_entry":
             entry_id = arguments.get("entry_id")
             if entry_id is None:
-                return [TextContent(type="text", text=json.dumps({"success": False, "error": "entry_id is required"}))]
+                return error_response("entry_id is required")
             result = service.delete_entry(entry_id)
             return [TextContent(type="text", text=json.dumps(result))]
 
         if name == "search_entries":
             query = arguments.get("query", "")
             if not query:
-                return [TextContent(type="text", text=json.dumps({"success": False, "error": "Search query is required"}))]
+                return error_response("Search query is required")
             result = service.search_entries(query)
             return [TextContent(type="text", text=json.dumps(result))]
 
@@ -401,7 +442,7 @@ async def serve() -> None:
         if name == "entries_by_tag":
             tag = arguments.get("tag")
             if not tag:
-                return [TextContent(type="text", text=json.dumps({"success": False, "error": "tag is required"}))]
+                return error_response("tag is required")
             limit = arguments.get("limit", 10)
             result = service.entries_by_tag(tag, limit=limit)
             return [TextContent(type="text", text=json.dumps(result))]
@@ -417,7 +458,7 @@ async def serve() -> None:
             )
             return [TextContent(type="text", text=json.dumps(result))]
 
-        return [TextContent(type="text", text=json.dumps({"success": False, "error": f"Unknown tool: {name}"}))]
+        return error_response(f"Unknown tool: {name}")
 
     async with stdio_server() as (read_stream, write_stream):
         await server.run(
