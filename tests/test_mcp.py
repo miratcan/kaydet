@@ -29,7 +29,12 @@ def mcp_env(monkeypatch, tmp_path: Path):
     config["SETTINGS"]["EDITOR"] = "vim"
 
     def fake_load_config():
-        return config["SETTINGS"], fake_config_path, fake_config_dir, fake_log_dir
+        return (
+            config["SETTINGS"],
+            fake_config_path,
+            fake_config_dir,
+            fake_log_dir,
+        )
 
     monkeypatch.setattr(mcp_server, "load_config", fake_load_config)
 
@@ -77,8 +82,11 @@ def test_service_add_search_and_delete(mcp_env):
 def test_service_update_and_recent(mcp_env):
     service = mcp_server.KaydetService.initialize()
 
-    a = service.add_entry(text="Morning run #fitness", metadata={"time": "1h"})
-    b = service.add_entry(text="Lunch with team #work", metadata={"mood": "happy"})
+    service.add_entry(text="Morning run #fitness", metadata={"time": "1h"})
+    b = service.add_entry(
+        text="Lunch with team #work",
+        metadata={"mood": "happy"},
+    )
 
     updated = service.update_entry(
         b["entry_id"],
@@ -158,7 +166,12 @@ def test_serve_registers_tools(monkeypatch, mcp_env):
             return False
 
     monkeypatch.setattr(mcp_server, "Tool", FakeTool, raising=False)
-    monkeypatch.setattr(mcp_server, "TextContent", FakeTextContent, raising=False)
+    monkeypatch.setattr(
+        mcp_server,
+        "TextContent",
+        FakeTextContent,
+        raising=False,
+    )
     monkeypatch.setattr(mcp_server, "Server", FakeServer(), raising=False)
     monkeypatch.setattr(mcp_server, "stdio_server", FakeStdio, raising=False)
 
@@ -166,7 +179,13 @@ def test_serve_registers_tools(monkeypatch, mcp_env):
 
     tools = asyncio.run(recorded["list_tools"]())
     names = {tool.name for tool in tools}
-    assert {"add_entry", "update_entry", "delete_entry", "search_entries"} <= names
+    required_tools = {
+        "add_entry",
+        "update_entry",
+        "delete_entry",
+        "search_entries",
+    }
+    assert required_tools <= names
 
     response = asyncio.run(
         recorded["call_tool"]("add_entry", {"text": "from mcp"})

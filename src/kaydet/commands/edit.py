@@ -190,7 +190,11 @@ def update_entry_inline(
     entry_body = new_text.strip()
 
     metadata_map = dict(metadata or current_metadata)
-    explicit_tags = list(tags) if tags is not None else list(current_explicit_tags)
+    explicit_tags = (
+        list(tags)
+        if tags is not None
+        else list(current_explicit_tags)
+    )
     unique_explicit = sorted(
         {tag.strip().lower() for tag in explicit_tags if tag}
     )

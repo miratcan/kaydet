@@ -10,11 +10,14 @@ Run with: kaydet-mcp
 from __future__ import annotations
 
 import json
-import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
+
+from mcp.server import Server
+from mcp.server.stdio import stdio_server
+from mcp.types import TextContent, Tool
 
 from . import database
 from .cli import INDEX_FILENAME
@@ -30,16 +33,6 @@ from .commands.stats import collect_month_counts
 from .indexing import rebuild_index_if_empty
 from .sync import sync_modified_diary_files
 from .utils import load_config
-
-# Check if MCP is available
-try:
-    from mcp.server import Server
-    from mcp.server.stdio import stdio_server
-    from mcp.types import TextContent, Tool
-
-    MCP_AVAILABLE = True
-except ImportError:  # pragma: no cover - dependency optional
-    MCP_AVAILABLE = False
 
 
 @dataclass
@@ -468,14 +461,6 @@ async def serve() -> None:
 
 def main() -> None:
     """Entry point for the MCP server."""
-    if not MCP_AVAILABLE:
-        print(
-            "Error: MCP dependencies not installed.\n"
-            "Install with: pip install kaydet[mcp]",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
     import asyncio
 
     asyncio.run(serve())
