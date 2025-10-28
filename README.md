@@ -9,8 +9,9 @@
 > `kaydet "Filed the prod incident and fixed cache TTL #work"`.  
 > Thought captured. Flow preserved.
 
-Kaydet is the command-line diary that slips into your day like a trusted confidant.  
-It remembers every sprint victory, grocery epiphany, and late-night spark—without dragging you out of the terminal.
+Kaydet is your queryable personal database—with zero friction.
+Not a diary you read, but a database you query.
+Capture thoughts, track work, log life—all from your terminal, in plain text.
 
 **[📥 Install Now](#step-into-kaydet)** • **[⚡ Quick Start](#the-daily-toolkit)** • **[🤖 AI Companions](#ai-companions-listen-in)**
 
@@ -52,7 +53,7 @@ pip install "git+https://github.com/miratcan/kaydet.git#egg=kaydet[mcp]"
 - Search is instant, nuanced, and forgiving: `kaydet --search "status:done project:kaydet"`.
 
 ### When Journaling Apps Feel Nosy
-- Your diary lives on your disk. No telemetry, no mystery servers.
+- Your data lives on your disk. No telemetry, no mystery servers.
 - You pick the editor: `vim`, `nvim`, `nano`, `code`, or anything else you alias.
 
 ### When You Want an AI Wingmate
@@ -63,63 +64,63 @@ pip install "git+https://github.com/miratcan/kaydet.git#egg=kaydet[mcp]"
 
 Kaydet chronicles every role you play. Here are a few cameos.
 
-### 💼 Leyla’s Work Log
+### 💼 Leyla's Work Log
 She keeps shipping, keeps receipts.
 
 ```bash
-kaydet "Fixed staging authentication bug" commit:38edf60 pr:76 status:done time:2h
-kaydet "Reviewed onboarding flow copy" status:wip project:kaydet
+kaydet "Fixed staging authentication bug #work commit:38edf60 pr:76 status:done time:2h"
+kaydet "Reviewed onboarding flow copy #kaydet status:wip project:kaydet"
 
 # Later
 kaydet --search commit:38edf60
 kaydet --search "status:done project:kaydet"
 ```
 
-### 📚 Umut’s TIL Notebook
+### 📚 Umut's TIL Notebook
 Always learning, always searchable.
 
 ```bash
-kaydet "TIL: `pytest --cov-report=html` generates a browsable coverage report." topic:testing stack:python #til
+kaydet "TIL: pytest --cov-report=html generates a browsable coverage report #til topic:testing stack:python"
 kaydet --search "topic:testing"
 ```
 
-### ⏱️ Defne’s Focus Ledger
+### ⏱️ Defne's Focus Ledger
 She times every deep work block and lets the data guide her week.
 
 ```bash
-kaydet "Deep work on analytics ETL" time:2.5h intensity:high project:valocom
-kaydet "Pairing session with Emre" time:1.5h intensity:medium project:kaydet
+kaydet "Deep work on analytics ETL #focus time:2.5h intensity:high project:valocom"
+kaydet "Pairing session with Emre #pair time:1.5h intensity:medium project:kaydet"
 
 # Find the long hauls
 kaydet --search "time:>2"
 ```
 
-### 💡 Efe’s Idea Garden
+### 💡 Efe's Idea Garden
 Sparks filed for a calmer tomorrow.
 
 ```bash
-kaydet "Prototype encrypted export flow" area:security priority:high #idea
-kaydet "Read Stripe's migration playbook" area:payments source:stripe-docs #research
+kaydet "Prototype encrypted export flow #idea area:security priority:high"
+kaydet "Read Stripe's migration playbook #research area:payments source:stripe-docs"
 
 kaydet --search "area:security"
 ```
 
-### 😊 Duru’s Mood Journal
+### 😊 Duru's Mood Journal
 Feelings with context, ready for reflection.
 
 ```bash
-kaydet "Morning run felt amazing" mood:energized sleep:7h #wellness
-kaydet "Afternoon slump before standup" mood:tired caffeine:2 cups #mood
+kaydet "Morning run felt amazing #wellness mood:energized sleep:7h"
+kaydet "Afternoon slump before standup #mood mood:tired caffeine:2cups"
 
 kaydet --search "mood:energized"
 ```
 
-### 💰 Selim’s Expense Whisperer
+### 💰 Selim's Expense Whisperer
 Receipts recorded the second they appear.
 
 ```bash
-kaydet "Lunch with client" amount:650 currency:TRY client:bbrain billable:yes #expense
-kaydet "Domain renewal" amount:120 currency:USD project:kaydet billable:no
+kaydet "Lunch with client #expense amount:650 currency:TRY client:bbrain billable:yes"
+kaydet "Domain renewal #expense amount:120 currency:USD project:kaydet billable:no"
 
 kaydet --search "billable:yes"
 ```
@@ -135,10 +136,10 @@ kaydet --search "billable:yes"
 
 ```bash
 # Append a quick thought to today
-kaydet "Made progress on the side project."
+kaydet "Made progress on the side project #coding time:3h"
 
-# Weave explicit hashtags into the record
-kaydet "Dinner with friends #family #gratitude"
+# Weave hashtags and metadata into one string
+kaydet "Dinner with friends #family #gratitude mood:happy"
 
 # Linger in your preferred editor
 kaydet --editor
@@ -149,6 +150,7 @@ kaydet --folder
 # Housekeeping
 kaydet --tags             # list tags with counts
 kaydet --doctor           # rebuild the index if files changed on disk
+kaydet --browse           # open the optional Textual browser
 
 # Hunt through the archive
 kaydet --search gratitude
@@ -159,6 +161,8 @@ kaydet --search "time:>1"
 kaydet --edit 42
 kaydet --delete 42 --yes   # skip confirmation prompts
 ```
+
+> Install the optional browsing UI with `pip install "kaydet[browse]"`.
 
 ### How Stats Feel
 
@@ -203,7 +207,12 @@ REMIND_AFTER_HOURS = 4
 
 ## AI Companions Listen In
 
-Install the MCP extras (`pip install "kaydet[mcp]"`), launch `kaydet-mcp`, and let your assistants read the diary you trust.
+Launch `kaydet-mcp` and let your assistants query your personal database. Tools now include:
+
+- `add_entry` – structured JSON response with entry ID, path, timestamp
+- `update_entry`, `delete_entry` – edit without spawning an editor or confirm a delete automatically
+- `search_entries`, `list_recent_entries`, `entries_by_tag`
+- `list_tags`, `get_stats` (with optional `year`/`month` parameters)
 
 ### Sample Dialogues
 
@@ -277,7 +286,7 @@ You: "Show every Kaydet feature idea I've logged."
 
 AI: *queries #kaydet #idea*
 "Eight ideas spotted:
-- Add diary encryption (Sept 2)
+- Add data encryption (Sept 2)
 - Export to PDF (Sept 10)
 - Mobile companion app (Sept 15)
 - Voice-to-text entry (Sept 18)
@@ -294,9 +303,9 @@ AI: ✅ Logged at 14:32
 ```
 
 ### Simple Prompts Still Work
-- “Add a diary entry: Today I fixed the auth bug #work”
-- “Search my diary for ‘Apollo project’”
-- “What are my diary stats for this month?”
+- "Add an entry: Today I fixed the auth bug #work"
+- "Search my logs for 'Apollo project'"
+- "What are my stats for this month?"
 - “List all my tags”
 - “Show #fitness entries from last week”
 

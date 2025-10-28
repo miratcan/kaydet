@@ -33,7 +33,7 @@ def delete_entry_command(
     *,
     assume_yes: bool,
     now: datetime,
-) -> None:
+) -> dict[str, str] | None:
     """Remove an entry by identifier and resynchronize the index."""
     cursor = db.cursor()
     cursor.execute(
@@ -78,3 +78,4 @@ def delete_entry_command(
     write_day_file(day_file, lines, ensure_newline)
     sync_modified_diary_files(db, log_dir, config, now)
     print(f"Deleted entry {entry_id} from {source_file}.")
+    return {"entry_id": entry_id, "day_file": str(day_file)}

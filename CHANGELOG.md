@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.31.0] - 2025-10-27
+### Added
+- Bundle Textual TUI and MCP integrations as core dependencies so a single install ships the interactive browser and MCP server.
+- Added new MCP tools: structured `add_entry`, editor-free `update_entry`, `delete_entry`, quick `list_recent_entries`, tag-focused `entries_by_tag`, and month-level stats with optional year/month parameters.
+- Introduced a reusable `create_entry` helper returning structured metadata for CLI and MCP callers.
+
+### Changed
+- MCP server now runs through an in-process `KaydetService`, improving performance and enabling richer JSON responses.
+- Sidebar browse summaries skip leading blank lines and truncate using the actual panel width.
+- Delete/edit commands return structured dictionaries, making integrations simpler.
+
+### Fixed
+- Added end-to-end MCP tests covering add/update/delete/search flows to guard future regressions.
+
 ## [0.29.1] - 2025-10-27
 ### Changed
 - Rewrote English and Turkish READMEs with a narrative introduction, character-focused use cases, and clearer quick-start guidance.

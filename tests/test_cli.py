@@ -1,17 +1,20 @@
 from __future__ import annotations
 
+import asyncio
 import os
 import re
 import sqlite3
 import sys
 from configparser import ConfigParser
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
 from kaydet import __version__ as package_version
 from kaydet import cli
+from kaydet.commands import browse as browse_module
+from kaydet.models import Entry
 
 
 @pytest.fixture
@@ -104,8 +107,9 @@ def test_add_entry_with_tags(setup_kaydet, mock_datetime_factory):
     print(f"\n--- LOG FILE CONTENT ---\n{content}\n------------------------")
 
     # Check for the new format with numeric IDs
+    # Tags are now extracted from message and appended at the end
     assert re.search(
-        r"11:00 \[\d+\]: This is a test for #work and #project-a",
+        r"11:00 \[\d+\]: This is a test for and \| #project-a #work",
         content,
     )
 
@@ -193,6 +197,23 @@ def test_add_entry_with_metadata_tokens(setup_kaydet, mock_datetime_factory):
     assert tag_in_db == "urgent"
 
     db.close()
+
+
+def test_add_entry_prints_id(
+    setup_kaydet, mock_datetime_factory, capsys
+):
+    """Adding an entry should report the new numeric identifier."""
+    monkeypatch = setup_kaydet["monkeypatch"]
+    mock_datetime_factory(datetime(2025, 9, 30, 14, 0, 0))
+
+    monkeypatch.setattr(sys, "argv", ["kaydet", "Check ID output"])
+    capsys.readouterr()
+
+    cli.main()
+
+    output = capsys.readouterr().out
+    assert "Entry added to:" in output
+    assert re.search(r"ID: \d+", output)
 
 
 def test_editor_usage(setup_kaydet, mock_datetime_factory):
@@ -486,8 +507,9 @@ def test_manual_edit_sync_before_search(
 
     day_file = fake_log_dir / "2025-09-30.txt"
     content = day_file.read_text()
+    # Tags are now extracted and appended at the end with pipe separator
     day_file.write_text(
-        content.replace("Initial note #work", "Updated entry #updated"),
+        content.replace("Initial note | #work", "Updated entry | #updated"),
         encoding="utf-8",
     )
 
@@ -495,7 +517,7 @@ def test_manual_edit_sync_before_search(
     cli.main()
     output = capsys.readouterr().out
 
-    assert "Updated entry #updated" in output
+    assert "Updated entry" in output
 
 
 def test_edit_command_updates_entry(
@@ -934,6 +956,119 @@ def test_search_no_results(setup_kaydet, capsys):
 
     captured = capsys.readouterr()
     assert "No entries matched 'nonexistent'." in captured.out
+
+
+def test_browse_requires_optional_dependency(
+    setup_kaydet, capsys, mock_datetime_factory
+):
+    """CLI should hint at installing the optional browse dependency."""
+    monkeypatch = setup_kaydet["monkeypatch"]
+    mock_datetime_factory(datetime(2025, 9, 30, 10, 0, 0))
+
+    monkeypatch.setattr(sys, "argv", ["kaydet", "--browse"])
+    monkeypatch.setattr(
+        browse_module, "TEXTUAL_AVAILABLE", False, raising=False
+    )
+
+    cli.main()
+
+    output = capsys.readouterr().out
+    assert "pip install kaydet[browse]" in output
+
+
+def test_browse_app_updates_detail(tmp_path: Path):
+    """Textual browse view updates the detail panel when navigating."""
+    if not browse_module.TEXTUAL_AVAILABLE:
+        pytest.skip("textual is not installed")
+
+    log_file = tmp_path / "2025-09-30.txt"
+    log_file.write_text("placeholder\n", encoding="utf-8")
+
+    entries = [
+        Entry(
+            entry_id="101",
+            day=date(2025, 9, 30),
+            timestamp="10:00",
+            lines=("First entry body",),
+            tags=("work",),
+            metadata={},
+            metadata_numbers={},
+            source=log_file,
+        ),
+        Entry(
+            entry_id="102",
+            day=date(2025, 9, 29),
+            timestamp="09:00",
+            lines=("Second entry body",),
+            tags=(),
+            metadata={"status": "done"},
+            metadata_numbers={},
+            source=log_file,
+        ),
+    ]
+
+    async def run_app():
+        async with browse_module.BrowseApp(entries).run_test() as pilot:
+            assert "First entry body" in pilot.app.detail_text
+            sidebar = pilot.app.query_one(
+                "#sidebar", browse_module.ListView
+            )
+            first_entry_item = next(
+                child
+                for child in sidebar.children
+                if isinstance(child, browse_module.EntryListItem)
+            )
+            assert "[" not in browse_module._format_entry_summary(
+                first_entry_item.entry
+            )
+
+            await pilot.press("j")
+            await pilot.pause()
+            assert "Second entry body" in pilot.app.detail_text
+
+            await pilot.press("k")
+            await pilot.pause()
+            assert "First entry body" in pilot.app.detail_text
+
+    asyncio.run(run_app())
+
+
+def test_make_entry_text_truncates():
+    """Entry summaries should be ellipsized to fit sidebar width."""
+    if not browse_module.TEXTUAL_AVAILABLE:
+        pytest.skip("textual is not installed")
+    entry = Entry(
+        entry_id="200",
+        day=date(2025, 9, 28),
+        timestamp="08:00",
+        lines=(
+            "This is a very long entry that should be truncated in the sidebar",
+        ),
+        tags=(),
+        metadata={},
+        metadata_numbers={},
+        source=Path("2025-09-28.txt"),
+    )
+
+    rendered = browse_module._make_entry_text(entry, width=16)
+    assert rendered.plain.endswith("…")
+    assert len(rendered.plain) <= 16
+
+
+def test_format_entry_summary_skips_leading_blank_lines():
+    entry = Entry(
+        entry_id="333",
+        day=date(2025, 9, 27),
+        timestamp="12:34",
+        lines=("", " First real line", "Another"),
+        tags=(),
+        metadata={},
+        metadata_numbers={},
+        source=Path("2025-09-27.txt"),
+    )
+
+    summary = browse_module._format_entry_summary(entry)
+    assert summary == "12:34 First real line"
 
 
 def test_tags_no_tags(setup_kaydet, capsys):
