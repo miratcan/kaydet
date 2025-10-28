@@ -5,7 +5,9 @@
   <br><br>
 </div>
 
+![Build](https://github.com/miratcan/kaydet/workflows/Lint/badge.svg)
 [![License](https://img.shields.io/github/license/miratcan/kaydet.svg)](LICENSE)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 
 > Your queryable personal database. Plain text storage, SQLite search, zero friction.
 
