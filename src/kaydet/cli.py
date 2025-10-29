@@ -16,11 +16,14 @@ from .commands import (
     browse_command,
     delete_entry_command,
     doctor_command,
+    done_command,
     edit_entry_command,
+    list_todos_command,
     reminder_command,
     search_command,
     stats_command,
     tags_command,
+    todo_command,
 )
 from .indexing import rebuild_index_if_empty
 from .parsers import extract_tags_from_text  # noqa: F401
@@ -77,7 +80,7 @@ def build_parser(config_path: Path) -> argparse.ArgumentParser:
         "--tags", dest="list_tags", action="store_true", help="List all tags."
     )
     parser.add_argument(
-        "--search", dest="search", metavar="TEXT", help="Search entries."
+        "--search", dest="search", metavar="TEXT", help="Search entries (or filter todos with --todo)."
     )
     parser.add_argument(
         "--browse",
@@ -102,6 +105,26 @@ def build_parser(config_path: Path) -> argparse.ArgumentParser:
         type=int,
         metavar="ID",
         help="Delete an entry by numeric identifier.",
+    )
+    parser.add_argument(
+        "--todo",
+        dest="todo",
+        nargs="*",
+        metavar="TEXT",
+        help="Create a new todo entry (auto-adds status:pending and #todo tag).",
+    )
+    parser.add_argument(
+        "--done",
+        dest="done",
+        type=int,
+        metavar="ID",
+        help="Mark a todo as done by ID.",
+    )
+    parser.add_argument(
+        "--list-todos",
+        dest="list_todos",
+        action="store_true",
+        help="List all todos with their status.",
     )
     parser.add_argument(
         "--yes",
@@ -141,7 +164,7 @@ def main() -> None:
         return
 
     db_path = log_dir / INDEX_FILENAME
-    db = database.get_db_connection(db_path)
+    db = database.get_db_connection(db_path) # TODO: This is returnin connection but it's named as db?
     database.initialize_database(db)
 
     if args.doctor:
@@ -151,6 +174,7 @@ def main() -> None:
     sync_modified_diary_files(db, log_dir, config, now)
     rebuild_index_if_empty(db, log_dir, config, now)
 
+    # TODO: I hated this, will be removed in future.
     if args.browse:
         browse_command(db, log_dir, config)
         return
@@ -166,6 +190,34 @@ def main() -> None:
     if args.search:
         search_command(db, log_dir, config, args.search, args.output_format)
         return
+
+    if args.list_todos:
+        list_todos_command(db, log_dir, config, args.output_format)
+        return
+
+    # args.todo with nargs="*" returns:
+    # - None if --todo flag not provided
+    # - [] (empty list) if --todo provided without arguments
+    # - ["text", "here"] if --todo provided with arguments
+    if args.todo is not None:
+        has_todo_text = bool(args.todo)
+
+        if has_todo_text:
+            todo_command(args, config, config_dir, log_dir, now, db)
+        elif args.search:
+            combined_query = f"{args.search} #todo"
+            print(f"Filtering todos: {combined_query}\n")
+            search_command(db, log_dir, config, combined_query, args.output_format)
+        else:
+            list_todos_command(db, log_dir, config, args.output_format)
+            print("\nTo create a new todo: kaydet --todo \"your task description\"")
+            print("To filter todos: kaydet --todo --search \"#valocom priority:high\"")
+        return
+
+    if args.done is not None:
+        done_command(db, log_dir, config, args.done, now)
+        return
+
     if args.edit is not None and args.delete is not None:
         print("Use either --edit or --delete, not both.")
         return
