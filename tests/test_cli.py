@@ -329,7 +329,9 @@ def test_search_command(setup_kaydet, capsys):
     output = captured.out
 
     assert "An entry about a secret project." in output
-    assert "Planning the #secret-meeting." in output
+    # Tag is displayed on a separate line now with the new formatter
+    assert "Planning the" in output
+    assert "secret-meeting" in output
     assert "unrelated note" not in output
     assert "Found 2 entries containing 'secret'." in output
 

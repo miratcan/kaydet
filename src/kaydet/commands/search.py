@@ -1,12 +1,16 @@
-"""Search and tags commands."""
+"Search and tags commands."
 
 import json
+import shutil
 import sqlite3
 from collections import defaultdict
 from configparser import SectionProxy
 from datetime import date
 from pathlib import Path
 
+from rich import print
+
+from ..formatters import SearchResult, format_search_results, format_json_search_results
 from ..indexing import rebuild_index_if_empty
 from ..parsers import (
     parse_comparison_expression,
@@ -72,7 +76,7 @@ def build_search_query(
             if upper is not None:
                 where_clauses.append(f"m{i}.numeric_value <= ?")
                 params.append(upper)
-        elif any(c in expression for c in "*?["):
+        elif any(c in expression for c in "*?[]"):
             where_clauses.append(f"m{i}.meta_value GLOB ?")
             params.append(expression)
         else:
@@ -99,7 +103,6 @@ def fetch_entry_locations(
         print(f"Database query failed: {error}")
         return None
     return cursor.fetchall()
-
 
 def load_matches(
     locations,
@@ -131,7 +134,6 @@ def load_matches(
     matches.sort(key=lambda entry: (entry.day or date.min, entry.timestamp))
     return matches
 
-
 def print_matches(matches, query: str, output_format: str) -> None:
     """Render matches either as JSON or a terminal-friendly listing."""
     if output_format == "json":
@@ -148,28 +150,30 @@ def print_matches(matches, query: str, output_format: str) -> None:
         )
         return
 
-    for match in matches:
-        day_label = match.day.isoformat() if match.day else match.source.name
-        first_line, *rest = list(match.lines) or [""]
+    if not matches:
+        return
 
-        # Build header with metadata and tags
-        id_suffix = f" [{match.entry_id}]" if match.entry_id else ""
-        header_prefix = f"{day_label} {match.timestamp}{id_suffix}"
-        parts = [f"{header_prefix} {first_line}".rstrip()]
-        if match.metadata:
-            metadata_str = " ".join(
-                f"{key}:{value}" for key, value in match.metadata.items()
-            )
-            parts.append(metadata_str)
-        if match.tags:
-            tags_str = " ".join(f"#{tag}" for tag in match.tags)
-            parts.append(tags_str)
+    try:
+        terminal_width = shutil.get_terminal_size().columns
+    except OSError:
+        terminal_width = 80
 
-        header = " | ".join(parts) if len(parts) > 1 else parts[0]
-        print(header)
-        for extra in rest:
-            print(f"    {extra}")
-        print()
+    # Convert matches to SearchResult objects for formatting
+    search_results = [
+        SearchResult(
+            entry_id=match.entry_id,
+            day=match.day,
+            timestamp=match.timestamp,
+            lines=match.lines,
+            metadata=match.metadata,
+            tags=match.tags,
+        )
+        for match in matches
+    ]
+
+    # Use the formatter to display results
+    format_search_results(search_results, terminal_width)
+
     entry_label = "entry" if len(matches) == 1 else "entries"
     print(f"\nFound {len(matches)} {entry_label} containing '{query}'.")
 
@@ -199,7 +203,6 @@ def search_command(
         return
     matches = load_matches(locations, log_dir, config)
     print_matches(matches, query, output_format)
-
 
 def tags_command(db: sqlite3.Connection, output_format: str = "text"):
     """Print the unique set of tags recorded in the database."""
