@@ -191,10 +191,6 @@ def main() -> None:
         tags_command(db, args.output_format)
         return
 
-    if args.search:
-        search_command(db, log_dir, config, args.search, args.output_format)
-        return
-
     if args.list_todos:
         list_todos_command(db, log_dir, config, args.output_format)
         return
@@ -203,17 +199,63 @@ def main() -> None:
     # - None if --todo flag not provided
     # - [] (empty list) if --todo provided without arguments
     # - ["text", "here"] if --todo provided with arguments
+    # Check --todo BEFORE --search to handle --todo --search correctly
     if args.todo is not None:
         has_todo_text = bool(args.todo)
 
         if has_todo_text:
             todo_command(args, config, config_dir, log_dir, now, db)
         elif args.search:
+            # Search todos and display in todo format
+            from .commands.search import build_search_query, load_matches
+            from .parsers import tokenize_query
+
             combined_query = f"{args.search} #todo"
             print(f"Filtering todos: {combined_query}\n")
-            search_command(
-                db, log_dir, config, combined_query, args.output_format
+
+            text_terms, metadata_filters, tag_filters = tokenize_query(
+                combined_query
             )
+            sql_query, params = build_search_query(
+                text_terms, metadata_filters, tag_filters
+            )
+
+            cursor = db.cursor()
+            cursor.execute(sql_query, params)
+            locations = cursor.fetchall()
+
+            if not locations:
+                print(f"No todos found matching '{args.search}'.")
+                return
+
+            matches = load_matches(locations, log_dir, config)
+
+            # Convert search results to todo format
+            from .formatters import format_todo_results
+
+            todos = []
+            for match in matches:
+                status = match.metadata.get("status", "pending")
+                completed_at = match.metadata.get("completed_at", "")
+                description = (
+                    match.lines[0] if match.lines else "(no description)"
+                )
+                date_str = (
+                    match.day.isoformat() if match.day else "unknown"
+                )
+
+                todos.append(
+                    {
+                        "id": int(match.entry_id) if match.entry_id else 0,
+                        "date": date_str,
+                        "timestamp": match.timestamp,
+                        "status": status,
+                        "completed_at": completed_at,
+                        "description": description,
+                    }
+                )
+
+            format_todo_results(todos, args.output_format)
         else:
             list_todos_command(db, log_dir, config, args.output_format)
             print(
@@ -228,6 +270,11 @@ def main() -> None:
 
     if args.done is not None:
         done_command(db, log_dir, config, args.done, now)
+        return
+
+    # Handle --search (after --todo to allow --todo --search)
+    if args.search:
+        search_command(db, log_dir, config, args.search, args.output_format)
         return
 
     if args.edit is not None and args.delete is not None:
