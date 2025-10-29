@@ -14,7 +14,7 @@ from .models import Entry
 ENTRY_LINE_PATTERN = re.compile(
     r"^(?:[a-zA-Z0-9_-]{22}:)?"  # Optional legacy UUID prefix
     r"(\d{2}:\d{2})"  # Timestamp (HH:MM)
-    r"(?:\s+\[(\d+)\])?"  # Optional identifier like `[123]`
+    r"(?:\s+\[\s*(\d+)\s*\])?"  # Optional identifier like `[123]` or `[  123  ]`
     r":\s*(.*)"  # Remainder of the header line
 )
 LEGACY_TAG_PATTERN = re.compile(
