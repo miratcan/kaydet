@@ -95,7 +95,7 @@ kaydet --search "project:kaydet status:done"
 kaydet --search "time:>2"
 
 # Todo Management
-kaydet --todo "Write unit tests" priority:high
+kaydet --todo "Write unit tests priority:high"
 kaydet --done 42           # Mark todo as done
 kaydet --list-todos        # List all todos
 kaydet --todo              # List todos (shorthand)
