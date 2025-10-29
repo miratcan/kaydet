@@ -30,7 +30,9 @@ from .commands.search import (
     tokenize_query,
 )
 from .commands.stats import collect_month_counts
+from .commands.todo import done_command
 from .indexing import rebuild_index_if_empty
+from .parsers import parse_day_entries, resolve_entry_date
 from .sync import sync_modified_diary_files
 from .utils import load_config
 
@@ -247,6 +249,101 @@ class KaydetService:
         payload = [match.to_dict() for match in matches]
         return {"success": True, "entries": payload}
 
+    def create_todo(
+        self, description: str, metadata: dict[str, str] | None = None
+    ) -> dict[str, Any]:
+        """Create a new todo entry with status:pending and #todo tag."""
+        now = datetime.now()
+        metadata = metadata or {}
+        metadata["status"] = "pending"
+
+        try:
+            result = create_entry(
+                raw_entry=description,
+                metadata=metadata,
+                explicit_tags=["todo"],
+                config=self.config,
+                config_dir=self.config_dir,
+                log_dir=self.log_dir,
+                now=now,
+                db=self.db,
+            )
+        except EmptyEntryError as error:
+            return {"success": False, "error": str(error)}
+        return {"success": True, **result}
+
+    def mark_todo_done(self, entry_id: int) -> dict[str, Any]:
+        """Mark a todo entry as done by updating its status."""
+        now = datetime.now()
+        try:
+            done_command(
+                self.db,
+                self.log_dir,
+                self.config,
+                entry_id,
+                now,
+            )
+            return {
+                "success": True,
+                "entry_id": entry_id,
+                "message": f"Todo {entry_id} marked as done",
+            }
+        except Exception as error:
+            return {"success": False, "error": str(error)}
+
+    def list_todos(self) -> dict[str, Any]:
+        """List all todos with their status."""
+        now = datetime.now()
+        self._ensure_index(now)
+
+        cursor = self.db.cursor()
+        cursor.execute(
+            "SELECT DISTINCT e.id, e.source_file "
+            "FROM entries e "
+            "JOIN tags t ON e.id = t.entry_id "
+            "WHERE t.tag_name = 'todo' "
+            "ORDER BY e.source_file, e.id"
+        )
+        results = cursor.fetchall()
+
+        if not results:
+            return {"success": True, "todos": []}
+
+        todos = []
+        for entry_id, source_file in results:
+            day_file = self.log_dir / source_file
+            if not day_file.exists():
+                continue
+
+            day_file_pattern = self.config.get("DAY_FILE_PATTERN", "")
+            entry_date = resolve_entry_date(day_file, day_file_pattern)
+            entries = parse_day_entries(day_file, entry_date)
+
+            for entry in entries:
+                if entry.entry_id == str(entry_id):
+                    status = entry.metadata.get("status", "pending")
+                    completed_at = entry.metadata.get("completed_at", "")
+                    description = (
+                        entry.lines[0] if entry.lines else "(no description)"
+                    )
+
+                    date_str = (
+                        entry.day.isoformat() if entry.day else "unknown"
+                    )
+                    todos.append(
+                        {
+                            "id": entry_id,
+                            "date": date_str,
+                            "timestamp": entry.timestamp,
+                            "status": status,
+                            "completed_at": completed_at,
+                            "description": description,
+                        }
+                    )
+                    break
+
+        return {"success": True, "todos": todos}
+
 
 async def serve() -> None:
     """Start the MCP server."""
@@ -373,6 +470,40 @@ async def serve() -> None:
                     },
                 },
             ),
+            Tool(
+                name="create_todo",
+                description="Create a new todo entry with status:pending",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "description": {"type": "string"},
+                        "metadata": {
+                            "type": "object",
+                            "additionalProperties": {"type": "string"},
+                        },
+                    },
+                    "required": ["description"],
+                },
+            ),
+            Tool(
+                name="mark_todo_done",
+                description="Mark a todo entry as done",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "entry_id": {"type": "integer"},
+                    },
+                    "required": ["entry_id"],
+                },
+            ),
+            Tool(
+                name="list_todos",
+                description="List all todos with their status",
+                inputSchema={
+                    "type": "object",
+                    "properties": {},
+                },
+            ),
         ]
 
     @server.call_tool()
@@ -449,6 +580,27 @@ async def serve() -> None:
                 year=arguments.get("year"),
                 month=arguments.get("month"),
             )
+            return [TextContent(type="text", text=json.dumps(result))]
+
+        if name == "create_todo":
+            description = arguments.get("description", "")
+            if not description:
+                return error_response("Todo description is required")
+            result = service.create_todo(
+                description=description,
+                metadata=arguments.get("metadata"),
+            )
+            return [TextContent(type="text", text=json.dumps(result))]
+
+        if name == "mark_todo_done":
+            entry_id = arguments.get("entry_id")
+            if entry_id is None:
+                return error_response("entry_id is required")
+            result = service.mark_todo_done(entry_id)
+            return [TextContent(type="text", text=json.dumps(result))]
+
+        if name == "list_todos":
+            result = service.list_todos()
             return [TextContent(type="text", text=json.dumps(result))]
 
         return error_response(f"Unknown tool: {name}")

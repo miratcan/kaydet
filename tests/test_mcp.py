@@ -117,6 +117,61 @@ def test_service_get_stats(mcp_env):
     assert stats["total_entries"] == 2
 
 
+def test_service_todo_workflow(mcp_env):
+    """Test creating, listing, and marking todos as done."""
+    service = mcp_server.KaydetService.initialize()
+
+    # Create a todo
+    result = service.create_todo(
+        description="Write unit tests", metadata={"priority": "high"}
+    )
+    assert result["success"] is True
+    todo_id = result["entry_id"]
+
+    # List todos - should have one pending
+    todos = service.list_todos()
+    assert todos["success"] is True
+    assert len(todos["todos"]) == 1
+    assert todos["todos"][0]["id"] == todo_id
+    assert todos["todos"][0]["status"] == "pending"
+    assert "Write unit tests" in todos["todos"][0]["description"]
+
+    # Mark todo as done
+    done_result = service.mark_todo_done(todo_id)
+    assert done_result["success"] is True
+
+    # List todos again - should show as done
+    todos_after = service.list_todos()
+    assert len(todos_after["todos"]) == 1
+    assert todos_after["todos"][0]["status"] == "done"
+    assert todos_after["todos"][0]["completed_at"] != ""
+
+
+def test_service_list_empty_todos(mcp_env):
+    """Test listing todos when there are none."""
+    service = mcp_server.KaydetService.initialize()
+
+    todos = service.list_todos()
+    assert todos["success"] is True
+    assert todos["todos"] == []
+
+
+def test_service_create_todo_with_metadata(mcp_env):
+    """Test creating a todo with custom metadata."""
+    service = mcp_server.KaydetService.initialize()
+
+    result = service.create_todo(
+        description="Deploy to production",
+        metadata={"priority": "critical", "effort": "2h"},
+    )
+    assert result["success"] is True
+
+    # Verify metadata was saved
+    search = service.search_entries("#todo")
+    assert search["total"] == 1
+    assert "Deploy to production" in search["matches"][0]["text"]
+
+
 def test_serve_registers_tools(monkeypatch, mcp_env):
     recorded = {}
 
@@ -184,6 +239,9 @@ def test_serve_registers_tools(monkeypatch, mcp_env):
         "update_entry",
         "delete_entry",
         "search_entries",
+        "create_todo",
+        "mark_todo_done",
+        "list_todos",
     }
     assert required_tools <= names
 

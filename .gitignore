@@ -7,3 +7,6 @@ AGENTS.md
 __pycache__/
 *.pyc
 repomix-output.xml
+.venv/
+build/
+UNKNOWN.egg-info/
