@@ -39,11 +39,12 @@ def _clean_hashtags(text: str) -> str:
     """
     Remove hashtags from text.
 
-    Examples:
-        >>> _clean_hashtags("Meeting with #team about #project")
-        'Meeting with about'
-        >>> _clean_hashtags("No tags here")
-        'No tags here'
+    Examples
+    --------
+    >>> _clean_hashtags("Meeting with #team about #project")
+    'Meeting with about'
+    >>> _clean_hashtags("No tags here")
+    'No tags here'
     """
     return re.sub(r"#([a-z-]+)", "", text).strip()
 
@@ -52,11 +53,12 @@ def _extract_hashtags(text: str) -> List[str]:
     """
     Extract hashtags from text.
 
-    Examples:
-        >>> _extract_hashtags("Meeting with #team about #project")
-        ['team', 'project']
-        >>> _extract_hashtags("No tags here")
-        []
+    Examples
+    --------
+    >>> _extract_hashtags("Meeting with #team about #project")
+    ['team', 'project']
+    >>> _extract_hashtags("No tags here")
+    []
     """
     return re.findall(r"#([a-z-]+)", text)
 
@@ -65,13 +67,14 @@ def _calculate_max_id_width(matches: List[SearchResult]) -> int:
     """
     Calculate maximum ID width for alignment.
 
-    Examples:
-        >>> matches = [SearchResult(5, None, "10:00", []),
+    Examples
+    --------
+    >>> matches = [SearchResult(5, None, "10:00", []),
         ...            SearchResult(123, None, "11:00", [])]
-        >>> _calculate_max_id_width(matches)
-        3
-        >>> _calculate_max_id_width([])
-        0
+    >>> _calculate_max_id_width(matches)
+    3
+    >>> _calculate_max_id_width([])
+    0
     """
     if not matches:
         return 0
@@ -82,11 +85,12 @@ def _calculate_date_padding_width(max_id_width: int) -> int:
     """
     Calculate padding width for date separators.
 
-    Examples:
-        >>> _calculate_date_padding_width(3)  # ID width of 3
-        13
-        >>> _calculate_date_padding_width(1)  # ID width of 1
-        11
+    Examples
+    --------
+    >>> _calculate_date_padding_width(3)  # ID width of 3
+    13
+    >>> _calculate_date_padding_width(1)  # ID width of 1
+    11
     """
     timestamp_width = 5  # "HH:MM"
     # timestamp + space + [ + id + ] + : + space
@@ -97,11 +101,12 @@ def _calculate_header_length(timestamp: str, max_id_width: int) -> int:
     """
     Calculate length of entry header without markup.
 
-    Examples:
-        >>> _calculate_header_length("14:30", 3)
-        12
-        >>> _calculate_header_length("09:15", 1)
-        10
+    Examples
+    --------
+    >>> _calculate_header_length("14:30", 3)
+    12
+    >>> _calculate_header_length("09:15", 1)
+    10
     """
     # timestamp + space + [ + id + ] + : + space
     return len(timestamp) + 2 + max_id_width + 3
@@ -111,11 +116,12 @@ def _wrap_single_line(line: str, available_width: int) -> List[str]:
     """
     Wrap a single line to available width.
 
-    Examples:
-        >>> _wrap_single_line("Short text", 50)
-        ['Short text']
-        >>> _wrap_single_line("Very long text that needs wrapping", 15)
-        ['Very long text', 'that needs', 'wrapping']
+    Examples
+    --------
+    >>> _wrap_single_line("Short text", 50)
+    ['Short text']
+    >>> _wrap_single_line("Very long text that needs wrapping", 15)
+    ['Very long text', 'that needs', 'wrapping']
     """
     if not line:
         return [""]
@@ -133,11 +139,12 @@ def _wrap_text_lines(lines: List[str], available_width: int) -> List[str]:
     """
     Wrap text lines to available width, preserving newlines.
 
-    Examples:
-        >>> _wrap_text_lines(["First", "Second line"], 50)
-        ['First', 'Second line']
-        >>> _wrap_text_lines(["Very long line here", "Short"], 10)
-        ['Very long', 'line here', 'Short']
+    Examples
+    --------
+    >>> _wrap_text_lines(["First", "Second line"], 50)
+    ['First', 'Second line']
+    >>> _wrap_text_lines(["Very long line here", "Short"], 10)
+    ['Very long', 'line here', 'Short']
     """
     wrapped_lines = []
     for line in lines:
@@ -151,11 +158,12 @@ def _format_entry_header(
     """
     Format entry header with timestamp and ID.
 
-    Examples:
-        >>> _format_entry_header("14:30", 42, 3)
-        '[yellow]14:30[/yellow] [[dim] 42[/dim]]:'
-        >>> _format_entry_header("09:00", 5, 2)
-        '[yellow]09:00[/yellow] [[dim] 5[/dim]]:'
+    Examples
+    --------
+    >>> _format_entry_header("14:30", 42, 3)
+    '[yellow]14:30[/yellow] [[dim] 42[/dim]]:'
+    >>> _format_entry_header("09:00", 5, 2)
+    '[yellow]09:00[/yellow] [[dim] 5[/dim]]:'
     """
     id_str = str(entry_id).rjust(max_id_width)
     id_suffix = f"[[dim]{id_str}[/dim]]"
@@ -166,11 +174,12 @@ def _format_metadata_line(metadata: dict) -> str:
     """
     Format metadata dictionary as a string.
 
-    Examples:
-        >>> _format_metadata_line({"status": "done", "priority": "high"})
-        'status:done priority:high'
-        >>> _format_metadata_line({})
-        ''
+    Examples
+    --------
+    >>> _format_metadata_line({"status": "done", "priority": "high"})
+    'status:done priority:high'
+    >>> _format_metadata_line({})
+    ''
     """
     return " ".join(f"{key}:{value}" for key, value in metadata.items())
 
@@ -179,11 +188,12 @@ def _format_tags_line(tags: List[str]) -> str:
     """
     Format tags list as a string.
 
-    Examples:
-        >>> _format_tags_line(["work", "urgent"])
-        '#work #urgent'
-        >>> _format_tags_line([])
-        ''
+    Examples
+    --------
+    >>> _format_tags_line(["work", "urgent"])
+    '#work #urgent'
+    >>> _format_tags_line([])
+    ''
     """
     return " ".join(f"#{tag}" for tag in tags)
 
@@ -194,12 +204,13 @@ def _print_wrapped_text(
     """
     Print wrapped text with header and indentation.
 
-    Examples:
-        >>> _print_wrapped_text("Header:", ["First", "Second"], 8)
+    Examples
+    --------
+    >>> _print_wrapped_text("Header:", ["First", "Second"], 8)
         # Prints:
         # Header: First
         #         Second
-        >>> _print_wrapped_text("ID:", [], 4)
+    >>> _print_wrapped_text("ID:", [], 4)
         # Prints:
         # ID:
     """
@@ -215,11 +226,12 @@ def _print_metadata(metadata: dict, indentation: int) -> None:
     """
     Print metadata with proper indentation.
 
-    Examples:
-        >>> _print_metadata({"status": "done"}, 8)
+    Examples
+    --------
+    >>> _print_metadata({"status": "done"}, 8)
         # Prints (with 8 spaces):
         #         [dim]status:done[/dim]
-        >>> _print_metadata({}, 8)
+    >>> _print_metadata({}, 8)
         # Prints nothing
     """
     if not metadata:
@@ -233,11 +245,12 @@ def _print_tags(tags: List[str], indentation: int) -> None:
     """
     Print tags with proper indentation.
 
-    Examples:
-        >>> _print_tags(["work", "urgent"], 8)
+    Examples
+    --------
+    >>> _print_tags(["work", "urgent"], 8)
         # Prints (with 8 spaces):
         #         [dim]#work #urgent[/dim]
-        >>> _print_tags([], 8)
+    >>> _print_tags([], 8)
         # Prints nothing
     """
     if not tags:
@@ -251,14 +264,15 @@ def _print_date_separator(day: Optional[date], padding_width: int) -> None:
     """
     Print date separator with proper formatting.
 
-    Examples:
-        >>> _print_date_separator(date(2025, 10, 29), 10)
+    Examples
+    --------
+    >>> _print_date_separator(date(2025, 10, 29), 10)
         # Prints:
         #
         #           ==========
         #           2025-10-29
         #           ==========
-        >>> _print_date_separator(None, 10)
+    >>> _print_date_separator(None, 10)
         # Prints:
         #
         #           =======
@@ -283,12 +297,13 @@ def _print_entry(
     """
     Print a single search result entry.
 
-    Examples:
-        >>> entry = SearchResult(42, date(2025, 10, 29), "14:30",
+    Examples
+    --------
+    >>> entry = SearchResult(42, date(2025, 10, 29), "14:30",
         ...                      ["Test entry"], {"status": "done"}, ["work"])
-        >>> _print_entry(entry, 3, 80, False)
+    >>> _print_entry(entry, 3, 80, False)
         # Prints formatted entry with header, text, metadata, tags, and spacing
-        >>> _print_entry(entry, 3, 80, True)
+    >>> _print_entry(entry, 3, 80, True)
         # Same but without trailing newline (last entry)
     """
     # Format and print header with text
@@ -351,11 +366,12 @@ def _get_todo_checkbox(is_completed: bool) -> str:
     """
     Get checkbox string for todo item.
 
-    Examples:
-        >>> _get_todo_checkbox(True)
-        '[x]'
-        >>> _get_todo_checkbox(False)
-        '[ ]'
+    Examples
+    --------
+    >>> _get_todo_checkbox(True)
+    '[x]'
+    >>> _get_todo_checkbox(False)
+    '[ ]'
     """
     return "[x]" if is_completed else "[ ]"
 
@@ -364,11 +380,12 @@ def _get_todo_color(is_completed: bool) -> str:
     """
     Get color for todo item.
 
-    Examples:
-        >>> _get_todo_color(True)
-        'green'
-        >>> _get_todo_color(False)
-        'cyan'
+    Examples
+    --------
+    >>> _get_todo_color(True)
+    'green'
+    >>> _get_todo_color(False)
+    'cyan'
     """
     return "green" if is_completed else "cyan"
 
@@ -377,11 +394,12 @@ def _get_todo_dim_markup(is_completed: bool) -> tuple[str, str]:
     """
     Get dim markup tags for todo item.
 
-    Examples:
-        >>> _get_todo_dim_markup(True)
-        ('[dim]', '[/dim]')
-        >>> _get_todo_dim_markup(False)
-        ('', '')
+    Examples
+    --------
+    >>> _get_todo_dim_markup(True)
+    ('[dim]', '[/dim]')
+    >>> _get_todo_dim_markup(False)
+    ('', '')
     """
     if is_completed:
         return "[dim]", "[/dim]"
@@ -394,11 +412,12 @@ def _format_todo_header(
     """
     Format todo item header.
 
-    Examples:
-        >>> _format_todo_header(42, "Fix bug", False)
-        '[ ] [cyan][42][/cyan] Fix bug'
-        >>> _format_todo_header(5, "Done task", True)
-        '[x] [green][5][/green] [dim]Done task[/dim]'
+    Examples
+    --------
+    >>> _format_todo_header(42, "Fix bug", False)
+    '[ ] [cyan][42][/cyan] Fix bug'
+    >>> _format_todo_header(5, "Done task", True)
+    '[x] [green][5][/green] [dim]Done task[/dim]'
     """
     checkbox = _get_todo_checkbox(is_completed)
     color = _get_todo_color(is_completed)
@@ -414,11 +433,12 @@ def _format_todo_created_line(todo_date: str, timestamp: str) -> str:
     """
     Format todo creation date line.
 
-    Examples:
-        >>> _format_todo_created_line("2025-10-29", "14:30")
-        '    [dim]Created: 2025-10-29 14:30[/dim]'
-        >>> _format_todo_created_line("2025-10-28", "09:00")
-        '    [dim]Created: 2025-10-28 09:00[/dim]'
+    Examples
+    --------
+    >>> _format_todo_created_line("2025-10-29", "14:30")
+    '    [dim]Created: 2025-10-29 14:30[/dim]'
+    >>> _format_todo_created_line("2025-10-28", "09:00")
+    '    [dim]Created: 2025-10-28 09:00[/dim]'
     """
     return f"    [dim]Created: {todo_date} {timestamp}[/dim]"
 
@@ -427,11 +447,12 @@ def _format_todo_completed_line(completed_at: str) -> str:
     """
     Format todo completion date line.
 
-    Examples:
-        >>> _format_todo_completed_line("16:45")
-        '    [dim]Completed: 16:45[/dim]'
-        >>> _format_todo_completed_line("10:30")
-        '    [dim]Completed: 10:30[/dim]'
+    Examples
+    --------
+    >>> _format_todo_completed_line("16:45")
+    '    [dim]Completed: 16:45[/dim]'
+    >>> _format_todo_completed_line("10:30")
+    '    [dim]Completed: 10:30[/dim]'
     """
     return f"    [dim]Completed: {completed_at}[/dim]"
 
@@ -440,15 +461,16 @@ def _print_todo(todo: dict, is_completed: bool) -> None:
     """
     Print a single todo item.
 
-    Examples:
-        >>> todo = {"id": 42, "description": "Fix bug",
+    Examples
+    --------
+    >>> todo = {"id": 42, "description": "Fix bug",
         ...         "date": "2025-10-29", "timestamp": "14:30"}
-        >>> _print_todo(todo, False)
+    >>> _print_todo(todo, False)
         # Prints:
         # [ ] [cyan][42][/cyan] Fix bug
         #     [dim]Created: 2025-10-29 14:30[/dim]
-        >>> todo_done = {**todo, "completed_at": "16:45"}
-        >>> _print_todo(todo_done, True)
+    >>> todo_done = {**todo, "completed_at": "16:45"}
+    >>> _print_todo(todo_done, True)
         # Prints with completion line and green color
     """
     header = _format_todo_header(
@@ -470,11 +492,12 @@ def _format_todo_summary(pending_count: int, done_count: int) -> str:
     """
     Format todo summary line.
 
-    Examples:
-        >>> _format_todo_summary(5, 3)
-        '\\nTotal: [cyan]5[/cyan] pending, [green]3[/green] completed'
-        >>> _format_todo_summary(0, 10)
-        '\\nTotal: [cyan]0[/cyan] pending, [green]10[/green] completed'
+    Examples
+    --------
+    >>> _format_todo_summary(5, 3)
+    '\\nTotal: [cyan]5[/cyan] pending, [green]3[/green] completed'
+    >>> _format_todo_summary(0, 10)
+    '\\nTotal: [cyan]0[/cyan] pending, [green]10[/green] completed'
     """
     return (
         f"\nTotal: [cyan]{pending_count}[/cyan] pending, "
@@ -488,15 +511,16 @@ def _partition_todos_by_status(
     """
     Partition todos into pending and done lists.
 
-    Examples:
-        >>> todos = [
+    Examples
+    --------
+    >>> todos = [
         ...     {"status": "pending", "id": 1},
         ...     {"status": "done", "id": 2},
         ...     {"status": "pending", "id": 3}
         ... ]
-        >>> pending, done = _partition_todos_by_status(todos)
-        >>> len(pending), len(done)
-        (2, 1)
+    >>> pending, done = _partition_todos_by_status(todos)
+    >>> len(pending), len(done)
+    (2, 1)
     """
     pending = [t for t in todos if t["status"] == "pending"]
     done = [t for t in todos if t["status"] == "done"]
@@ -557,11 +581,12 @@ def _extract_tags_from_lines(lines: List[str]) -> List[str]:
     """
     Extract all tags from list of lines.
 
-    Examples:
-        >>> _extract_tags_from_lines(["Meeting #work", "Review #code #urgent"])
-        ['code', 'urgent', 'work']
-        >>> _extract_tags_from_lines(["No tags"])
-        []
+    Examples
+    --------
+    >>> _extract_tags_from_lines(["Meeting #work", "Review #code #urgent"])
+    ['code', 'urgent', 'work']
+    >>> _extract_tags_from_lines(["No tags"])
+    []
     """
     tags = []
     for line in lines:
@@ -574,11 +599,12 @@ def _clean_text_from_lines(lines: List[str]) -> str:
     """
     Clean and join text lines, removing hashtags.
 
-    Examples:
-        >>> _clean_text_from_lines(["Meeting #work", "Review #code"])
-        'Meeting Review'
-        >>> _clean_text_from_lines(["Plain text", "No tags"])
-        'Plain text No tags'
+    Examples
+    --------
+    >>> _clean_text_from_lines(["Meeting #work", "Review #code"])
+    'Meeting Review'
+    >>> _clean_text_from_lines(["Plain text", "No tags"])
+    'Plain text No tags'
     """
     text_lines = []
     for line in lines:
@@ -592,12 +618,13 @@ def _format_search_result_as_dict(match: SearchResult) -> dict:
     """
     Format a single SearchResult as a dictionary.
 
-    Examples:
-        >>> result = SearchResult(42, date(2025, 10, 29), "14:30",
+    Examples
+    --------
+    >>> result = SearchResult(42, date(2025, 10, 29), "14:30",
         ...                       ["Test #work"], {"status": "done"}, ["work"])
-        >>> d = _format_search_result_as_dict(result)
-        >>> d['id'], d['text'], d['tags']
-        (42, 'Test', ['work'])
+    >>> d = _format_search_result_as_dict(result)
+    >>> d['id'], d['text'], d['tags']
+    (42, 'Test', ['work'])
     """
     return {
         "id": match.entry_id,
