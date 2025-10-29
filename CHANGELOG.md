@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.32.0] - 2025-10-29
+### Added
+- Added comprehensive todo management system with `--todo`, `--done ID`, and `--list-todos` commands for tracking pending and completed tasks.
+- Introduced three new MCP tools: `create_todo`, `mark_todo_done`, and `list_todos` for AI assistant integration.
+- Created dedicated `TodoFormatter` class with status-based formatting and JSON output support.
+
+### Changed
+- Refactored `formatters.py` from 29 standalone functions into domain-based classes: `TextUtils`, `SearchResultFormatter`, `SearchResultJSONFormatter`, and `TodoFormatter`.
+- Improved search output with better date separators, proper text alignment, and multiline entry support.
+- Enhanced database module with extracted SQL constants and helper functions (`_ensure_entry_id`, `_upsert_source_records`).
+
+### Fixed
+- Removed inline imports from MCP server by moving parsers to top-level imports.
+- Fixed all E501 linter errors by breaking long lines properly.
+- Updated `.gitignore` to exclude `.venv`, `build`, and `UNKNOWN.egg-info` directories.
+
+### Developer Notes
+- All 57 tests pass including new comprehensive todo workflow tests.
+- Maintained backward compatibility with wrapper functions after formatter refactoring.
+
 ## [0.31.0] - 2025-10-27
 ### Added
 - Bundle Textual TUI and MCP integrations as core dependencies so a single install ships the interactive browser and MCP server.

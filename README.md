@@ -68,6 +68,7 @@ Built-in MCP server exposes your archive to Claude Desktop. Ask your AI about yo
 
 ## Features
 
+- **Todo management**: Built-in task tracking with `--todo`, `--done`, and `--list-todos` commands
 - **Structured metadata**: `key:value` syntax with numeric comparisons (`time:>2`, `status:done`)
 - **Smart tagging**: Hashtags (`#work`) and metadata in one natural string
 - **Edit/delete by ID**: Stable numeric identifiers for every entry
@@ -75,7 +76,7 @@ Built-in MCP server exposes your archive to Claude Desktop. Ask your AI about yo
 - **SQLite indexing**: Fast search across thousands of entries
 - **Browse mode**: Optional TUI with vim-like navigation
 - **Git-friendly**: Version your diary, sync across devices
-- **MCP integration**: Connect to Claude Desktop and other AI tools
+- **MCP integration**: Connect to Claude Desktop and other AI tools with todo support
 
 ## Usage
 
@@ -92,6 +93,12 @@ kaydet "Deep work session #focus time:3h intensity:high project:kaydet"
 kaydet --search "#work"
 kaydet --search "project:kaydet status:done"
 kaydet --search "time:>2"
+
+# Todo Management
+kaydet --todo "Write unit tests" priority:high
+kaydet --done 42           # Mark todo as done
+kaydet --list-todos        # List all todos
+kaydet --todo              # List todos (shorthand)
 
 # Utility
 kaydet --tags              # List all tags with counts
