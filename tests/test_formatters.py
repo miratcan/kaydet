@@ -1,10 +1,6 @@
 """Tests for formatters module."""
 
-import io
 from datetime import date
-from unittest.mock import patch
-
-import pytest
 
 from kaydet.formatters import SearchResult, format_todo_results
 
