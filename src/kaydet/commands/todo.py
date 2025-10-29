@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import List
 
 from ..commands.add import create_entry
-from ..commands.edit import edit_entry_command
 from ..formatters import format_todo_results
 from ..parsers import partition_entry_tokens
 
@@ -51,7 +50,7 @@ def todo_command(
 
     print(f"Todo created: {result['day_file']} (ID: {result['entry_id']})")
     print(f"  [{result['entry_id']}] {message_text}")
-    print(f"  Status: pending")
+    print("  Status: pending")
 
 
 def done_command(
@@ -110,18 +109,16 @@ def done_command(
     completed_time = now.strftime("%H:%M")
     updated_lines = []
     found_entry = False
-    in_target_entry = False
 
-    for i, line in enumerate(lines):
+    for _i, line in enumerate(lines):
         # Check if this line starts a new entry
         if line.strip() and line[0].isdigit() and ":" in line[:5]:
             # Extract entry ID from line if it has one
             if f"[{entry_id}]" in line:
-                in_target_entry = True
                 found_entry = True
 
                 # Update the line with new metadata
-                # Parse the existing line: format is "timestamp [id]: text | metadata items | #tags"
+                # Format: "timestamp [id]: text | metadata items | #tags"
                 if " | " in line:
                     # Has metadata
                     parts = line.split(" | ")
@@ -131,7 +128,7 @@ def done_command(
                     metadata_section = parts[1] if len(parts) > 1 else ""
                     tags_section = parts[2] if len(parts) > 2 else ""
 
-                    # Split metadata by spaces to get individual key:value pairs
+                    # Split metadata by spaces
                     metadata_items = metadata_section.split()
                     new_metadata_items = []
                     has_status = False
@@ -142,7 +139,9 @@ def done_command(
                             new_metadata_items.append("status:done")
                             has_status = True
                         elif item.startswith("completed_at:"):
-                            new_metadata_items.append(f"completed_at:{completed_time}")
+                            new_metadata_items.append(
+                                f"completed_at:{completed_time}"
+                            )
                             has_completed_at = True
                         else:
                             new_metadata_items.append(item)
@@ -150,14 +149,22 @@ def done_command(
                     if not has_status:
                         new_metadata_items.insert(0, "status:done")
                     if not has_completed_at:
-                        new_metadata_items.insert(1, f"completed_at:{completed_time}")
+                        new_metadata_items.insert(
+                            1, f"completed_at:{completed_time}"
+                        )
 
                     # Reconstruct line
                     new_metadata_section = " ".join(new_metadata_items)
                     if tags_section:
-                        new_line = f"{timestamp_and_text} | {new_metadata_section} | {tags_section}"
+                        new_line = (
+                            f"{timestamp_and_text} | "
+                            f"{new_metadata_section} | {tags_section}"
+                        )
                     else:
-                        new_line = f"{timestamp_and_text} | {new_metadata_section} |"
+                        new_line = (
+                            f"{timestamp_and_text} | "
+                            f"{new_metadata_section} |"
+                        )
 
                     if not new_line.endswith("\n"):
                         new_line += "\n"
@@ -165,10 +172,12 @@ def done_command(
                 else:
                     # No metadata, add it
                     line = line.rstrip("\n")
-                    new_line = f"{line} | status:done completed_at:{completed_time} |\n"
+                    new_line = (
+                        f"{line} | status:done "
+                        f"completed_at:{completed_time} |\n"
+                    )
                     updated_lines.append(new_line)
             else:
-                in_target_entry = False
                 updated_lines.append(line)
         else:
             updated_lines.append(line)
@@ -183,26 +192,32 @@ def done_command(
 
     # Update database metadata
     cursor.execute(
-        "UPDATE metadata SET meta_value = 'done' WHERE entry_id = ? AND meta_key = 'status'",
-        (entry_id,)
+        "UPDATE metadata SET meta_value = 'done' "
+        "WHERE entry_id = ? AND meta_key = 'status'",
+        (entry_id,),
     )
     cursor.execute(
-        "SELECT COUNT(*) FROM metadata WHERE entry_id = ? AND meta_key = 'status'",
-        (entry_id,)
+        "SELECT COUNT(*) FROM metadata "
+        "WHERE entry_id = ? AND meta_key = 'status'",
+        (entry_id,),
     )
     if cursor.fetchone()[0] == 0:
         # Status doesn't exist, insert it
         cursor.execute(
-            "INSERT INTO metadata (entry_id, meta_key, meta_value) VALUES (?, 'status', 'done')",
-            (entry_id,)
+            "INSERT INTO metadata (entry_id, meta_key, meta_value) "
+            "VALUES (?, 'status', 'done')",
+            (entry_id,),
         )
 
     # Add completed_at metadata
     from ..parsers import parse_numeric_value
+
     numeric_val = parse_numeric_value(completed_time)
     cursor.execute(
-        "INSERT OR REPLACE INTO metadata (entry_id, meta_key, meta_value, numeric_value) VALUES (?, 'completed_at', ?, ?)",
-        (entry_id, completed_time, numeric_val)
+        "INSERT OR REPLACE INTO metadata "
+        "(entry_id, meta_key, meta_value, numeric_value) "
+        "VALUES (?, 'completed_at', ?, ?)",
+        (entry_id, completed_time, numeric_val),
     )
 
     db.commit()
@@ -253,7 +268,9 @@ def list_todos_command(
                 completed_at = entry.metadata.get("completed_at", "")
 
                 # Get the first line as description
-                description = entry.lines[0] if entry.lines else "(no description)"
+                description = (
+                    entry.lines[0] if entry.lines else "(no description)"
+                )
 
                 todos.append({
                     "id": entry_id,

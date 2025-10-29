@@ -52,11 +52,17 @@ def format_search_results(
         return
 
     # Calculate maximum ID width for alignment
-    max_id_width = max(len(str(m.entry_id)) for m in matches if m.entry_id) if matches else 0
+    max_id_width = (
+        max(len(str(m.entry_id)) for m in matches if m.entry_id)
+        if matches
+        else 0
+    )
 
     # Calculate padding: timestamp (5 chars) + space + [id] + : + 1 space
     timestamp_width = 5  # "HH:MM"
-    date_padding_width = timestamp_width + 1 + 1 + max_id_width + 1 + 1 + 1  # +1 for the extra character
+    date_padding_width = (
+        timestamp_width + 1 + 1 + max_id_width + 1 + 1 + 1
+    )  # +1 for the extra character
 
     for day, entries in groupby(matches, key=attrgetter("day")):
         day_label = day.isoformat() if day else "Undated"
@@ -75,7 +81,9 @@ def format_search_results(
             header_len_no_markup = len(entry.timestamp) + 2 + max_id_width + 3
 
             # Clean lines by removing hashtags
-            clean_lines = [re.sub(r'#([a-z-]+)', '', line).strip() for line in entry.lines]
+            clean_lines = [
+                re.sub(r"#([a-z-]+)", "", line).strip() for line in entry.lines
+            ]
 
             # Available width for text
             available_width = terminal_width - header_len_no_markup
@@ -91,9 +99,9 @@ def format_search_results(
             for line in clean_lines:
                 if line:
                     wrapped = wrapper.wrap(line)
-                    all_wrapped_lines.extend(wrapped if wrapped else [''])
+                    all_wrapped_lines.extend(wrapped if wrapped else [""])
                 else:
-                    all_wrapped_lines.append('')
+                    all_wrapped_lines.append("")
 
             if all_wrapped_lines:
                 console.print(f"{header} {all_wrapped_lines[0]}")
@@ -127,14 +135,16 @@ def format_todo_results(
     Format and print todo list results.
 
     Args:
-        todos: List of todo dictionaries with keys: id, date, timestamp, status,
-               completed_at, description
+        todos: List of todo dictionaries with keys: id, date, timestamp,
+               status, completed_at, description
         output_format: Either "text" or "json"
     """
     import json
 
     if output_format == "json":
-        console.print(json.dumps({"todos": todos}, indent=2, ensure_ascii=False))
+        console.print(
+            json.dumps({"todos": todos}, indent=2, ensure_ascii=False)
+        )
         return
 
     if not todos:
@@ -148,23 +158,39 @@ def format_todo_results(
         console.print("\n📋 [bold]Pending Todos:[/bold]\n")
         for todo in pending_todos:
             checkbox = "[ ]"
-            console.print(f"{checkbox} [cyan][{todo['id']}][/cyan] {todo['description']}")
-            console.print(f"    [dim]Created: {todo['date']} {todo['timestamp']}[/dim]")
+            console.print(
+                f"{checkbox} [cyan][{todo['id']}][/cyan] {todo['description']}"
+            )
+            console.print(
+                f"    [dim]Created: {todo['date']} {todo['timestamp']}[/dim]"
+            )
             if todo.get("completed_at"):
-                console.print(f"    [dim]Completed: {todo['completed_at']}[/dim]")
+                console.print(
+                    f"    [dim]Completed: {todo['completed_at']}[/dim]"
+                )
             console.print()
 
     if done_todos:
         console.print("\n✓ [bold]Completed Todos:[/bold]\n")
         for todo in done_todos:
             checkbox = "[x]"
-            console.print(f"{checkbox} [green][{todo['id']}][/green] [dim]{todo['description']}[/dim]")
-            console.print(f"    [dim]Created: {todo['date']} {todo['timestamp']}[/dim]")
+            console.print(
+                f"{checkbox} [green][{todo['id']}][/green] "
+                f"[dim]{todo['description']}[/dim]"
+            )
+            console.print(
+                f"    [dim]Created: {todo['date']} {todo['timestamp']}[/dim]"
+            )
             if todo.get("completed_at"):
-                console.print(f"    [dim]Completed: {todo['completed_at']}[/dim]")
+                console.print(
+                    f"    [dim]Completed: {todo['completed_at']}[/dim]"
+                )
             console.print()
 
-    console.print(f"\nTotal: [cyan]{len(pending_todos)}[/cyan] pending, [green]{len(done_todos)}[/green] completed")
+    console.print(
+        f"\nTotal: [cyan]{len(pending_todos)}[/cyan] pending, "
+        f"[green]{len(done_todos)}[/green] completed"
+    )
 
 
 def format_json_search_results(matches: List[SearchResult]) -> str:
@@ -188,20 +214,22 @@ def format_json_search_results(matches: List[SearchResult]) -> str:
 
         for line in match.lines:
             # Extract tags
-            found_tags = re.findall(r'#([a-z-]+)', line)
+            found_tags = re.findall(r"#([a-z-]+)", line)
             tags.extend(found_tags)
 
             # Clean line (remove tags)
-            clean_line = re.sub(r'#([a-z-]+)', '', line).strip()
+            clean_line = re.sub(r"#([a-z-]+)", "", line).strip()
             if clean_line:
                 text_lines.append(clean_line)
 
-        results.append({
-            "id": match.entry_id,
-            "date": match.day.isoformat() if match.day else None,
-            "timestamp": match.timestamp,
-            "text": " ".join(text_lines),
-            "tags": list(set(tags)),  # Deduplicate tags
-        })
+        results.append(
+            {
+                "id": match.entry_id,
+                "date": match.day.isoformat() if match.day else None,
+                "timestamp": match.timestamp,
+                "text": " ".join(text_lines),
+                "tags": list(set(tags)),  # Deduplicate tags
+            }
+        )
 
     return json.dumps({"matches": results}, indent=2, ensure_ascii=False)

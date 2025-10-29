@@ -158,7 +158,9 @@ def _ensure_entry_id(
         cursor.execute(UPDATE_ENTRY_SQL, (source_file, timestamp, entry_id))
         return entry_id, False
 
-    cursor.execute(INSERT_ENTRY_WITH_ID_SQL, (entry_id, source_file, timestamp))
+    cursor.execute(
+        INSERT_ENTRY_WITH_ID_SQL, (entry_id, source_file, timestamp)
+    )
     return entry_id, True
 
 
@@ -203,7 +205,9 @@ def add_entry(
         cursor.execute("BEGIN")
 
         # Ensure entry exists and get its ID
-        entry_id, is_created = _ensure_entry_id(cursor, source_file, timestamp, entry_id)
+        entry_id, is_created = _ensure_entry_id(
+            cursor, source_file, timestamp, entry_id
+        )
 
         # Upsert source records (tags, words, metadata)
         # Note: This happens for both create and update cases

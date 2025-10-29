@@ -80,7 +80,10 @@ def build_parser(config_path: Path) -> argparse.ArgumentParser:
         "--tags", dest="list_tags", action="store_true", help="List all tags."
     )
     parser.add_argument(
-        "--search", dest="search", metavar="TEXT", help="Search entries (or filter todos with --todo)."
+        "--search",
+        dest="search",
+        metavar="TEXT",
+        help="Search entries (or filter todos with --todo).",
     )
     parser.add_argument(
         "--browse",
@@ -111,7 +114,7 @@ def build_parser(config_path: Path) -> argparse.ArgumentParser:
         dest="todo",
         nargs="*",
         metavar="TEXT",
-        help="Create a new todo entry (auto-adds status:pending and #todo tag).",
+        help="Create a new todo entry (auto-adds status:pending and #todo).",
     )
     parser.add_argument(
         "--done",
@@ -164,7 +167,8 @@ def main() -> None:
         return
 
     db_path = log_dir / INDEX_FILENAME
-    db = database.get_db_connection(db_path) # TODO: This is returnin connection but it's named as db?
+    # TODO: Rename to `conn` or keep as `db` for brevity?
+    db = database.get_db_connection(db_path)
     database.initialize_database(db)
 
     if args.doctor:
@@ -207,11 +211,19 @@ def main() -> None:
         elif args.search:
             combined_query = f"{args.search} #todo"
             print(f"Filtering todos: {combined_query}\n")
-            search_command(db, log_dir, config, combined_query, args.output_format)
+            search_command(
+                db, log_dir, config, combined_query, args.output_format
+            )
         else:
             list_todos_command(db, log_dir, config, args.output_format)
-            print("\nTo create a new todo: kaydet --todo \"your task description\"")
-            print("To filter todos: kaydet --todo --search \"#valocom priority:high\"")
+            print(
+                '\nTo create a new todo: kaydet --todo '
+                '"your task description"'
+            )
+            print(
+                'To filter todos: kaydet --todo --search '
+                '"#valocom priority:high"'
+            )
         return
 
     if args.done is not None:

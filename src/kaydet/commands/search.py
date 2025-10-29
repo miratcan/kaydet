@@ -10,7 +10,10 @@ from pathlib import Path
 
 from rich import print
 
-from ..formatters import SearchResult, format_search_results, format_json_search_results
+from ..formatters import (
+    SearchResult,
+    format_search_results,
+)
 from ..indexing import rebuild_index_if_empty
 from ..parsers import (
     parse_comparison_expression,
@@ -104,6 +107,7 @@ def fetch_entry_locations(
         return None
     return cursor.fetchall()
 
+
 def load_matches(
     locations,
     log_dir: Path,
@@ -133,6 +137,7 @@ def load_matches(
 
     matches.sort(key=lambda entry: (entry.day or date.min, entry.timestamp))
     return matches
+
 
 def print_matches(matches, query: str, output_format: str) -> None:
     """Render matches either as JSON or a terminal-friendly listing."""
@@ -203,6 +208,7 @@ def search_command(
         return
     matches = load_matches(locations, log_dir, config)
     print_matches(matches, query, output_format)
+
 
 def tags_command(db: sqlite3.Connection, output_format: str = "text"):
     """Print the unique set of tags recorded in the database."""

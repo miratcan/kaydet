@@ -14,7 +14,7 @@ from .models import Entry
 ENTRY_LINE_PATTERN = re.compile(
     r"^(?:[a-zA-Z0-9_-]{22}:)?"  # Optional legacy UUID prefix
     r"(\d{2}:\d{2})"  # Timestamp (HH:MM)
-    r"(?:\s+\[\s*(\d+)\s*\])?"  # Optional identifier like `[123]` or `[  123  ]`
+    r"(?:\s+\[\s*(\d+)\s*\])?"  # Optional ID like `[123]` or `[  123  ]`
     r":\s*(.*)"  # Remainder of the header line
 )
 LEGACY_TAG_PATTERN = re.compile(
@@ -108,7 +108,7 @@ def partition_entry_tokens(
     tags = list(extract_tags_from_text(full_text))
 
     # Remove hashtags from text
-    text_without_tags = re.sub(r'#[a-z][a-z0-9_-]*', '', full_text)
+    text_without_tags = re.sub(r"#[a-z][a-z0-9_-]*", "", full_text)
 
     # Extract and remove metadata (key:value pairs)
     metadata: Dict[str, str] = {}
