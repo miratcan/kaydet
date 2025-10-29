@@ -150,7 +150,31 @@ DAY_TITLE_PATTERN = %Y/%m/%d - %A
 LOG_DIR = ~/.local/share/kaydet
 EDITOR = nvim
 REMIND_AFTER_HOURS = 4
+COLOR_HEADER = bold cyan
+COLOR_TAG = bold magenta
+COLOR_DATE = green
+COLOR_ID = yellow
 ```
+
+### Color Customization
+
+You can customize the colors of various elements in the output by adding the following settings under the `[SETTINGS]` section in `config.ini`:
+
+```ini
+[SETTINGS]
+# ... existing settings ...
+COLOR_HEADER = bold cyan
+COLOR_TAG = bold magenta
+COLOR_DATE = green
+COLOR_ID = yellow
+```
+
+- `COLOR_HEADER`: Color for date separators and section headers.
+- `COLOR_TAG`: Color for tags (e.g., `#work`).
+- `COLOR_DATE`: Color for timestamps in search results.
+- `COLOR_ID`: Color for entry IDs and pending todo counts.
+
+You can use any [Rich color string](https://rich.readthedocs.io/en/stable/style.html#color-names) (e.g., `red`, `bold green`, `rgb(255,100,0)`).
 
 ## AI Integration
 

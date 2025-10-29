@@ -24,6 +24,10 @@ DEFAULT_SETTINGS = {
         / "kaydet"
     ),
     "EDITOR": env.get("EDITOR", "vim"),
+    "COLOR_HEADER": "bold cyan",
+    "COLOR_TAG": "bold magenta",
+    "COLOR_DATE": "green",
+    "COLOR_ID": "yellow",
 }
 LAST_ENTRY_FILENAME = "last_entry_timestamp"
 REMINDER_THRESHOLD = timedelta(hours=2)

@@ -5,7 +5,8 @@ from __future__ import annotations
 from configparser import SectionProxy
 from datetime import datetime
 from pathlib import Path
-from typing import List
+from typing import List, Optional
+from rich.console import Console
 
 from ..commands.add import create_entry
 from ..formatters import format_todo_results
@@ -231,6 +232,7 @@ def list_todos_command(
     log_dir: Path,
     config: SectionProxy,
     output_format: str = "text",
+    console: Optional[Console] = None,
 ) -> None:
     """List all todos with their status."""
     from ..parsers import parse_day_entries, resolve_entry_date
@@ -283,4 +285,4 @@ def list_todos_command(
                 break
 
     # Use the formatter to display todos
-    format_todo_results(todos, output_format)
+    format_todo_results(todos, output_format, config=config, console=console)
