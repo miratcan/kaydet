@@ -40,6 +40,11 @@ def _clean_hashtags(text: str) -> str:
     return re.sub(r"#([a-z-]+)", "", text).strip()
 
 
+def _extract_hashtags(text: str) -> List[str]:
+    """Extract hashtags from text."""
+    return re.findall(r"#([a-z-]+)", text)
+
+
 def _calculate_max_id_width(matches: List[SearchResult]) -> int:
     """Calculate maximum ID width for alignment."""
     if not matches:
@@ -54,25 +59,81 @@ def _calculate_date_padding_width(max_id_width: int) -> int:
     return timestamp_width + 1 + 1 + max_id_width + 1 + 1 + 1
 
 
-def _wrap_text_lines(
-    lines: List[str], available_width: int
-) -> List[str]:
-    """Wrap text lines to available width, preserving newlines."""
+def _calculate_header_length(timestamp: str, max_id_width: int) -> int:
+    """Calculate length of entry header without markup."""
+    # timestamp + space + [ + id + ] + : + space
+    return len(timestamp) + 2 + max_id_width + 3
+
+
+def _wrap_single_line(line: str, available_width: int) -> List[str]:
+    """Wrap a single line to available width."""
+    if not line:
+        return [""]
+
     wrapper = textwrap.TextWrapper(
         width=available_width,
         break_long_words=False,
         break_on_hyphens=False,
     )
+    wrapped = wrapper.wrap(line)
+    return wrapped if wrapped else [""]
 
+
+def _wrap_text_lines(lines: List[str], available_width: int) -> List[str]:
+    """Wrap text lines to available width, preserving newlines."""
     wrapped_lines = []
     for line in lines:
-        if line:
-            wrapped = wrapper.wrap(line)
-            wrapped_lines.extend(wrapped if wrapped else [""])
-        else:
-            wrapped_lines.append("")
-
+        wrapped_lines.extend(_wrap_single_line(line, available_width))
     return wrapped_lines
+
+
+def _format_entry_header(
+    timestamp: str, entry_id: int, max_id_width: int
+) -> str:
+    """Format entry header with timestamp and ID."""
+    id_str = str(entry_id).rjust(max_id_width)
+    id_suffix = f"[[dim]{id_str}[/dim]]"
+    return f"[yellow]{timestamp}[/yellow] {id_suffix}:"
+
+
+def _format_metadata_line(metadata: dict) -> str:
+    """Format metadata dictionary as a string."""
+    return " ".join(f"{key}:{value}" for key, value in metadata.items())
+
+
+def _format_tags_line(tags: List[str]) -> str:
+    """Format tags list as a string."""
+    return " ".join(f"#{tag}" for tag in tags)
+
+
+def _print_wrapped_text(
+    header: str, wrapped_lines: List[str], indentation: int
+) -> None:
+    """Print wrapped text with header and indentation."""
+    if wrapped_lines:
+        console.print(f"{header} {wrapped_lines[0]}")
+        for line in wrapped_lines[1:]:
+            console.print(" " * indentation + line)
+    else:
+        console.print(header)
+
+
+def _print_metadata(metadata: dict, indentation: int) -> None:
+    """Print metadata with proper indentation."""
+    if not metadata:
+        return
+    metadata_str = _format_metadata_line(metadata)
+    padding = " " * indentation
+    console.print(f"{padding}[dim]{metadata_str}[/dim]")
+
+
+def _print_tags(tags: List[str], indentation: int) -> None:
+    """Print tags with proper indentation."""
+    if not tags:
+        return
+    tags_str = _format_tags_line(tags)
+    padding = " " * indentation
+    console.print(f"{padding}[dim]{tags_str}[/dim]")
 
 
 def _print_date_separator(day: Optional[date], padding_width: int) -> None:
@@ -93,38 +154,20 @@ def _print_entry(
     is_last: bool,
 ) -> None:
     """Print a single search result entry."""
-    # Format header
-    id_str = str(entry.entry_id).rjust(max_id_width)
-    id_suffix = f"[[dim]{id_str}[/dim]]"
-    header = f"[yellow]{entry.timestamp}[/yellow] {id_suffix}:"
-    header_len = len(entry.timestamp) + 2 + max_id_width + 3
+    # Format and print header with text
+    header = _format_entry_header(
+        entry.timestamp, entry.entry_id, max_id_width
+    )
+    header_len = _calculate_header_length(entry.timestamp, max_id_width)
 
-    # Clean and wrap text
     clean_lines = [_clean_hashtags(line) for line in entry.lines]
     available_width = terminal_width - header_len
     wrapped_lines = _wrap_text_lines(clean_lines, available_width)
 
-    # Print entry text
-    if wrapped_lines:
-        console.print(f"{header} {wrapped_lines[0]}")
-        for line in wrapped_lines[1:]:
-            console.print(" " * header_len + line)
-    else:
-        console.print(header)
+    _print_wrapped_text(header, wrapped_lines, header_len)
+    _print_metadata(entry.metadata, header_len)
+    _print_tags(entry.tags, header_len)
 
-    # Print metadata and tags
-    indentation = " " * header_len
-    if entry.metadata:
-        metadata_str = " ".join(
-            f"{key}:{value}" for key, value in entry.metadata.items()
-        )
-        console.print(f"{indentation}[dim]{metadata_str}[/dim]")
-
-    if entry.tags:
-        tags_str = " ".join(f"#{tag}" for tag in entry.tags)
-        console.print(f"{indentation}[dim]{tags_str}[/dim]")
-
-    # Add spacing between entries
     if not is_last:
         console.print()
 
@@ -157,25 +200,79 @@ def format_search_results(
             _print_entry(entry, max_id_width, terminal_width, is_last)
 
 
+def _get_todo_checkbox(is_completed: bool) -> str:
+    """Get checkbox string for todo item."""
+    return "[x]" if is_completed else "[ ]"
+
+
+def _get_todo_color(is_completed: bool) -> str:
+    """Get color for todo item."""
+    return "green" if is_completed else "cyan"
+
+
+def _get_todo_dim_markup(is_completed: bool) -> tuple[str, str]:
+    """Get dim markup tags for todo item."""
+    if is_completed:
+        return "[dim]", "[/dim]"
+    return "", ""
+
+
+def _format_todo_header(
+    todo_id: int, description: str, is_completed: bool
+) -> str:
+    """Format todo item header."""
+    checkbox = _get_todo_checkbox(is_completed)
+    color = _get_todo_color(is_completed)
+    dim_start, dim_end = _get_todo_dim_markup(is_completed)
+
+    return (
+        f"{checkbox} [{color}][{todo_id}][/{color}] "
+        f"{dim_start}{description}{dim_end}"
+    )
+
+
+def _format_todo_created_line(todo_date: str, timestamp: str) -> str:
+    """Format todo creation date line."""
+    return f"    [dim]Created: {todo_date} {timestamp}[/dim]"
+
+
+def _format_todo_completed_line(completed_at: str) -> str:
+    """Format todo completion date line."""
+    return f"    [dim]Completed: {completed_at}[/dim]"
+
+
 def _print_todo(todo: dict, is_completed: bool) -> None:
     """Print a single todo item."""
-    checkbox = "[x]" if is_completed else "[ ]"
-    color = "green" if is_completed else "cyan"
-    dim = "[dim]" if is_completed else ""
-    end_dim = "[/dim]" if is_completed else ""
+    header = _format_todo_header(
+        todo["id"], todo["description"], is_completed
+    )
+    console.print(header)
 
-    console.print(
-        f"{checkbox} [{color}][{todo['id']}][/{color}] "
-        f"{dim}{todo['description']}{end_dim}"
-    )
-    console.print(
-        f"    [dim]Created: {todo['date']} {todo['timestamp']}[/dim]"
-    )
+    created_line = _format_todo_created_line(todo["date"], todo["timestamp"])
+    console.print(created_line)
 
     if todo.get("completed_at"):
-        console.print(f"    [dim]Completed: {todo['completed_at']}[/dim]")
+        completed_line = _format_todo_completed_line(todo["completed_at"])
+        console.print(completed_line)
 
     console.print()
+
+
+def _format_todo_summary(pending_count: int, done_count: int) -> str:
+    """Format todo summary line."""
+    return (
+        f"\nTotal: [cyan]{pending_count}[/cyan] pending, "
+        f"[green]{done_count}[/green] completed"
+    )
+
+
+def _partition_todos_by_status(
+    todos: List[dict],
+) -> tuple[List[dict], List[dict]]:
+    """Partition todos into pending and done lists."""
+    pending = [t for t in todos if t["status"] == "pending"]
+    done = [t for t in todos if t["status"] == "done"]
+    return pending, done
 
 
 def format_todo_results(
@@ -200,8 +297,7 @@ def format_todo_results(
         console.print("No todos found.")
         return
 
-    pending_todos = [t for t in todos if t["status"] == "pending"]
-    done_todos = [t for t in todos if t["status"] == "done"]
+    pending_todos, done_todos = _partition_todos_by_status(todos)
 
     if pending_todos:
         console.print("\n📋 [bold]Pending Todos:[/bold]\n")
@@ -213,10 +309,38 @@ def format_todo_results(
         for todo in done_todos:
             _print_todo(todo, is_completed=True)
 
-    console.print(
-        f"\nTotal: [cyan]{len(pending_todos)}[/cyan] pending, "
-        f"[green]{len(done_todos)}[/green] completed"
-    )
+    summary = _format_todo_summary(len(pending_todos), len(done_todos))
+    console.print(summary)
+
+
+def _extract_tags_from_lines(lines: List[str]) -> List[str]:
+    """Extract all tags from list of lines."""
+    tags = []
+    for line in lines:
+        found_tags = _extract_hashtags(line)
+        tags.extend(found_tags)
+    return list(set(tags))
+
+
+def _clean_text_from_lines(lines: List[str]) -> str:
+    """Clean and join text lines, removing hashtags."""
+    text_lines = []
+    for line in lines:
+        clean_line = _clean_hashtags(line)
+        if clean_line:
+            text_lines.append(clean_line)
+    return " ".join(text_lines)
+
+
+def _format_search_result_as_dict(match: SearchResult) -> dict:
+    """Format a single SearchResult as a dictionary."""
+    return {
+        "id": match.entry_id,
+        "date": match.day.isoformat() if match.day else None,
+        "timestamp": match.timestamp,
+        "text": _clean_text_from_lines(match.lines),
+        "tags": _extract_tags_from_lines(match.lines),
+    }
 
 
 def format_json_search_results(matches: List[SearchResult]) -> str:
@@ -229,28 +353,5 @@ def format_json_search_results(matches: List[SearchResult]) -> str:
     Returns:
         JSON string representation of the search results
     """
-    results = []
-    for match in matches:
-        # Extract tags and clean text
-        tags = []
-        text_lines = []
-
-        for line in match.lines:
-            found_tags = re.findall(r"#([a-z-]+)", line)
-            tags.extend(found_tags)
-
-            clean_line = _clean_hashtags(line)
-            if clean_line:
-                text_lines.append(clean_line)
-
-        results.append(
-            {
-                "id": match.entry_id,
-                "date": match.day.isoformat() if match.day else None,
-                "timestamp": match.timestamp,
-                "text": " ".join(text_lines),
-                "tags": list(set(tags)),
-            }
-        )
-
+    results = [_format_search_result_as_dict(match) for match in matches]
     return json.dumps({"matches": results}, indent=2, ensure_ascii=False)
