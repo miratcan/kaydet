@@ -7,8 +7,10 @@ from collections import defaultdict
 from configparser import SectionProxy
 from datetime import date
 from pathlib import Path
+from typing import List, Optional
 
 from rich import print
+from rich.console import Console
 
 from ..formatters import (
     SearchResult,
@@ -139,7 +141,7 @@ def load_matches(
     return matches
 
 
-def print_matches(matches, query: str, output_format: str) -> None:
+def print_matches(matches, query: str, output_format: str, config: SectionProxy, console: Optional[Console] = None) -> None:
     """Render matches either as JSON or a terminal-friendly listing."""
     if output_format == "json":
         print(
@@ -177,7 +179,7 @@ def print_matches(matches, query: str, output_format: str) -> None:
     ]
 
     # Use the formatter to display results
-    format_search_results(search_results, terminal_width)
+    format_search_results(search_results, terminal_width, config, console)
 
     entry_label = "entry" if len(matches) == 1 else "entries"
     print(f"\nFound {len(matches)} {entry_label} containing '{query}'.")
@@ -189,6 +191,7 @@ def search_command(
     config: SectionProxy,
     query: str,
     output_format: str = "text",
+    console: Optional[Console] = None,
 ):
     """Search diary entries using the SQLite index and print any matches."""
     rebuild_index_if_empty(db, log_dir, config)
@@ -207,7 +210,7 @@ def search_command(
         print(f"No entries matched '{query}'.")
         return
     matches = load_matches(locations, log_dir, config)
-    print_matches(matches, query, output_format)
+    print_matches(matches, query, output_format, config, console)
 
 
 def tags_command(db: sqlite3.Connection, output_format: str = "text"):

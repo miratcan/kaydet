@@ -28,6 +28,8 @@ from .commands import (
 from .indexing import rebuild_index_if_empty
 from .parsers import extract_tags_from_text  # noqa: F401
 from .sync import sync_modified_diary_files
+from rich.console import Console
+from typing import Optional
 from .utils import DEFAULT_SETTINGS, load_config  # noqa: F401
 
 INDEX_FILENAME = "index.db"
@@ -158,6 +160,7 @@ def main() -> None:
     args = parser.parse_args()
 
     now = datetime.now()
+    console = Console()
 
     if args.reminder:
         reminder_command(config_dir, log_dir, now)
@@ -192,7 +195,7 @@ def main() -> None:
         return
 
     if args.list_todos:
-        list_todos_command(db, log_dir, config, args.output_format)
+        list_todos_command(db, log_dir, config, args.output_format, console=console)
         return
 
     # args.todo with nargs="*" returns:
@@ -255,9 +258,9 @@ def main() -> None:
                     }
                 )
 
-            format_todo_results(todos, args.output_format)
+            format_todo_results(todos, args.output_format, config=config, console=console)
         else:
-            list_todos_command(db, log_dir, config, args.output_format)
+            list_todos_command(db, log_dir, config, args.output_format, console=console)
             print(
                 '\nTo create a new todo: kaydet --todo '
                 '"your task description"'
@@ -274,7 +277,7 @@ def main() -> None:
 
     # Handle --search (after --todo to allow --todo --search)
     if args.search:
-        search_command(db, log_dir, config, args.search, args.output_format)
+        search_command(db, log_dir, config, args.search, args.output_format, console=console)
         return
 
     if args.edit is not None and args.delete is not None:

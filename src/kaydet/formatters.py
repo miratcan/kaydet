@@ -112,7 +112,7 @@ class TextUtils:
 class SearchResultFormatter:
     """Formatter for search results with proper alignment and wrapping."""
 
-    def __init__(self, console: Console, terminal_width: int):
+    def __init__(self, console: Console, terminal_width: int, config: SectionProxy):
         """
         Initialize formatter.
 
@@ -122,9 +122,12 @@ class SearchResultFormatter:
             Rich console for output
         terminal_width : int
             Terminal width for text wrapping
+        config : SectionProxy
+            Configuration object with color settings
         """
         self.console = console
         self.terminal_width = terminal_width
+        self.config = config
 
     def format(self, matches: List[SearchResult]) -> None:
         """
@@ -216,14 +219,19 @@ class SearchResultFormatter:
 
         Examples
         --------
+        >>> from configparser import ConfigParser
         >>> console = Console()
-        >>> formatter = SearchResultFormatter(console, 80)
+        >>> config = ConfigParser()
+        >>> config["SETTINGS"] = {}
+        >>> formatter = SearchResultFormatter(console, 80, config["SETTINGS"])
         >>> formatter._format_entry_header("14:30", 42, 3)
-        '[yellow]14:30[/yellow] [[dim] 42[/dim]]:'
+        '[green]14:30[/green] [[yellow] 42[/yellow]]:'
         """
         id_str = str(entry_id).rjust(max_id_width)
-        id_suffix = f"[[dim]{id_str}[/dim]]"
-        return f"[yellow]{timestamp}[/yellow] {id_suffix}:"
+        color_id = self.config.get("COLOR_ID", "yellow")
+        color_date = self.config.get("COLOR_DATE", "green")
+        id_suffix = f"[[{color_id}]{id_str}[/{color_id}]]"
+        return f"[{color_date}]{timestamp}[/{color_date}] {id_suffix}:"
 
     def _format_metadata_line(self, metadata: dict) -> str:
         """
@@ -289,7 +297,8 @@ class SearchResultFormatter:
             return
         tags_str = self._format_tags_line(tags)
         padding = " " * indentation
-        self.console.print(f"{padding}[dim]{tags_str}[/dim]")
+        color_tag = self.config.get("COLOR_TAG", "bold magenta")
+        self.console.print(f"{padding}[{color_tag}]{tags_str}[/{color_tag}]")
 
     def _print_date_separator(
         self, day: Optional[date], padding_width: int
@@ -298,10 +307,11 @@ class SearchResultFormatter:
         day_label = day.isoformat() if day else "Undated"
         separator = "=" * len(day_label)
         padding = " " * padding_width
+        color_header = self.config.get("COLOR_HEADER", "bold cyan")
 
-        self.console.print(f"\n{padding}[bold cyan]{separator}[/bold cyan]")
-        self.console.print(f"{padding}[bold cyan]{day_label}[/bold cyan]")
-        self.console.print(f"{padding}[bold cyan]{separator}[/bold cyan]\n")
+        self.console.print(f"\n{padding}[{color_header}]{separator}[/{color_header}]")
+        self.console.print(f"{padding}[{color_header}]{day_label}[/{color_header}]")
+        self.console.print(f"{padding}[{color_header}]{separator}[/{color_header}]\n")
 
     def _print_entry(
         self,
@@ -426,7 +436,7 @@ class SearchResultJSONFormatter:
 class TodoFormatter:
     """Formatter for todo list with status-based formatting."""
 
-    def __init__(self, console: Console):
+    def __init__(self, console: Console, config: SectionProxy):
         """
         Initialize formatter.
 
@@ -434,8 +444,11 @@ class TodoFormatter:
         ----------
         console : Console
             Rich console for output
+        config : SectionProxy
+            Configuration object with color settings
         """
         self.console = console
+        self.config = config
 
     def format(self, todos: List[dict], output_format: str = "text") -> None:
         """
@@ -528,14 +541,19 @@ class TodoFormatter:
 
         Examples
         --------
+        >>> from configparser import ConfigParser
         >>> console = Console()
-        >>> formatter = TodoFormatter(console)
+        >>> config = ConfigParser()
+        >>> config["SETTINGS"] = {}
+        >>> formatter = TodoFormatter(console, config["SETTINGS"])
         >>> formatter._get_color(True)
         'green'
         >>> formatter._get_color(False)
-        'cyan'
+        'yellow'
         """
-        return "green" if is_completed else "cyan"
+        if is_completed:
+            return "green"
+        return self.config.get("COLOR_ID", "yellow")
 
     def _get_dim_markup(self, is_completed: bool) -> tuple[str, str]:
         """
@@ -610,13 +628,17 @@ class TodoFormatter:
 
         Examples
         --------
+        >>> from configparser import ConfigParser
         >>> console = Console()
-        >>> formatter = TodoFormatter(console)
+        >>> config = ConfigParser()
+        >>> config["SETTINGS"] = {}
+        >>> formatter = TodoFormatter(console, config["SETTINGS"])
         >>> formatter._format_summary(5, 3)
-        '\\nTotal: [cyan]5[/cyan] pending, [green]3[/green] completed'
+        '\\nTotal: [yellow]5[/yellow] pending, [green]3[/green] completed'
         """
+        color_id = self.config.get("COLOR_ID", "yellow")
         return (
-            f"\nTotal: [cyan]{pending_count}[/cyan] pending, "
+            f"\nTotal: [{color_id}]{pending_count}[/{color_id}] pending, "
             f"[green]{done_count}[/green] completed"
         )
 
@@ -656,10 +678,11 @@ class TodoFormatter:
 def format_search_results(
     matches: List[SearchResult],
     terminal_width: int,
+    config: SectionProxy,
+    console: Console,
 ) -> None:
     """Format and print search results (backward compatible API)."""
-    console = Console()
-    formatter = SearchResultFormatter(console, terminal_width)
+    formatter = SearchResultFormatter(console, terminal_width, config)
     formatter.format(matches)
 
 
@@ -671,8 +694,10 @@ def format_json_search_results(matches: List[SearchResult]) -> str:
 def format_todo_results(
     todos: List[dict],
     output_format: str = "text",
+    config: Optional[SectionProxy] = None,
+    console: Optional[Console] = None,
 ) -> None:
     """Format and print todo results (backward compatible API)."""
-    console = Console()
-    formatter = TodoFormatter(console)
+    console = console or Console()
+    formatter = TodoFormatter(console, config)
     formatter.format(todos, output_format)
