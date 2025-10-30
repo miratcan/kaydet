@@ -77,20 +77,20 @@ def build_parser(config_path: Path) -> argparse.ArgumentParser:
         dest="todo",
         nargs="*",
         metavar="TEXT",
-        help="Create a new todo entry (auto-adds status:pending and #todo).",
+        help="Create a new todo entry (e.g., 'kaydet --todo \"Buy groceries #home\"'). Use without arguments to list todos, or combine with --search to filter (e.g., 'kaydet --todo --search \"#work\"').",
     )
     todo_group.add_argument(
         "--done",
         dest="done",
         type=int,
         metavar="ID",
-        help="Mark a todo as done by ID.",
+        help="Mark a todo as done by ID (e.g., 'kaydet --done 42').",
     )
     todo_group.add_argument(
         "--list-todos",
         dest="list_todos",
         action="store_true",
-        help="List all todos with their status.",
+        help="List all todos with their status (shorthand: 'kaydet --todo').",
     )
 
     # Query & Browse
