@@ -76,7 +76,7 @@ def build_parser(config_path: Path) -> argparse.ArgumentParser:
         dest="todo",
         nargs="*",
         metavar="TEXT",
-        help="Create a new todo entry (e.g., 'kaydet --todo \"Buy groceries #home\"'). Use without arguments to list todos, or combine with --search to filter (e.g., 'kaydet --todo --search \"#work\"').",
+        help="Create a new todo entry (e.g., 'kaydet --todo \"Buy groceries #home\"'). Use without arguments to list todos, or combine with --filter to narrow results (e.g., 'kaydet --todo --filter \"#work\"').",
     )
     todo_group.add_argument(
         "--done",
@@ -90,10 +90,16 @@ def build_parser(config_path: Path) -> argparse.ArgumentParser:
     # Query & Browse
     query_group = parser.add_argument_group("Query & Browse")
     query_group.add_argument(
-        "--search",
-        dest="search",
-        metavar="TEXT",
-        help="Search entries (or filter todos with --todo).",
+        "--list",
+        dest="list_entries",
+        action="store_true",
+        help="List all entries. Use with --filter to narrow results.",
+    )
+    query_group.add_argument(
+        "--filter",
+        dest="filter",
+        metavar="QUERY",
+        help="Filter entries or todos by query.",
     )
     query_group.add_argument(
         "--tags", dest="list_tags", action="store_true", help="List all tags."
@@ -164,9 +170,6 @@ def main() -> None:
     now = datetime.now()
     console = Console()
 
-    if args.reminder:
-        reminder_command(config_dir, log_dir, now)
-        return
     if args.open_folder:
         startfile(str(log_dir))
         return
@@ -202,18 +205,18 @@ def main() -> None:
     # - None if --todo flag not provided
     # - [] (empty list) if --todo provided without arguments
     # - ["text", "here"] if --todo provided with arguments
-    # Check --todo BEFORE --search to handle --todo --search correctly
+    # Check --todo BEFORE --filter to handle --todo --filter correctly
     if args.todo is not None:
         has_todo_text = bool(args.todo)
 
         if has_todo_text:
             todo_command(args, config, config_dir, log_dir, now, db)
-        elif args.search:
-            # Search todos and display in todo format
+        elif args.filter:
+            # Filter todos and display in todo format
             from .commands.search import build_search_query, load_matches
             from .parsers import tokenize_query
 
-            combined_query = f"{args.search} #todo"
+            combined_query = f"{args.filter} #todo"
             print(f"Filtering todos: {combined_query}\n")
 
             text_terms, metadata_filters, tag_filters = tokenize_query(
@@ -228,7 +231,7 @@ def main() -> None:
             locations = cursor.fetchall()
 
             if not locations:
-                print(f"No todos found matching '{args.search}'.")
+                print(f"No todos found matching '{args.filter}'.")
                 return
 
             matches = load_matches(locations, log_dir, config)
@@ -265,8 +268,8 @@ def main() -> None:
                 '"your task description"'
             )
             print(
-                'To filter todos: kaydet --todo --search '
-                '"#valocom priority:high"'
+                'To filter todos: kaydet --todo --filter '
+                '"#work priority:high"'
             )
         return
 
@@ -274,9 +277,16 @@ def main() -> None:
         done_command(db, log_dir, config, args.done, now)
         return
 
-    # Handle --search (after --todo to allow --todo --search)
-    if args.search:
-        search_command(db, log_dir, config, args.search, args.output_format, console=console)
+    # Handle --list (with optional --filter)
+    if args.list_entries:
+        query = args.filter if args.filter else ""
+        # allow_empty=True lets --list show all entries when no filter is provided
+        search_command(db, log_dir, config, query, args.output_format, console=console, allow_empty=True)
+        return
+
+    # Handle standalone --filter (shorthand for --list --filter)
+    if args.filter:
+        search_command(db, log_dir, config, args.filter, args.output_format, console=console)
         return
 
     if args.edit is not None and args.delete is not None:
