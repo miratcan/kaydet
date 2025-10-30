@@ -18,7 +18,6 @@ from .commands import (
     doctor_command,
     done_command,
     edit_entry_command,
-    list_todos_command,
     reminder_command,
     search_command,
     stats_command,
@@ -86,12 +85,7 @@ def build_parser(config_path: Path) -> argparse.ArgumentParser:
         metavar="ID",
         help="Mark a todo as done by ID (e.g., 'kaydet --done 42').",
     )
-    todo_group.add_argument(
-        "--list-todos",
-        dest="list_todos",
-        action="store_true",
-        help="List all todos with their status (shorthand: 'kaydet --todo').",
-    )
+
 
     # Query & Browse
     query_group = parser.add_argument_group("Query & Browse")
@@ -202,9 +196,7 @@ def main() -> None:
         tags_command(db, args.output_format)
         return
 
-    if args.list_todos:
-        list_todos_command(db, log_dir, config, args.output_format, console=console)
-        return
+
 
     # args.todo with nargs="*" returns:
     # - None if --todo flag not provided
@@ -268,7 +260,6 @@ def main() -> None:
 
             format_todo_results(todos, args.output_format, config=config, console=console)
         else:
-            list_todos_command(db, log_dir, config, args.output_format, console=console)
             print(
                 '\nTo create a new todo: kaydet --todo '
                 '"your task description"'
