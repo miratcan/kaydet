@@ -49,94 +49,102 @@ def build_parser(config_path: Path) -> argparse.ArgumentParser:
         ),
         formatter_class=argparse.RawTextHelpFormatter,
     )
-    parser.add_argument(
+
+    # Basic Commands
+    basic_group = parser.add_argument_group("Basic Commands")
+    basic_group.add_argument(
         "entry", type=str, nargs="*", metavar="Entry", help="Entry content."
     )
-    parser.add_argument(
+    basic_group.add_argument(
         "--editor",
         "-e",
         dest="use_editor",
         action="store_true",
         help="Force opening editor.",
     )
-    parser.add_argument(
+    basic_group.add_argument(
         "--folder",
         "-f",
         dest="open_folder",
         action="store_true",
         help="Open the log directory.",
     )
-    parser.add_argument(
-        "--reminder",
-        dest="reminder",
-        action="store_true",
-        help="Show reminder.",
-    )
-    parser.add_argument(
-        "--stats",
-        dest="stats",
-        action="store_true",
-        help="Show calendar stats.",
-    )
-    parser.add_argument(
-        "--tags", dest="list_tags", action="store_true", help="List all tags."
-    )
-    parser.add_argument(
-        "--search",
-        dest="search",
-        metavar="TEXT",
-        help="Search entries (or filter todos with --todo).",
-    )
-    parser.add_argument(
-        "--browse",
-        dest="browse",
-        action="store_true",
-        help="Open the interactive browser.",
-    )
-    parser.add_argument(
-        "--doctor", dest="doctor", action="store_true",
-        help="Rebuild search index.",
-    )
-    parser.add_argument(
-        "--edit",
-        dest="edit",
-        type=int,
-        metavar="ID",
-        help="Edit an entry by numeric identifier.",
-    )
-    parser.add_argument(
-        "--delete",
-        dest="delete",
-        type=int,
-        metavar="ID",
-        help="Delete an entry by numeric identifier.",
-    )
-    parser.add_argument(
+
+    # Todo Management
+    todo_group = parser.add_argument_group("Todo Management")
+    todo_group.add_argument(
         "--todo",
         dest="todo",
         nargs="*",
         metavar="TEXT",
         help="Create a new todo entry (auto-adds status:pending and #todo).",
     )
-    parser.add_argument(
+    todo_group.add_argument(
         "--done",
         dest="done",
         type=int,
         metavar="ID",
         help="Mark a todo as done by ID.",
     )
-    parser.add_argument(
+    todo_group.add_argument(
         "--list-todos",
         dest="list_todos",
         action="store_true",
         help="List all todos with their status.",
     )
-    parser.add_argument(
+
+    # Query & Browse
+    query_group = parser.add_argument_group("Query & Browse")
+    query_group.add_argument(
+        "--search",
+        dest="search",
+        metavar="TEXT",
+        help="Search entries (or filter todos with --todo).",
+    )
+    query_group.add_argument(
+        "--tags", dest="list_tags", action="store_true", help="List all tags."
+    )
+    query_group.add_argument(
+        "--stats",
+        dest="stats",
+        action="store_true",
+        help="Show calendar stats.",
+    )
+    query_group.add_argument(
+        "--browse",
+        dest="browse",
+        action="store_true",
+        help="Open the interactive browser.",
+    )
+
+    # Management
+    management_group = parser.add_argument_group("Management")
+    management_group.add_argument(
+        "--doctor", dest="doctor", action="store_true",
+        help="Rebuild search index.",
+    )
+    management_group.add_argument(
+        "--edit",
+        dest="edit",
+        type=int,
+        metavar="ID",
+        help="Edit an entry by numeric identifier.",
+    )
+    management_group.add_argument(
+        "--delete",
+        dest="delete",
+        type=int,
+        metavar="ID",
+        help="Delete an entry by numeric identifier.",
+    )
+    management_group.add_argument(
         "--yes",
         dest="assume_yes",
         action="store_true",
         help="Automatically confirm prompts.",
     )
+
+    # Global Options
     parser.add_argument(
         "--format",
         dest="output_format",
