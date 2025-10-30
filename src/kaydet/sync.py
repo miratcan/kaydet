@@ -79,13 +79,11 @@ def _write_if_changed(
 
 
 def _normalize_entries(
-    db: sqlite3.Connection,
+    conn: sqlite3.Connection,
     day_file: Path,
     entries: List[Entry],
 ) -> List[Entry]:
-    """Ensure each entry has an ID recorded in SQLite and return updates."""
-
-    cursor = db.cursor()
+    cursor = conn.cursor()
     assigned_ids: List[int] = []
     normalized: List[Entry] = []
 
@@ -156,12 +154,12 @@ def _normalize_entries(
 
 
 def _reindex_entries(
-    db: sqlite3.Connection,
+    conn: sqlite3.Connection,
     entries: Iterable[Entry],
 ) -> None:
     """Refresh tags, words, and metadata rows for the provided entries."""
 
-    cursor = db.cursor()
+    cursor = conn.cursor()
     for entry in entries:
         if not entry.entry_id or not entry.entry_id.isdigit():
             continue
@@ -208,7 +206,7 @@ def _reindex_entries(
 
 
 def sync_modified_diary_files(
-    db: sqlite3.Connection,
+    conn: sqlite3.Connection,
     log_dir: Path,
     config: Dict[str, str],
     now: datetime,
@@ -225,7 +223,7 @@ def sync_modified_diary_files(
         DEFAULT_SETTINGS["DAY_FILE_PATTERN"],
     )
 
-    cursor = db.cursor()
+    cursor = conn.cursor()
     cursor.execute(
         "SELECT source_file, last_mtime FROM synced_files"
     )
@@ -255,10 +253,10 @@ def sync_modified_diary_files(
         lines = raw_text.splitlines()
         header_lines = _split_header(lines)
         entries = parse_day_entries(day_file, entry_date)
-        db.execute("BEGIN")
+        conn.execute("BEGIN")
         try:
-            normalized_entries = _normalize_entries(db, day_file, entries)
-            _reindex_entries(db, normalized_entries)
+            normalized_entries = _normalize_entries(conn, day_file, entries)
+            _reindex_entries(conn, normalized_entries)
 
             rendered_lines = list(header_lines)
             for entry in normalized_entries:
@@ -276,9 +274,9 @@ def sync_modified_diary_files(
                 "last_mtime = excluded.last_mtime",
                 (day_file.name, file_mtime),
             )
-            db.execute("COMMIT")
+            conn.execute("COMMIT")
         except Exception:
-            db.execute("ROLLBACK")
+            conn.execute("ROLLBACK")
             raise
     if normalized_files:
         logger.info(

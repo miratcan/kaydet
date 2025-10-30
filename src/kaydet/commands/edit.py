@@ -60,14 +60,14 @@ def _normalize_edited_block(entry_id: int, lines: List[str]) -> List[str]:
 
 
 def edit_entry_command(
-    db: sqlite3.Connection,
+    conn: sqlite3.Connection,
     log_dir: Path,
     config: SectionProxy,
     entry_id: int,
     now: datetime,
 ) -> None:
     """Launch the configured editor to update an existing entry."""
-    cursor = db.cursor()
+    cursor = conn.cursor()
     cursor.execute(
         "SELECT source_file FROM entries WHERE id = ?",
         (entry_id,),
@@ -118,12 +118,12 @@ def edit_entry_command(
     lines[start:end] = normalized_block
     ensure_newline = had_trailing_newline or edited_text.endswith("\n")
     write_day_file(day_file, lines, ensure_newline)
-    sync_modified_diary_files(db, log_dir, config, now)
+    sync_modified_diary_files(conn, log_dir, config, now)
     print(f"Updated entry {entry_id} in {source_file}.")
 
 
 def update_entry_inline(
-    db: sqlite3.Connection,
+    conn: sqlite3.Connection,
     log_dir: Path,
     config: SectionProxy,
     entry_id: int,
@@ -136,7 +136,7 @@ def update_entry_inline(
 ) -> Dict[str, str] | None:
     """Update an entry without launching an editor."""
 
-    cursor = db.cursor()
+    cursor = conn.cursor()
     cursor.execute(
         "SELECT source_file FROM entries WHERE id = ?",
         (entry_id,),
@@ -219,7 +219,7 @@ def update_entry_inline(
         text is not None and text.endswith("\n")
     )
     write_day_file(day_file, lines, ensure_newline)
-    sync_modified_diary_files(db, log_dir, config, now)
+    sync_modified_diary_files(conn, log_dir, config, now)
     print(f"Updated entry {entry_id} in {source_file}.")
     return {
         "entry_id": entry_id,

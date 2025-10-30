@@ -109,10 +109,9 @@ def build_search_query(
 
 
 def fetch_entry_locations(
-    db: sqlite3.Connection, sql_query: str, params: list
+    conn: sqlite3.Connection, sql_query: str, params: list
 ):
-    """Execute the search query and return matching entry identifiers."""
-    cursor = db.cursor()
+    cursor = conn.cursor()
     try:
         cursor.execute(sql_query, params)
     except sqlite3.OperationalError as error:
@@ -233,7 +232,7 @@ def print_matches(matches, query: str, output_format: str, config: SectionProxy,
 
 
 def search_command(
-    db: sqlite3.Connection,
+    conn: sqlite3.Connection,
     log_dir: Path,
     config: SectionProxy,
     query: str,
@@ -242,7 +241,7 @@ def search_command(
     allow_empty: bool = False,
 ):
     """Search diary entries using the SQLite index and print any matches."""
-    rebuild_index_if_empty(db, log_dir, config)
+    rebuild_index_if_empty(conn, log_dir, config)
 
     # Add default since: filter for current month if not specified
     text_terms, metadata_filters, tag_filters = tokenize_query(query)
@@ -288,7 +287,7 @@ def search_command(
     sql_query, params = build_search_query(
         text_terms, metadata_filters, tag_filters
     )
-    locations = fetch_entry_locations(db, sql_query, params)
+    locations = fetch_entry_locations(conn, sql_query, params)
     if locations is None:
         return
     if not locations:
@@ -298,9 +297,9 @@ def search_command(
     print_matches(matches, query, output_format, config, console, original_metadata_filters)
 
 
-def tags_command(db: sqlite3.Connection, output_format: str = "text"):
+def tags_command(conn: sqlite3.Connection, output_format: str = "text"):
     """Print the unique set of tags recorded in the database."""
-    cursor = db.cursor()
+    cursor = conn.cursor()
     cursor.execute(SELECT_TAG_COUNTS_SQL)
     rows = cursor.fetchall()
     if not rows:

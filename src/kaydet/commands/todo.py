@@ -19,7 +19,7 @@ def todo_command(
     config_dir: Path,
     log_dir: Path,
     now: datetime,
-    db,
+    conn,
 ) -> None:
     """Create a new todo entry with status:pending and #todo tag."""
     tokens = list(args.todo or [])
@@ -46,7 +46,7 @@ def todo_command(
         config_dir=config_dir,
         log_dir=log_dir,
         now=now,
-        db=db,
+        conn=conn,
     )
 
     print(f"Todo created: {result['day_file']} (ID: {result['entry_id']})")
@@ -55,7 +55,7 @@ def todo_command(
 
 
 def done_command(
-    db,
+    conn,
     log_dir: Path,
     config: SectionProxy,
     entry_id: int,
@@ -63,7 +63,7 @@ def done_command(
 ) -> None:
     """Mark a todo entry as done by updating its status metadata."""
     # Find the entry
-    cursor = db.cursor()
+    cursor = conn.cursor()
     cursor.execute(
         "SELECT source_file FROM entries WHERE id = ?",
         (entry_id,)
@@ -221,14 +221,14 @@ def done_command(
         (entry_id, completed_time, numeric_val),
     )
 
-    db.commit()
+    conn.commit()
 
     print(f"✓ Todo {entry_id} marked as done at {completed_time}")
     print(f"  Entry updated in {source_file}")
 
 
 def list_todos_command(
-    db,
+    conn,
     log_dir: Path,
     config: SectionProxy,
     output_format: str = "text",
@@ -238,7 +238,7 @@ def list_todos_command(
     from ..parsers import parse_day_entries, resolve_entry_date
 
     # Find all entries with #todo tag
-    cursor = db.cursor()
+    cursor = conn.cursor()
     cursor.execute(
         "SELECT DISTINCT e.id, e.source_file "
         "FROM entries e "

@@ -44,24 +44,24 @@ class KaydetService:
     config: Any
     config_dir: Path
     log_dir: Path
-    db: Any
+    conn: Any
 
     @classmethod
     def initialize(cls) -> "KaydetService":
         config, _config_path, config_dir, log_dir = load_config()
         db_path = log_dir / INDEX_FILENAME
-        db = database.get_db_connection(db_path)
-        database.initialize_database(db)
+        conn = database.get_db_connection(db_path)
+        database.initialize_database(conn)
         return cls(
             config=config,
             config_dir=config_dir,
             log_dir=log_dir,
-            db=db,
+            conn=conn,
         )
 
     def _ensure_index(self, now: datetime) -> None:
-        sync_modified_diary_files(self.db, self.log_dir, self.config, now)
-        rebuild_index_if_empty(self.db, self.log_dir, self.config, now)
+        sync_modified_diary_files(self.conn, self.log_dir, self.config, now)
+        rebuild_index_if_empty(self.conn, self.log_dir, self.config, now)
 
     def add_entry(
         self,
@@ -89,7 +89,7 @@ class KaydetService:
                 config_dir=self.config_dir,
                 log_dir=self.log_dir,
                 now=now,
-                db=self.db,
+                conn=self.conn,
             )
         except EmptyEntryError as error:
             return {"success": False, "error": str(error)}
@@ -98,7 +98,7 @@ class KaydetService:
     def delete_entry(self, entry_id: int) -> dict[str, Any]:
         now = datetime.now()
         result = delete_entry_command(
-            self.db,
+            self.conn,
             self.log_dir,
             self.config,
             entry_id,
@@ -120,7 +120,7 @@ class KaydetService:
     ) -> dict[str, Any]:
         now = datetime.now()
         result = update_entry_inline(
-            self.db,
+            self.conn,
             self.log_dir,
             self.config,
             entry_id,
@@ -145,7 +145,7 @@ class KaydetService:
         sql_query, params = build_search_query(
             text_terms, metadata_filters, tag_filters
         )
-        cursor = self.db.cursor()
+        cursor = self.conn.cursor()
         try:
             cursor.execute(sql_query, params)
         except Exception as error:  # pragma: no cover - sqlite errors rare
@@ -171,7 +171,7 @@ class KaydetService:
         }
 
     def list_tags(self) -> dict[str, Any]:
-        cursor = self.db.cursor()
+        cursor = self.conn.cursor()
         cursor.execute(
             (
                 "SELECT tag_name, COUNT(*) "
@@ -211,7 +211,7 @@ class KaydetService:
     def list_recent_entries(self, limit: int = 10) -> dict[str, Any]:
         now = datetime.now()
         self._ensure_index(now)
-        cursor = self.db.cursor()
+        cursor = self.conn.cursor()
         cursor.execute(
             "SELECT source_file, id FROM entries ORDER BY id DESC LIMIT ?",
             (limit,),
@@ -230,7 +230,7 @@ class KaydetService:
     def entries_by_tag(self, tag: str, limit: int = 10) -> dict[str, Any]:
         now = datetime.now()
         self._ensure_index(now)
-        cursor = self.db.cursor()
+        cursor = self.conn.cursor()
         cursor.execute(
             """
             SELECT e.source_file, e.id
@@ -266,7 +266,7 @@ class KaydetService:
                 config_dir=self.config_dir,
                 log_dir=self.log_dir,
                 now=now,
-                db=self.db,
+                conn=self.conn,
             )
         except EmptyEntryError as error:
             return {"success": False, "error": str(error)}
@@ -277,7 +277,7 @@ class KaydetService:
         now = datetime.now()
         try:
             done_command(
-                self.db,
+                self.conn,
                 self.log_dir,
                 self.config,
                 entry_id,
@@ -296,7 +296,7 @@ class KaydetService:
         now = datetime.now()
         self._ensure_index(now)
 
-        cursor = self.db.cursor()
+        cursor = self.conn.cursor()
         cursor.execute(
             "SELECT DISTINCT e.id, e.source_file "
             "FROM entries e "

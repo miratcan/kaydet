@@ -184,20 +184,19 @@ def main() -> None:
         return
 
     db_path = log_dir / INDEX_FILENAME
-    # TODO: Rename to `conn` or keep as `db` for brevity?
-    db = database.get_db_connection(db_path)
-    database.initialize_database(db)
+    conn = database.get_db_connection(db_path)
+    database.initialize_database(conn)
 
     if args.doctor:
-        doctor_command(db, log_dir, config, now)
+        doctor_command(conn, log_dir, config, now)
         return
 
-    sync_modified_diary_files(db, log_dir, config, now)
-    rebuild_index_if_empty(db, log_dir, config, now)
+    sync_modified_diary_files(conn, log_dir, config, now)
+    rebuild_index_if_empty(conn, log_dir, config, now)
 
     # TODO: I hated this, will be removed in future.
     if args.browse:
-        browse_command(db, log_dir, config)
+        browse_command(conn, log_dir, config)
         return
 
     if args.stats:
@@ -205,7 +204,7 @@ def main() -> None:
         return
 
     if args.list_tags:
-        tags_command(db, args.output_format)
+        tags_command(conn, args.output_format)
         return
 
 
@@ -219,7 +218,7 @@ def main() -> None:
         has_todo_text = bool(args.todo)
 
         if has_todo_text:
-            todo_command(args, config, config_dir, log_dir, now, db)
+            todo_command(args, config, config_dir, log_dir, now, conn)
         elif args.filter:
             # Filter todos and display in todo format
             from .commands.search import build_search_query, load_matches
@@ -235,7 +234,7 @@ def main() -> None:
                 text_terms, metadata_filters, tag_filters
             )
 
-            cursor = db.cursor()
+            cursor = conn.cursor()
             cursor.execute(sql_query, params)
             locations = cursor.fetchall()
 
@@ -283,30 +282,30 @@ def main() -> None:
         return
 
     if args.done is not None:
-        done_command(db, log_dir, config, args.done, now)
+        done_command(conn, log_dir, config, args.done, now)
         return
 
     # Handle --list (with optional --filter)
     if args.list_entries:
         query = args.filter if args.filter else ""
         # allow_empty=True lets --list show all entries when no filter is provided
-        search_command(db, log_dir, config, query, args.output_format, console=console, allow_empty=True)
+        search_command(conn, log_dir, config, query, args.output_format, console=console, allow_empty=True)
         return
 
     # Handle standalone --filter (shorthand for --list --filter)
     if args.filter:
-        search_command(db, log_dir, config, args.filter, args.output_format, console=console)
+        search_command(conn, log_dir, config, args.filter, args.output_format, console=console)
         return
 
     if args.edit is not None and args.delete is not None:
         print("Use either --edit or --delete, not both.")
         return
     if args.edit is not None:
-        edit_entry_command(db, log_dir, config, args.edit, now)
+        edit_entry_command(conn, log_dir, config, args.edit, now)
         return
     if args.delete is not None:
         delete_entry_command(
-            db,
+            conn,
             log_dir,
             config,
             args.delete,
@@ -316,5 +315,5 @@ def main() -> None:
         return
 
     add_entry_command(
-        args, config, config_dir, log_dir, now, db
+        args, config, config_dir, log_dir, now, conn
     )
