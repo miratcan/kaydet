@@ -1,4 +1,4 @@
-"""Command-line interface for the kaydet diary application."""
+"Command-line interface for the kaydet diary application."
 
 from __future__ import annotations
 
@@ -7,6 +7,8 @@ import subprocess  # Used by tests  # noqa: F401
 from datetime import datetime
 from pathlib import Path
 from textwrap import dedent
+
+from rich.console import Console
 
 from startfile import startfile
 
@@ -27,8 +29,6 @@ from .commands import (
 from .indexing import rebuild_index_if_empty
 from .parsers import extract_tags_from_text  # noqa: F401
 from .sync import sync_modified_diary_files
-from rich.console import Console
-from typing import Optional
 from .utils import DEFAULT_SETTINGS, load_config  # noqa: F401
 
 INDEX_FILENAME = "index.db"
@@ -82,7 +82,11 @@ def build_parser(config_path: Path) -> argparse.ArgumentParser:
         dest="todo",
         nargs="*",
         metavar="TEXT",
-        help="Create a new todo entry (e.g., 'kaydet --todo \"Buy groceries #home\"'). Use without arguments to list todos, or combine with --filter to narrow results (e.g., 'kaydet --todo --filter \"#work\"').",
+        help=(
+            "Create a new todo entry (e.g., 'kaydet --todo \"Buy groceries #home\"'). "
+            "Use without arguments to list todos, or combine with --filter to "
+            "narrow results (e.g., 'kaydet --todo --filter \"#work\"')."
+        ),
     )
     todo_group.add_argument(
         "--done",
@@ -106,6 +110,12 @@ def build_parser(config_path: Path) -> argparse.ArgumentParser:
         dest="filter",
         metavar="QUERY",
         help="Filter entries or todos by query.",
+    )
+    query_group.add_argument(
+        "--today",
+        dest="today",
+        action="store_true",
+        help="List today's entries only (shorthand for since:YYYY-MM-DD).",
     )
     query_group.add_argument(
         "--tags", dest="list_tags", action="store_true", help="List all tags."
@@ -269,7 +279,9 @@ def main() -> None:
                     }
                 )
 
-            format_todo_results(todos, args.output_format, config=config, console=console)
+            format_todo_results(
+                todos, args.output_format, config=config, console=console
+            )
         else:
             print(
                 '\nTo create a new todo: kaydet --todo '
@@ -285,16 +297,34 @@ def main() -> None:
         done_command(conn, log_dir, config, args.done, now)
         return
 
+    # Handle --today: add today's date as a since: filter
+    if args.today:
+        today_since = f"since:{now.date().isoformat()}"
+        if args.filter:
+            args.filter = f"{args.filter} {today_since}"
+        else:
+            args.filter = today_since
+        # Enable list mode if not already set
+        if not args.list_entries:
+            args.list_entries = True
+
     # Handle --list (with optional --filter)
     if args.list_entries:
         query = args.filter if args.filter else ""
-        # allow_empty=True lets --list show all entries when no filter is provided
-        search_command(conn, log_dir, config, query, args.output_format, console=console, allow_empty=True)
+        # allow_empty=True lets --list show all entries when no filter
+        # is provided
+        search_command(
+            conn, log_dir, config, query, args.output_format, console=console,
+            allow_empty=True
+        )
         return
 
     # Handle standalone --filter (shorthand for --list --filter)
     if args.filter:
-        search_command(conn, log_dir, config, args.filter, args.output_format, console=console)
+        search_command(
+            conn, log_dir, config, args.filter, args.output_format,
+            console=console
+        )
         return
 
     if args.edit is not None and args.delete is not None:
