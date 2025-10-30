@@ -32,9 +32,15 @@ def normalize_tag(tag: str) -> Optional[str]:
     Example:
         >>> normalize_tag("#Work")
         'work'
+        >>> normalize_tag("#work.")
+        'work'
     """
     cleaned = tag.strip().lstrip("#").lower()
-    return cleaned if cleaned else None
+    # Extract only valid tag characters (letters and hyphens)
+    match = re.match(r'^([a-z][a-z0-9_-]*)', cleaned)
+    if match:
+        return match.group(1)
+    return None
 
 
 def parse_metadata_token(token: str) -> Optional[Tuple[str, str]]:
@@ -144,19 +150,19 @@ def format_entry_header(
     Example:
         >>> format_entry_header("10:00", "Shipped release",
         ...                    {"status": "done"}, ["work"])
-        '10:00: Shipped release | status:done | #work'
+        '10:00: Shipped release status:done #work'
     """
     if entry_id:
         base_timestamp = f"{timestamp} [{entry_id}]"
     else:
         base_timestamp = timestamp
     base = f"{base_timestamp}: {message}" if message else f"{base_timestamp}:"
-    segments = [base.rstrip()]
+    parts = [base.rstrip()]
     if metadata:
-        segments.append(" ".join(f"{k}:{v}" for k, v in metadata.items()))
+        parts.append(" ".join(f"{k}:{v}" for k, v in metadata.items()))
     if extra_tag_markers:
-        segments.append(" ".join(f"#{t}" for t in extra_tag_markers if t))
-    return " | ".join(segments)
+        parts.append(" ".join(f"#{t}" for t in extra_tag_markers if t))
+    return " ".join(parts)
 
 
 def parse_stored_entry_remainder(
@@ -166,26 +172,30 @@ def parse_stored_entry_remainder(
 
     Example:
         >>> parse_stored_entry_remainder(
-        ...     "Start | status:done | #work #release"
+        ...     "Start status:done #work #release"
         ... )
         ('Start', {'status': 'done'}, ['work', 'release'])
     """
     metadata: Dict[str, str] = {}
     explicit_tags: List[str] = []
-    if "|" not in remainder:
-        return remainder.rstrip(), metadata, explicit_tags
-    parts = [part.strip() for part in remainder.split("|")]
-    message = parts[0] if parts else remainder.rstrip()
-    for segment in parts[1:]:
-        for token in segment.split():
-            if token.startswith("#"):
-                if tag := normalize_tag(token):
-                    explicit_tags.append(tag)
-            elif parsed := parse_metadata_token(token):
-                key, value = parsed
-                metadata[key] = value
-            else:
-                message = f"{message} {token}".strip()
+    message_tokens: List[str] = []
+
+    # Parse all tokens in the remainder
+    for token in remainder.split():
+        if token.startswith("#"):
+            # Extract tag AND keep in message
+            if tag := normalize_tag(token):
+                explicit_tags.append(tag)
+            message_tokens.append(token)
+        elif parsed := parse_metadata_token(token):
+            # Extract metadata but don't keep in message
+            key, value = parsed
+            metadata[key] = value
+        else:
+            # Keep as message text
+            message_tokens.append(token)
+
+    message = " ".join(message_tokens).rstrip()
     return message, metadata, explicit_tags
 
 
