@@ -20,18 +20,18 @@ Each entry within a day file consists of a single header line followed by option
 The header line is the most important part of an entry, containing its timestamp, optional ID, initial message, metadata, and tags.
 
 ```
-HH:MM [ID]: Message | metadata:value | #tags
+HH:MM [ID]: Message [| metadata:value] [| #tags]
 ```
 
 -   **`HH:MM` (Required Timestamp):** Represents the hour and minute the entry was created (e.g., `09:30`, `14:05`).
 -   **`[ID]` (Optional Entry ID):** A unique numeric identifier for the entry, enclosed in square brackets (e.g., `[123]`). This ID is automatically assigned by `kaydet` but can be manually specified for advanced use cases.
 -   **`: ` (Separator):** A colon followed by a space separates the timestamp/ID from the message.
--   **`Message`:** The first line of your diary entry's content. This is typically a brief summary or the start of a longer thought.
+-   **`Message`:** The first line of your diary entry's content. This is typically a brief summary or the start of a longer thought. Tags can also be included directly within the message (e.g., `My #work notes`).
 -   **`| metadata:value` (Optional Metadata):** Key-value pairs providing additional structured information about the entry. Multiple metadata items are separated by spaces.
     -   **Format:** `key:value` (e.g., `status:done`, `time:2h`, `priority:high`).
     -   Keys are typically alphanumeric and lowercase.
     -   Values can be any string. `kaydet` can parse numeric values (e.g., `2h` for 2 hours, `90m` for 90 minutes) for advanced search and statistics.
--   **`| #tags` (Optional Hashtags):** Categorical labels for your entry. Multiple tags are separated by spaces.
+-   **`| #tags` (Optional Hashtags):** Categorical labels for your entry. Multiple tags are separated by spaces. These can appear directly in the `Message` part or in a dedicated segment after a `|` separator.
     -   **Format:** `#tagname` (e.g., `#work`, `#idea`, `#project-x`).
     -   Tags are typically alphanumeric and lowercase.
 
@@ -41,8 +41,10 @@ Any lines following the header line, until the next entry header or the end of t
 
 ## Examples
 
+Here are various examples demonstrating the flexible format:
+
 ```
-09:00 [1]: Started new project | status:wip #work #new-project
+09:00 [1]: Started new project #work #new-project
     Initial setup and planning.
     Need to define scope.
 
@@ -54,6 +56,14 @@ Any lines following the header line, until the next entry header or the end of t
 
 18:00 [3]: Finished daily report | status:done time:1h #work
     Report submitted to manager.
+
+19:00: Just a simple entry.
+
+20:00: Another entry with metadata only | mood:relaxed
+    Enjoying the evening.
+
+21:00: Entry with tags only after separator | #idea #future
+    Brainstorming new features.
 ```
 
 ## Parsing Logic
