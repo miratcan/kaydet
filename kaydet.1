@@ -1,0 +1,81 @@
+.TH KAYDET "1" "30 Ekim 2025" "kaydet 0.33.0" "User Commands"
+.SH NAME
+kaydet \- Simple and terminal-based personal diary app
+.SH SYNOPSIS
+.B kaydet
+[\fIOPTIONS\fR] [\fIENTRY\fR...]
+.SH DESCRIPTION
+kaydet is a simple and terminal-based personal diary app designed to help you preserve your daily thoughts, experiences, and memories.
+.SH OPTIONS
+.TP
+\fB-h\fR, \fB--help\fR
+Show this help message and exit.
+.TP
+\fB--format\fR {text,json}
+Output format.
+.TP
+\fB--version\fR
+Show version.
+.SS Basic Commands
+.TP
+\fIENTRY\fR...
+Entry content.
+.TP
+\fB-e\fR, \fB--editor\fR
+Force opening editor.
+.TP
+\fB-f\fR, \fB--folder\fR
+Open the log directory.
+.TP
+\fB--reminder\fR
+Show reminder if you haven't written in a while.
+.SS Todo Management
+.TP
+\fB--todo\fR [\fITEXT\fR...]
+Create a new todo entry (e.g., 'kaydet --todo "Buy groceries #home"'). Use without arguments to list todos, or combine with --filter to narrow results (e.g., 'kaydet --todo --filter "#work"').
+.TP
+\fB--done\fR \fIID\fR
+Mark a todo as done by ID (e.g., 'kaydet --done 42').
+.SS Query & Browse
+.TP
+\fB--list\fR
+List all entries. Use with --filter to narrow results.
+.TP
+\fB--filter\fR \fIQUERY\fR
+Filter entries or todos by query.
+.TP
+\fB--tags\fR
+List all tags.
+.TP
+\fB--stats\fR
+Show calendar stats.
+.TP
+\fB--browse\fR
+Open the interactive browser.
+.SS Management
+.TP
+\fB--doctor\fR
+Rebuild search index.
+.TP
+\fB--edit\fR \fIID\fR
+Edit an entry by numeric identifier.
+.TP
+\fB--delete\fR \fIIDR
+Delete an entry by numeric identifier.
+.TP
+\fB--yes\fR
+Automatically confirm prompts.
+.SH EXAMPLES
+.RS
+.nf
+$ kaydet 'I am feeling grateful now.'
+$ kaydet "Fixed bug #work #urgent status:done time:2h"
+$ kaydet --editor
+.fi
+.RE
+.SH CONFIGURATION
+You can configure this by editing: /Users/mirat/.config/kaydet/config.ini
+.SH AUTHOR
+Mirat Can Bayrak
+.SH BUGS
+Report bugs at <https://github.com/miratcan/kaydet/issues>
