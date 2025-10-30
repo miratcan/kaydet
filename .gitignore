@@ -10,3 +10,4 @@ repomix-output.xml
 .venv/
 build/
 UNKNOWN.egg-info/
+*.bak
