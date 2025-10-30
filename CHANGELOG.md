@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.33.0] - 2025-10-30
+### Added
+- Introduced `--list` command for listing all entries with optional `--filter` modifier for cleaner, more intuitive CLI semantics
+- Added `since:YYYY-MM-DD` date filter with smart defaults (current month) to prevent terminal overflow when listing entries
+- Support for both `YYYY-MM` and `YYYY-MM-DD` date formats in `since:` filter
+
+### Changed
+- **BREAKING:** Replaced `--search` flag with `--list` (for listing) and `--filter` (for filtering) for better semantic clarity
+  - Old: `kaydet --search "query"`
+  - New: `kaydet --filter "query"` or `kaydet --list --filter "query"`
+- Search output now displays "Listed N entries" instead of "Found N entries" (terminal-friendly messaging at bottom)
+- Filter information and hints now shown at end of output: "Use 'since:0' to see all entries"
+- Default behavior: All list/filter operations now show current month entries only (use `since:0` for all time)
+
+### Fixed
+- `since:` date filter now correctly respects `DAY_FILE_PATTERN` configuration (fixes entries disappearing with custom file extensions like `.md`)
+- Removed inline imports in search module for better code organization
+
+### Developer Notes
+- All 59 tests pass including new date filter scenarios
+- Query string cleaning for display (removes `since:` from output for clarity)
+- Original dates preserved for user-facing messages while using configured filenames for SQL queries
+
 ## [0.32.0] - 2025-10-29
 ### Added
 - Added comprehensive todo management system with `--todo`, `--done ID`, and `--list-todos` commands for tracking pending and completed tasks.
