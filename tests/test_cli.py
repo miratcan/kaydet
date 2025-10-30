@@ -107,9 +107,9 @@ def test_add_entry_with_tags(setup_kaydet, mock_datetime_factory):
     print(f"\n--- LOG FILE CONTENT ---\n{content}\n------------------------")
 
     # Check for the new format with numeric IDs
-    # Tags are now extracted from message and appended at the end
+    # Tags are now extracted from message and appended naturally
     assert re.search(
-        r"11:00 \[\d+\]: This is a test for and \| #project-a #work",
+        r"11:00 \[\d+\]: This is a test for and #project-a #work",
         content,
     )
 
@@ -509,9 +509,9 @@ def test_manual_edit_sync_before_search(
 
     day_file = fake_log_dir / "2025-09-30.txt"
     content = day_file.read_text()
-    # Tags are now extracted and appended at the end with pipe separator
+    # Tags are now written naturally without pipe separator
     day_file.write_text(
-        content.replace("Initial note | #work", "Updated entry | #updated"),
+        content.replace("Initial note #work", "Updated entry #updated"),
         encoding="utf-8",
     )
 
