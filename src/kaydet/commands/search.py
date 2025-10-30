@@ -89,7 +89,7 @@ def build_search_query(
             params.append(expression)
 
     from_clause = " ".join(from_clauses)
-    where_clause = " AND ".join(where_clauses)
+    where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
     sql_query = SELECT_MATCHES_TEMPLATE.format(
         from_clause=from_clause,
         where_clause=where_clause,
@@ -182,7 +182,10 @@ def print_matches(matches, query: str, output_format: str, config: SectionProxy,
     format_search_results(search_results, terminal_width, config, console)
 
     entry_label = "entry" if len(matches) == 1 else "entries"
-    print(f"\nFound {len(matches)} {entry_label} containing '{query}'.")
+    if query:
+        print(f"\nFound {len(matches)} {entry_label} containing '{query}'.")
+    else:
+        print(f"\nFound {len(matches)} {entry_label}.")
 
 
 def search_command(
@@ -192,12 +195,13 @@ def search_command(
     query: str,
     output_format: str = "text",
     console: Optional[Console] = None,
+    allow_empty: bool = False,
 ):
     """Search diary entries using the SQLite index and print any matches."""
     rebuild_index_if_empty(db, log_dir, config)
 
     text_terms, metadata_filters, tag_filters = tokenize_query(query)
-    if not any([text_terms, metadata_filters, tag_filters]):
+    if not any([text_terms, metadata_filters, tag_filters]) and not allow_empty:
         print("Search query is empty.")
         return
     sql_query, params = build_search_query(

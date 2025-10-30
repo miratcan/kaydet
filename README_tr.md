@@ -88,7 +88,7 @@ kaydet --search "topic:testing"
 Her derin çalışma bloğunu zamanlar, haftasını veriler yönetir.
 
 ```bash
-kaydet "Analitik ETL için derin çalışma #focus time:2.5h intensity:high project:valocom"
+kaydet "Analitik ETL için derin çalışma #focus time:2.5h intensity:high project:analytics"
 kaydet "Emre ile eşli çalışma #pair time:1.5h intensity:medium project:kaydet"
 
 # Uzayan seansları bul
@@ -181,9 +181,9 @@ Bu ay toplam: 12 girdi
 14:25 [132]: Senkronizasyon yardımcılarını refaktorettim. #focus
 ```
 
-Her not, tarihle adlandırılmış bir dosyada (ör. `~/.kaydet/2024-02-19.txt`) yaşar. Kaydet dosyayı günceller, SQLite indeksini tazeler ve ID’leri sabit tutar—ister düzenleyin ister silin.
+Her not, tarihle adlandırılmış bir dosyada (ör. `~/.kaydet/2024-02-19.txt`) yaşar. Kaydet dosyayı günceller, SQLite indeksini tazeler ve ID'leri sabit tutar—ister düzenleyin ister silin.
 
-Satır içi hashtag’ler (`#aile`) ve metaveri (`project:valocom`, `time:45m`) birlikte saklanır. Arama her ikisini de kullanabilir.
+Satır içi hashtag'ler (`#aile`) ve metaveri (`project:work`, `time:45m`) birlikte saklanır. Arama her ikisini de kullanabilir.
 
 ## Kaydet’i Size Göre Ayarlayın
 
