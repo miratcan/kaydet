@@ -82,7 +82,9 @@ def create_entry(
         cleanup_payload = (entry_id,)
         conn.execute("DELETE FROM tags WHERE entry_id = ?", cleanup_payload)
         conn.execute("DELETE FROM words WHERE entry_id = ?", cleanup_payload)
-        conn.execute("DELETE FROM metadata WHERE entry_id = ?", cleanup_payload)
+        conn.execute(
+            "DELETE FROM metadata WHERE entry_id = ?", cleanup_payload
+        )
         conn.execute("DELETE FROM entries WHERE id = ?", cleanup_payload)
         raise
 

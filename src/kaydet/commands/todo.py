@@ -6,6 +6,7 @@ from configparser import SectionProxy
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
+
 from rich.console import Console
 
 from ..commands.add import create_entry
