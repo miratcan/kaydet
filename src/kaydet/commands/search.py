@@ -6,7 +6,7 @@ import shutil
 import sqlite3
 from collections import defaultdict
 from configparser import SectionProxy
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -72,14 +72,9 @@ def build_search_query(
             # since:0 or since:all means no date filter
             if expression in ("0", "all"):
                 continue
-            # Convert date to filename format (YYYY-MM-DD.txt)
+            # Expression is now a pre-formatted filename (handled in search_command)
             where_clauses.append(f"e.source_file >= ?")
-            # Ensure date format - handle both YYYY-MM-DD and YYYY-MM
-            if len(expression) == 7:  # YYYY-MM format
-                date_prefix = f"{expression}-01.txt"
-            else:  # YYYY-MM-DD format
-                date_prefix = f"{expression}.txt"
-            params.append(date_prefix)
+            params.append(expression)
             continue
 
         from_clauses.append(f"JOIN metadata m{i} ON e.id = m{i}.entry_id")
@@ -260,6 +255,33 @@ def search_command(
         current_month_start = date.today().replace(day=1).isoformat()
         metadata_filters.append(("since", current_month_start))
 
+    # Convert since: date expressions to actual filenames using DAY_FILE_PATTERN
+    # This ensures the filter works regardless of user's file extension (.txt, .md, etc.)
+    # Keep original dates for display purposes
+    day_file_pattern = config.get("DAY_FILE_PATTERN", "%Y-%m-%d.txt")
+    original_metadata_filters = list(metadata_filters)  # Keep for display
+
+    normalized_filters = []
+    for key, value in metadata_filters:
+        if key == "since" and value not in ("0", "all"):
+            # Parse date and format according to DAY_FILE_PATTERN
+            try:
+                # Handle both YYYY-MM-DD and YYYY-MM formats
+                if len(value) == 7:  # YYYY-MM format
+                    date_obj = datetime.strptime(f"{value}-01", "%Y-%m-%d")
+                else:  # YYYY-MM-DD format
+                    date_obj = datetime.strptime(value, "%Y-%m-%d")
+                # Format using configured pattern
+                filename = date_obj.strftime(day_file_pattern)
+                normalized_filters.append((key, filename))
+            except ValueError:
+                # Invalid date format, keep original (will likely fail gracefully)
+                normalized_filters.append((key, value))
+        else:
+            normalized_filters.append((key, value))
+
+    metadata_filters = normalized_filters
+
     if not any([text_terms, metadata_filters, tag_filters]) and not allow_empty:
         print("Search query is empty.")
         return
@@ -273,7 +295,7 @@ def search_command(
         print(f"No entries matched '{query}'.")
         return
     matches = load_matches(locations, log_dir, config)
-    print_matches(matches, query, output_format, config, console, metadata_filters)
+    print_matches(matches, query, output_format, config, console, original_metadata_filters)
 
 
 def tags_command(db: sqlite3.Connection, output_format: str = "text"):
