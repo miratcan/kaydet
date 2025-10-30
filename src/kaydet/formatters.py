@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 import textwrap
+from configparser import SectionProxy
 from datetime import date
 from itertools import groupby
 from operator import attrgetter
@@ -112,7 +113,9 @@ class TextUtils:
 class SearchResultFormatter:
     """Formatter for search results with proper alignment and wrapping."""
 
-    def __init__(self, console: Console, terminal_width: int, config: SectionProxy):
+    def __init__(
+        self, console: Console, terminal_width: int, config: SectionProxy
+    ):
         """
         Initialize formatter.
 

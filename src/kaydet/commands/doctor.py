@@ -23,7 +23,10 @@ ORDER BY tag_name
 
 
 def doctor_command(
-    conn: sqlite3.Connection, log_dir: Path, config: SectionProxy, now: datetime
+    conn: sqlite3.Connection,
+    log_dir: Path,
+    config: SectionProxy,
+    now: datetime
 ):
     """Rebuild the SQLite index while normalizing diary entry IDs."""
     print(
