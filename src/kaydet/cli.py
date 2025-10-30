@@ -68,6 +68,12 @@ def build_parser(config_path: Path) -> argparse.ArgumentParser:
         action="store_true",
         help="Open the log directory.",
     )
+    basic_group.add_argument(
+        "--reminder",
+        dest="reminder",
+        action="store_true",
+        help="Show reminder if you haven't written in a while.",
+    )
 
     # Todo Management
     todo_group = parser.add_argument_group("Todo Management")
@@ -170,6 +176,9 @@ def main() -> None:
     now = datetime.now()
     console = Console()
 
+    if args.reminder:
+        reminder_command(config_dir, log_dir, now)
+        return
     if args.open_folder:
         startfile(str(log_dir))
         return

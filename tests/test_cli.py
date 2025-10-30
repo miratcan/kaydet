@@ -745,7 +745,6 @@ def test_today_file_waits_until_midnight(
     assert re.search(r"21:00 \[\d+\]: Manual entry", updated_content)
 
 
-@pytest.mark.skip(reason="--reminder flag removed in CLI refactor")
 def test_reminder_no_previous_entries(setup_kaydet, capsys):
     """Test the reminder command when no entries exist yet."""
     monkeypatch = setup_kaydet["monkeypatch"]
@@ -757,7 +756,6 @@ def test_reminder_no_previous_entries(setup_kaydet, capsys):
     assert "You haven't written any Kaydet entries yet." in captured.out
 
 
-@pytest.mark.skip(reason="--reminder flag removed in CLI refactor")
 def test_reminder_recent_entry(setup_kaydet, capsys):
     """Test the reminder command when a recent entry exists."""
     monkeypatch = setup_kaydet["monkeypatch"]
@@ -775,7 +773,6 @@ def test_reminder_recent_entry(setup_kaydet, capsys):
     assert captured.out == ""
 
 
-@pytest.mark.skip(reason="--reminder flag removed in CLI refactor")
 def test_reminder_old_entry(setup_kaydet, capsys):
     """Test the reminder command when the last entry is old."""
     monkeypatch = setup_kaydet["monkeypatch"]
@@ -832,7 +829,6 @@ def test_read_diary_with_bad_encoding(
     assert "Total entries this month: 2" in output
 
 
-@pytest.mark.skip(reason="--reminder flag removed in CLI refactor")
 def test_reminder_fallback_to_mtime(
     setup_kaydet, capsys, mock_datetime_factory
 ):
