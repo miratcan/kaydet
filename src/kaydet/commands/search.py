@@ -67,13 +67,27 @@ def build_search_query(
         where_clauses.append(f"t{i}.tag_name = ?")
         params.append(tag)
     for i, (key, expression) in enumerate(metadata_filters):
-        # Special handling for 'since:' filter - filter by source_file (date-based filename)
+        # Special handling for 'since:' filter - filter by source_file
+        # (date-based filename)
         if key == "since":
             # since:0 or since:all means no date filter
             if expression in ("0", "all"):
                 continue
-            # Expression is now a pre-formatted filename (handled in search_command)
-            where_clauses.append(f"e.source_file >= ?")
+            # Expression is now a pre-formatted filename (handled in
+            # search_command)
+            where_clauses.append("e.source_file >= ?")
+            params.append(expression)
+            continue
+
+        # Special handling for 'until:' filter - filter by source_file
+        # (date-based filename)
+        if key == "until":
+            # until:0 or until:all means no date filter
+            if expression in ("0", "all"):
+                continue
+            # Expression is now a pre-formatted filename (handled in
+            # search_command)
+            where_clauses.append("e.source_file <= ?")
             params.append(expression)
             continue
 
@@ -151,7 +165,14 @@ def load_matches(
     return matches
 
 
-def print_matches(matches, query: str, output_format: str, config: SectionProxy, console: Optional[Console] = None, metadata_filters: Optional[List[Tuple[str, str]]] = None) -> None:
+def print_matches(
+    matches,
+    query: str,
+    output_format: str,
+    config: SectionProxy,
+    console: Optional[Console] = None,
+    metadata_filters: Optional[List[Tuple[str, str]]] = None,
+) -> None:
     """Render matches either as JSON or a terminal-friendly listing."""
     if output_format == "json":
         print(
@@ -191,40 +212,56 @@ def print_matches(matches, query: str, output_format: str, config: SectionProxy,
     # Use the formatter to display results
     format_search_results(search_results, terminal_width, config, console)
 
-    # Extract since filter info if present
+    # Extract since/until filter info if present
     since_value = None
+    until_value = None
     if metadata_filters:
         for key, value in metadata_filters:
             if key == "since":
                 since_value = value
-                break
+            elif key == "until":
+                until_value = value
 
     # Build status message at the bottom (terminal scrolls up)
     entry_label = "entry" if len(matches) == 1 else "entries"
 
-    # Clean query: remove since: filter from display (it's shown separately)
+    # Clean query: remove since:/until: filters from display (shown separately)
     display_query = query
     if "since:" in query:
         # Remove since:VALUE from query string for cleaner display
         display_query = re.sub(r'\bsince:\S+\s*', '', query).strip()
+    if "until:" in query:
+        # Remove until:VALUE from query string for cleaner display
+        display_query = re.sub(r'\buntil:\S+\s*', '', query).strip()
 
     if display_query:
-        status_msg = f"\nListed {len(matches)} {entry_label} containing '{display_query}'"
+        status_msg = (
+            f"\nListed {len(matches)} {entry_label} containing "
+            f"{display_query}"
+        )
     else:
         status_msg = f"\nListed {len(matches)} {entry_label}"
 
-    # Add since filter info if applied and not since:0
-    if since_value and since_value not in ("0", "all"):
+    # Add date range info if filters are applied
+    has_since = since_value and since_value not in ("0", "all")
+    has_until = until_value and until_value not in ("0", "all")
+
+    if has_since and has_until:
+        # Show date range
+        status_msg += f" ({since_value} to {until_value})"
+    elif has_since:
         current_month_start = date.today().replace(day=1).isoformat()
         if since_value == current_month_start:
             status_msg += f" (since {since_value}, current month)"
         else:
             status_msg += f" (since {since_value})"
+    elif has_until:
+        status_msg += f" (until {until_value})"
 
     print(status_msg + ".")
 
-    # Show hint for seeing all entries if filter is applied
-    if since_value and since_value not in ("0", "all"):
+    # Show hint for seeing all entries if date filter is applied
+    if has_since or has_until:
         if display_query:
             print(f"Use '{display_query} since:0' to see all entries.")
         else:
@@ -240,7 +277,8 @@ def search_command(
     console: Optional[Console] = None,
     allow_empty: bool = False,
 ):
-    """Search diary entries using the SQLite index and print any matches."""
+    """Search diary entries using the SQLite index and print any
+    matches."""
     rebuild_index_if_empty(conn, log_dir, config)
 
     # Add default since: filter for current month if not specified
@@ -254,8 +292,10 @@ def search_command(
         current_month_start = date.today().replace(day=1).isoformat()
         metadata_filters.append(("since", current_month_start))
 
-    # Convert since: date expressions to actual filenames using DAY_FILE_PATTERN
-    # This ensures the filter works regardless of user's file extension (.txt, .md, etc.)
+    # Convert since: date expressions to actual filenames using
+    # DAY_FILE_PATTERN
+    # This ensures the filter works regardless of user's file extension
+    # (.txt, .md, etc.)
     # Keep original dates for display purposes
     day_file_pattern = config.get("DAY_FILE_PATTERN", "%Y-%m-%d.txt")
     original_metadata_filters = list(metadata_filters)  # Keep for display
@@ -274,14 +314,31 @@ def search_command(
                 filename = date_obj.strftime(day_file_pattern)
                 normalized_filters.append((key, filename))
             except ValueError:
-                # Invalid date format, keep original (will likely fail gracefully)
+                # Invalid date format, keep original (will likely fail
+                # gracefully)
+                normalized_filters.append((key, value))
+        elif key == "until" and value not in ("0", "all"):
+            # Parse date and format according to DAY_FILE_PATTERN
+            try:
+                # Handle both YYYY-MM-DD and YYYY-MM formats
+                if len(value) == 7:  # YYYY-MM format
+                    date_obj = datetime.strptime(f"{value}-01", "%Y-%m-%d")
+                else:  # YYYY-MM-DD format
+                    date_obj = datetime.strptime(value, "%Y-%m-%d")
+                # Format using configured pattern
+                filename = date_obj.strftime(day_file_pattern)
+                normalized_filters.append((key, filename))
+            except ValueError:
+                # Invalid date format, keep original (will likely fail
+                # gracefully)
                 normalized_filters.append((key, value))
         else:
             normalized_filters.append((key, value))
 
     metadata_filters = normalized_filters
 
-    if not any([text_terms, metadata_filters, tag_filters]) and not allow_empty:
+    if not any([text_terms, metadata_filters, tag_filters]) and \
+        not allow_empty:
         print("Search query is empty.")
         return
     sql_query, params = build_search_query(
@@ -294,7 +351,10 @@ def search_command(
         print(f"No entries matched '{query}'.")
         return
     matches = load_matches(locations, log_dir, config)
-    print_matches(matches, query, output_format, config, console, original_metadata_filters)
+    print_matches(
+        matches, query, output_format, config, console,
+        original_metadata_filters
+    )
 
 
 def tags_command(conn: sqlite3.Connection, output_format: str = "text"):
