@@ -33,7 +33,7 @@ def create_entry(
     config_dir: Path,
     log_dir: Path,
     now: datetime,
-    db,
+    conn,
 ) -> Dict[str, str]:
     """Persist an entry using shared logic for CLI and programmatic callers."""
 
@@ -61,7 +61,7 @@ def create_entry(
     }
 
     entry_id = database.add_entry(
-        db=db,
+        conn=conn,
         source_file=day_file.name,
         timestamp=timestamp,
         tags=all_tags,
@@ -80,10 +80,10 @@ def create_entry(
         )
     except Exception:
         cleanup_payload = (entry_id,)
-        db.execute("DELETE FROM tags WHERE entry_id = ?", cleanup_payload)
-        db.execute("DELETE FROM words WHERE entry_id = ?", cleanup_payload)
-        db.execute("DELETE FROM metadata WHERE entry_id = ?", cleanup_payload)
-        db.execute("DELETE FROM entries WHERE id = ?", cleanup_payload)
+        conn.execute("DELETE FROM tags WHERE entry_id = ?", cleanup_payload)
+        conn.execute("DELETE FROM words WHERE entry_id = ?", cleanup_payload)
+        conn.execute("DELETE FROM metadata WHERE entry_id = ?", cleanup_payload)
+        conn.execute("DELETE FROM entries WHERE id = ?", cleanup_payload)
         raise
 
     save_last_entry_timestamp(config_dir, now)
@@ -133,7 +133,7 @@ def append_entry(
             handle.write(f"{line}\n")
 
 
-def add_entry_command(args, config, config_dir, log_dir, now, db):
+def add_entry_command(args, config, config_dir, log_dir, now, conn):
     """Handle the add entry command."""
     ensure_day_file(log_dir, now, config)
     raw_entry, metadata, explicit_tags = get_entry(args, config)
@@ -150,7 +150,7 @@ def add_entry_command(args, config, config_dir, log_dir, now, db):
         config_dir=config_dir,
         log_dir=log_dir,
         now=now,
-        db=db,
+        conn=conn,
     )
 
     print(f"Entry added to: {result['day_file']} (ID: {result['entry_id']})")

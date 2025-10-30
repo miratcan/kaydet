@@ -26,7 +26,7 @@ def _confirm_delete(entry_id: int, preview: str, *, assume_yes: bool) -> bool:
 
 
 def delete_entry_command(
-    db: sqlite3.Connection,
+    conn: sqlite3.Connection,
     log_dir: Path,
     config: SectionProxy,
     entry_id: int,
@@ -35,7 +35,7 @@ def delete_entry_command(
     now: datetime,
 ) -> dict[str, str] | None:
     """Remove an entry by identifier and resynchronize the index."""
-    cursor = db.cursor()
+    cursor = conn.cursor()
     cursor.execute(
         "SELECT source_file FROM entries WHERE id = ?",
         (entry_id,),
@@ -76,6 +76,6 @@ def delete_entry_command(
 
     ensure_newline = had_trailing_newline
     write_day_file(day_file, lines, ensure_newline)
-    sync_modified_diary_files(db, log_dir, config, now)
+    sync_modified_diary_files(conn, log_dir, config, now)
     print(f"Deleted entry {entry_id} from {source_file}.")
     return {"entry_id": entry_id, "day_file": str(day_file)}

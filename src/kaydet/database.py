@@ -103,12 +103,12 @@ def get_db_connection(db_path: Path) -> sqlite3.Connection:
     return connection
 
 
-def initialize_database(db: sqlite3.Connection):
+def initialize_database(conn: sqlite3.Connection):
     """
     Initializes the database with the required schema, including tables for
     entries, tags, words, and metadata. Also sets up a versioning system.
     """
-    cursor = db.cursor()
+    cursor = conn.cursor()
 
     # 1. Check and set schema version
     cursor.execute(PRAGMA_USER_VERSION)
@@ -127,7 +127,7 @@ def initialize_database(db: sqlite3.Connection):
             cursor.execute(statement)
 
         cursor.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
-        db.commit()
+        conn.commit()
         return
 
     cursor.execute(CREATE_TABLE_SYNCED_FILES)
@@ -189,7 +189,7 @@ def _upsert_source_records(
 
 
 def add_entry(
-    db: sqlite3.Connection,
+    conn: sqlite3.Connection,
     source_file: str,
     timestamp: str,
     tags: Iterable[str],
@@ -199,7 +199,7 @@ def add_entry(
     entry_id: int | None = None,
 ) -> int:
     """Add an entry, with its tags, words, and metadata, in one transaction."""
-    cursor = db.cursor()
+    cursor = conn.cursor()
 
     try:
         cursor.execute("BEGIN")

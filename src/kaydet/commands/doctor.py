@@ -23,7 +23,7 @@ ORDER BY tag_name
 
 
 def doctor_command(
-    db: sqlite3.Connection, log_dir: Path, config: SectionProxy, now: datetime
+    conn: sqlite3.Connection, log_dir: Path, config: SectionProxy, now: datetime
 ):
     """Rebuild the SQLite index while normalizing diary entry IDs."""
     print(
@@ -31,13 +31,13 @@ def doctor_command(
     )
 
     for table in DELETE_INDEX_TABLES:
-        db.execute(DELETE_TABLE_TEMPLATE.format(table=table))
-    db.execute(DELETE_ENTRIES_SQL)
-    db.execute(DELETE_SYNCED_FILES_SQL)
-    db.commit()
+        conn.execute(DELETE_TABLE_TEMPLATE.format(table=table))
+    conn.execute(DELETE_ENTRIES_SQL)
+    conn.execute(DELETE_SYNCED_FILES_SQL)
+    conn.commit()
 
     normalized = sync_modified_diary_files(
-        db,
+        conn,
         log_dir,
         config,
         now,
@@ -46,7 +46,7 @@ def doctor_command(
     for changed in normalized:
         print(f"Normalized IDs in {changed}")
 
-    cursor = db.cursor()
+    cursor = conn.cursor()
     cursor.execute(SELECT_ENTRY_COUNT_SQL)
     total_entries = cursor.fetchone()[0]
 

@@ -456,7 +456,7 @@ class ConfirmDeleteScreen(ModalScreen[bool]):
 
 
 def browse_command(
-    db,  # Ignored but kept for API symmetry with other commands
+    conn,  # Ignored but kept for API symmetry with other commands
     log_dir: Path,
     config: SectionProxy,
 ) -> None:
