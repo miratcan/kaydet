@@ -321,7 +321,7 @@ def test_search_command(setup_kaydet, capsys):
         "16:00: This is a completely unrelated note.\n"
     )
 
-    monkeypatch.setattr(sys, "argv", ["kaydet", "--search", "secret"])
+    monkeypatch.setattr(sys, "argv", ["kaydet", "--filter", "secret"])
 
     cli.main()
 
@@ -388,7 +388,7 @@ def test_search_with_metadata_filters(
     )
     cli.main()
 
-    monkeypatch.setattr(sys, "argv", ["kaydet", "--search", "status:done"])
+    monkeypatch.setattr(sys, "argv", ["kaydet", "--filter", "status:done"])
     cli.main()
     output = capsys.readouterr().out
     assert "Feature complete" in output
@@ -396,14 +396,14 @@ def test_search_with_metadata_filters(
     assert "Bugfix" in output
     assert "Implement feature" not in output
 
-    monkeypatch.setattr(sys, "argv", ["kaydet", "--search", "time:>2"])
+    monkeypatch.setattr(sys, "argv", ["kaydet", "--filter", "time:>2"])
     cli.main()
     output = capsys.readouterr().out
     assert "Feature complete" in output
     assert "Bugfix" not in output
 
     monkeypatch.setattr(
-        sys, "argv", ["kaydet", "--search", "branch:feature/* status:done"]
+        sys, "argv", ["kaydet", "--filter", "branch:feature/* status:done"]
     )
     cli.main()
     output = capsys.readouterr().out
@@ -515,7 +515,7 @@ def test_manual_edit_sync_before_search(
         encoding="utf-8",
     )
 
-    monkeypatch.setattr(sys, "argv", ["kaydet", "--search", "#updated"])
+    monkeypatch.setattr(sys, "argv", ["kaydet", "--filter", "#updated"])
     cli.main()
     output = capsys.readouterr().out
 
@@ -745,6 +745,7 @@ def test_today_file_waits_until_midnight(
     assert re.search(r"21:00 \[\d+\]: Manual entry", updated_content)
 
 
+@pytest.mark.skip(reason="--reminder flag removed in CLI refactor")
 def test_reminder_no_previous_entries(setup_kaydet, capsys):
     """Test the reminder command when no entries exist yet."""
     monkeypatch = setup_kaydet["monkeypatch"]
@@ -756,6 +757,7 @@ def test_reminder_no_previous_entries(setup_kaydet, capsys):
     assert "You haven't written any Kaydet entries yet." in captured.out
 
 
+@pytest.mark.skip(reason="--reminder flag removed in CLI refactor")
 def test_reminder_recent_entry(setup_kaydet, capsys):
     """Test the reminder command when a recent entry exists."""
     monkeypatch = setup_kaydet["monkeypatch"]
@@ -773,6 +775,7 @@ def test_reminder_recent_entry(setup_kaydet, capsys):
     assert captured.out == ""
 
 
+@pytest.mark.skip(reason="--reminder flag removed in CLI refactor")
 def test_reminder_old_entry(setup_kaydet, capsys):
     """Test the reminder command when the last entry is old."""
     monkeypatch = setup_kaydet["monkeypatch"]
@@ -829,6 +832,7 @@ def test_read_diary_with_bad_encoding(
     assert "Total entries this month: 2" in output
 
 
+@pytest.mark.skip(reason="--reminder flag removed in CLI refactor")
 def test_reminder_fallback_to_mtime(
     setup_kaydet, capsys, mock_datetime_factory
 ):
@@ -952,7 +956,7 @@ def test_search_no_results(setup_kaydet, capsys):
         "10:00: Some unrelated content.\n"
     )
 
-    monkeypatch.setattr(sys, "argv", ["kaydet", "--search", "nonexistent"])
+    monkeypatch.setattr(sys, "argv", ["kaydet", "--filter", "nonexistent"])
 
     cli.main()
 
@@ -1204,7 +1208,7 @@ def test_search_multiline_result(setup_kaydet, capsys):
         )
     )
 
-    monkeypatch.setattr(sys, "argv", ["kaydet", "--search", "first line"])
+    monkeypatch.setattr(sys, "argv", ["kaydet", "--filter", "first line"])
     cli.main()
 
     captured = capsys.readouterr()
@@ -1301,7 +1305,7 @@ def test_search_with_colon_containing_text(
 
     # Search for URL - should match as plain text
     monkeypatch.setattr(
-        sys, "argv", ["kaydet", "--search", "http://example.com"]
+        sys, "argv", ["kaydet", "--filter", "http://example.com"]
     )
     cli.main()
     output = capsys.readouterr().out
@@ -1309,14 +1313,14 @@ def test_search_with_colon_containing_text(
     assert "Meeting" not in output
 
     # Search for time - should match as plain text
-    monkeypatch.setattr(sys, "argv", ["kaydet", "--search", "12:30"])
+    monkeypatch.setattr(sys, "argv", ["kaydet", "--filter", "12:30"])
     cli.main()
     output = capsys.readouterr().out
     assert "12:30" in output
     assert "http://example.com" not in output
 
     # Search for valid metadata should still work
-    monkeypatch.setattr(sys, "argv", ["kaydet", "--search", "commit:38edf60"])
+    monkeypatch.setattr(sys, "argv", ["kaydet", "--filter", "commit:38edf60"])
     cli.main()
     output = capsys.readouterr().out
     assert "Deployed fix" in output
