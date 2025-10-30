@@ -1,13 +1,14 @@
 "Search and tags commands."
 
 import json
+import re
 import shutil
 import sqlite3
 from collections import defaultdict
 from configparser import SectionProxy
 from datetime import date
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from rich import print
 from rich.console import Console
@@ -66,6 +67,21 @@ def build_search_query(
         where_clauses.append(f"t{i}.tag_name = ?")
         params.append(tag)
     for i, (key, expression) in enumerate(metadata_filters):
+        # Special handling for 'since:' filter - filter by source_file (date-based filename)
+        if key == "since":
+            # since:0 or since:all means no date filter
+            if expression in ("0", "all"):
+                continue
+            # Convert date to filename format (YYYY-MM-DD.txt)
+            where_clauses.append(f"e.source_file >= ?")
+            # Ensure date format - handle both YYYY-MM-DD and YYYY-MM
+            if len(expression) == 7:  # YYYY-MM format
+                date_prefix = f"{expression}-01.txt"
+            else:  # YYYY-MM-DD format
+                date_prefix = f"{expression}.txt"
+            params.append(date_prefix)
+            continue
+
         from_clauses.append(f"JOIN metadata m{i} ON e.id = m{i}.entry_id")
         where_clauses.append(f"m{i}.meta_key = ?")
         params.append(key)
@@ -141,7 +157,7 @@ def load_matches(
     return matches
 
 
-def print_matches(matches, query: str, output_format: str, config: SectionProxy, console: Optional[Console] = None) -> None:
+def print_matches(matches, query: str, output_format: str, config: SectionProxy, console: Optional[Console] = None, metadata_filters: Optional[List[Tuple[str, str]]] = None) -> None:
     """Render matches either as JSON or a terminal-friendly listing."""
     if output_format == "json":
         print(
@@ -181,11 +197,44 @@ def print_matches(matches, query: str, output_format: str, config: SectionProxy,
     # Use the formatter to display results
     format_search_results(search_results, terminal_width, config, console)
 
+    # Extract since filter info if present
+    since_value = None
+    if metadata_filters:
+        for key, value in metadata_filters:
+            if key == "since":
+                since_value = value
+                break
+
+    # Build status message at the bottom (terminal scrolls up)
     entry_label = "entry" if len(matches) == 1 else "entries"
-    if query:
-        print(f"\nFound {len(matches)} {entry_label} containing '{query}'.")
+
+    # Clean query: remove since: filter from display (it's shown separately)
+    display_query = query
+    if "since:" in query:
+        # Remove since:VALUE from query string for cleaner display
+        display_query = re.sub(r'\bsince:\S+\s*', '', query).strip()
+
+    if display_query:
+        status_msg = f"\nListed {len(matches)} {entry_label} containing '{display_query}'"
     else:
-        print(f"\nFound {len(matches)} {entry_label}.")
+        status_msg = f"\nListed {len(matches)} {entry_label}"
+
+    # Add since filter info if applied and not since:0
+    if since_value and since_value not in ("0", "all"):
+        current_month_start = date.today().replace(day=1).isoformat()
+        if since_value == current_month_start:
+            status_msg += f" (since {since_value}, current month)"
+        else:
+            status_msg += f" (since {since_value})"
+
+    print(status_msg + ".")
+
+    # Show hint for seeing all entries if filter is applied
+    if since_value and since_value not in ("0", "all"):
+        if display_query:
+            print(f"Use '{display_query} since:0' to see all entries.")
+        else:
+            print("Use 'since:0' to see all entries.")
 
 
 def search_command(
@@ -200,7 +249,17 @@ def search_command(
     """Search diary entries using the SQLite index and print any matches."""
     rebuild_index_if_empty(db, log_dir, config)
 
+    # Add default since: filter for current month if not specified
     text_terms, metadata_filters, tag_filters = tokenize_query(query)
+
+    # Check if since: filter is already present
+    has_since_filter = any(key == "since" for key, _ in metadata_filters)
+
+    # Add default since: for current month if not specified
+    if not has_since_filter:
+        current_month_start = date.today().replace(day=1).isoformat()
+        metadata_filters.append(("since", current_month_start))
+
     if not any([text_terms, metadata_filters, tag_filters]) and not allow_empty:
         print("Search query is empty.")
         return
@@ -214,7 +273,7 @@ def search_command(
         print(f"No entries matched '{query}'.")
         return
     matches = load_matches(locations, log_dir, config)
-    print_matches(matches, query, output_format, config, console)
+    print_matches(matches, query, output_format, config, console, metadata_filters)
 
 
 def tags_command(db: sqlite3.Connection, output_format: str = "text"):

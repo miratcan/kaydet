@@ -333,7 +333,7 @@ def test_search_command(setup_kaydet, capsys):
     assert "Planning the" in output
     assert "secret-meeting" in output
     assert "unrelated note" not in output
-    assert "Found 2 entries containing 'secret'." in output
+    assert "Listed 2 entries containing 'secret'" in output
 
 
 def test_search_with_metadata_filters(
@@ -515,7 +515,7 @@ def test_manual_edit_sync_before_search(
         encoding="utf-8",
     )
 
-    monkeypatch.setattr(sys, "argv", ["kaydet", "--filter", "#updated"])
+    monkeypatch.setattr(sys, "argv", ["kaydet", "--filter", "#updated since:0"])
     cli.main()
     output = capsys.readouterr().out
 
