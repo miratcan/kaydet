@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 from configparser import SectionProxy
 from datetime import datetime
 from pathlib import Path
@@ -24,6 +25,69 @@ class EmptyEntryError(ValueError):
     """Raised when an entry save attempt lacks content, metadata, and tags."""
 
 
+def _parse_at_str(at_str: str, now: datetime) -> datetime:
+    """Parse a custom timestamp string into a datetime object."""
+    at_str = at_str.strip()
+    try:
+        # Is it just time? e.g., "14:30"
+        t = datetime.strptime(at_str, "%H:%M").time()
+        return now.replace(hour=t.hour, minute=t.minute, second=0, microsecond=0)
+    except ValueError:
+        # Is it a full datetime? e.g., "2025-10-28:14:30"
+        try:
+            return datetime.strptime(at_str, "%Y-%m-%d:%H:%M")
+        except ValueError:
+            raise ValueError(
+                f"Invalid --at format: '{at_str}'. Use 'HH:MM' or 'YYYY-MM-DD:HH:MM'."
+            )
+
+
+def insert_entry_chronologically(
+    day_file: Path,
+    entry_id: int,
+    timestamp: str,
+    message_lines: Tuple[str, ...],
+    metadata: Dict[str, str],
+    extra_tag_markers: Iterable[str],
+) -> None:
+    """Insert an entry into a day file, maintaining chronological order."""
+    header_line = format_entry_header(
+        timestamp,
+        message_lines[0] if message_lines else "",
+        metadata,
+        extra_tag_markers,
+        entry_id=str(entry_id),
+    )
+    new_entry_content = [header_line] + [f"  {line}" for line in message_lines[1:]]
+
+
+    if not day_file.exists():
+        with day_file.open("w", encoding="utf-8") as handle:
+            for line in new_entry_content:
+                handle.write(f"{line}\n")
+        return
+
+    lines = day_file.read_text(encoding="utf-8").splitlines()
+    output_lines = []
+    inserted = False
+
+    for line in lines:
+        match = re.match(r"(\d{2}:\d{2})", line)
+        if not inserted and match:
+            line_timestamp = match.group(1)
+            if timestamp < line_timestamp:
+                output_lines.extend(new_entry_content)
+                inserted = True
+        output_lines.append(line)
+
+    if not inserted:
+        output_lines.extend(new_entry_content)
+
+    with day_file.open("w", encoding="utf-8") as handle:
+        for line in output_lines:
+            handle.write(f"{line}\n")
+
+
 def create_entry(
     *,
     raw_entry: str,
@@ -34,6 +98,7 @@ def create_entry(
     log_dir: Path,
     now: datetime,
     conn,
+    at_str: str | None = None,
 ) -> Dict[str, str]:
     """Persist an entry using shared logic for CLI and programmatic callers."""
 
@@ -70,7 +135,10 @@ def create_entry(
     )
 
     try:
-        append_entry(
+        write_func = (
+            insert_entry_chronologically if at_str else append_entry
+        )
+        write_func(
             day_file=day_file,
             entry_id=entry_id,
             timestamp=timestamp,
@@ -137,7 +205,14 @@ def append_entry(
 
 def add_entry_command(args, config, config_dir, log_dir, now, conn):
     """Handle the add entry command."""
-    ensure_day_file(log_dir, now, config)
+    entry_now = _parse_at_str(args.at, now) if args.at else now
+
+    # Prevent future entries
+    if entry_now > now:
+        print("Cannot create entries in the future.")
+        return
+
+    ensure_day_file(log_dir, entry_now, config)
     raw_entry, metadata, explicit_tags = get_entry(args, config)
     entry_body = raw_entry.strip()
     if not any((entry_body, metadata, explicit_tags)):
@@ -151,8 +226,9 @@ def add_entry_command(args, config, config_dir, log_dir, now, conn):
         config=config,
         config_dir=config_dir,
         log_dir=log_dir,
-        now=now,
+        now=entry_now,
         conn=conn,
+        at_str=args.at,
     )
 
     print(f"Entry added to: {result['day_file']} (ID: {result['entry_id']})")

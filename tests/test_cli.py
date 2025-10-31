@@ -1298,3 +1298,71 @@ def test_search_with_colon_containing_text(
     assert "commit:38edf60" in output
     assert "Meeting" not in output
     assert "http://example.com" not in output
+
+
+def test_add_entry_with_at_flag(
+    setup_kaydet, mock_datetime_factory, capsys
+):
+    """Test adding entries with the --at flag for custom timestamps."""
+    fake_log_dir = setup_kaydet["fake_log_dir"]
+    monkeypatch = setup_kaydet["monkeypatch"]
+
+    # 1. Setup initial entries for chronological test
+    mock_datetime_factory(datetime(2025, 10, 25, 10, 0, 0))
+    monkeypatch.setattr(sys, "argv", ["kaydet", "First entry"])
+    cli.main()
+
+    mock_datetime_factory(datetime(2025, 10, 25, 12, 0, 0))
+    monkeypatch.setattr(sys, "argv", ["kaydet", "Third entry"])
+    cli.main()
+    capsys.readouterr()  # Clear stdout
+
+    # 2. Inject an entry into the middle of the day
+    mock_datetime_factory(datetime(2025, 10, 25, 14, 0, 0)) # "now" is 14:00
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["kaydet", "Second entry", "--at", "11:00"],
+    )
+    cli.main()
+
+    day_file = fake_log_dir / "2025-10-25.txt"
+    content = day_file.read_text()
+    assert "Entry added" in capsys.readouterr().out
+    # Check chronological order
+    assert re.search(
+        r"10:00.*First entry.*\n11:00.*Second entry.*\n12:00.*Third entry",
+        content, re.DOTALL
+    )
+
+    # 3. Inject an entry into a past date
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["kaydet", "A past entry", "--at", "2025-10-24:15:00"],
+    )
+    cli.main()
+
+    past_day_file = fake_log_dir / "2025-10-24.txt"
+    assert past_day_file.exists()
+    past_content = past_day_file.read_text()
+    assert "15:00" in past_content
+    assert "A past entry" in past_content
+
+    # 4. Test blocking future entries
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["kaydet", "A future entry", "--at", "2025-10-26:10:00"],
+    )
+    cli.main()
+    assert "Cannot create entries in the future" in capsys.readouterr().out
+
+    # 5. Test invalid format
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["kaydet", "Invalid time", "--at", "not-a-time"],
+    )
+    with pytest.raises(ValueError, match="Invalid --at format"):
+        cli.main()
