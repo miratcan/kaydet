@@ -243,11 +243,22 @@ def main() -> None:
             combined_query = f"{args.filter} #todo"
             print(f"Filtering todos: {combined_query}\n")
 
-            text_terms, metadata_filters, tag_filters = tokenize_query(
-                combined_query
-            )
+            (
+                include_text,
+                exclude_text,
+                include_meta,
+                exclude_meta,
+                include_tags,
+                exclude_tags,
+            ) = tokenize_query(combined_query)
+
             sql_query, params = build_search_query(
-                text_terms, metadata_filters, tag_filters
+                include_text,
+                exclude_text,
+                include_meta,
+                exclude_meta,
+                include_tags,
+                exclude_tags,
             )
 
             cursor = conn.cursor()

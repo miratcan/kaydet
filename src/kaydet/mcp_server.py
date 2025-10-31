@@ -138,12 +138,25 @@ class KaydetService:
         now = datetime.now()
         self._ensure_index(now)
 
-        text_terms, metadata_filters, tag_filters = tokenize_query(query)
-        if not any([text_terms, metadata_filters, tag_filters]):
+        (
+            include_text,
+            exclude_text,
+            include_meta,
+            exclude_meta,
+            include_tags,
+            exclude_tags,
+        ) = tokenize_query(query)
+
+        if not any([include_text, exclude_text, include_meta, exclude_meta, include_tags, exclude_tags]):
             return {"success": False, "error": "Search query is empty."}
 
         sql_query, params = build_search_query(
-            text_terms, metadata_filters, tag_filters
+            include_text,
+            exclude_text,
+            include_meta,
+            exclude_meta,
+            include_tags,
+            exclude_tags,
         )
         cursor = self.conn.cursor()
         try:
