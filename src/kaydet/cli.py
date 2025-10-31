@@ -74,6 +74,12 @@ def build_parser(config_path: Path) -> argparse.ArgumentParser:
         action="store_true",
         help="Show reminder if you haven't written in a while.",
     )
+    basic_group.add_argument(
+        "--at",
+        dest="at",
+        type=str,
+        help="Set a custom timestamp (YYYY-MM-DD:HH:MM or HH:MM).",
+    )
 
     # Todo Management
     todo_group = parser.add_argument_group("Todo Management")
