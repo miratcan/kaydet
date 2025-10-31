@@ -42,7 +42,7 @@ def _parse_at_str(at_str: str, now: datetime) -> datetime:
             )
 
 
-def insert_entry_chronologically(
+def inject_entry(
     day_file: Path,
     entry_id: int,
     timestamp: str,
@@ -136,7 +136,7 @@ def create_entry(
 
     try:
         write_func = (
-            insert_entry_chronologically if at_str else append_entry
+            inject_entry if at_str else append_entry
         )
         write_func(
             day_file=day_file,
