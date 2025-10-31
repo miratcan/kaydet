@@ -40,55 +40,34 @@ SELECT_TAG_COUNTS_SQL = (
 
 
 def build_search_query(
-    text_terms, metadata_filters, tag_filters
+    include_text,
+    exclude_text,
+    include_meta,
+    exclude_meta,
+    include_tags,
+    exclude_tags,
 ) -> tuple[str, list]:
-    """Compose the SQL query and parameters for a search request.
-
-    TODO: Consider replacing this manual string builder with a small
-    query DSL or ORM abstraction once the schema stabilizes further.
-
-    Example:
-        >>> sql, params = build_search_query(["focus"], [], [])
-        >>> sql.startswith("SELECT DISTINCT")
-        True
-        >>> params
-        ['%focus%']
-    """
+    """Compose the SQL query and parameters for a search request."""
     params = []
     from_clauses = ["entries e"]
     where_clauses = []
 
-    for i, term in enumerate(text_terms):
+    # Inclusion clauses
+    for i, term in enumerate(include_text):
         from_clauses.append(f"JOIN words w{i} ON e.id = w{i}.entry_id")
         where_clauses.append(f"w{i}.word LIKE ?")
         params.append(f"%{term}%")
-    for i, tag in enumerate(tag_filters):
+    for i, tag in enumerate(include_tags):
         from_clauses.append(f"JOIN tags t{i} ON e.id = t{i}.entry_id")
         where_clauses.append(f"t{i}.tag_name = ?")
         params.append(tag)
-    for i, (key, expression) in enumerate(metadata_filters):
-        # Special handling for 'since:' filter - filter by source_file
-        # (date-based filename)
-        if key == "since":
-            # since:0 or since:all means no date filter
-            if expression in ("0", "all"):
-                continue
-            # Expression is now a pre-formatted filename (handled in
-            # search_command)
-            where_clauses.append("e.source_file >= ?")
-            params.append(expression)
-            continue
-
-        # Special handling for 'until:' filter - filter by source_file
-        # (date-based filename)
-        if key == "until":
-            # until:0 or until:all means no date filter
-            if expression in ("0", "all"):
-                continue
-            # Expression is now a pre-formatted filename (handled in
-            # search_command)
-            where_clauses.append("e.source_file <= ?")
-            params.append(expression)
+    for i, (key, expression) in enumerate(include_meta):
+        # Special handling for date filters
+        if key in ("since", "until"):
+            op = ">=" if key == "since" else "<="
+            if expression not in ("0", "all"):
+                where_clauses.append(f"e.source_file {op} ?")
+                params.append(expression)
             continue
 
         from_clauses.append(f"JOIN metadata m{i} ON e.id = m{i}.entry_id")
@@ -113,7 +92,24 @@ def build_search_query(
             where_clauses.append(f"m{i}.meta_value = ?")
             params.append(expression)
 
-    from_clause = " ".join(from_clauses)
+    # Exclusion clauses
+    for i, term in enumerate(exclude_text):
+        where_clauses.append(
+            f"NOT EXISTS (SELECT 1 FROM words w_ex{i} WHERE w_ex{i}.entry_id = e.id AND w_ex{i}.word LIKE ?)"
+        )
+        params.append(f"%{term}%")
+    for i, tag in enumerate(exclude_tags):
+        where_clauses.append(
+            f"NOT EXISTS (SELECT 1 FROM tags t_ex{i} WHERE t_ex{i}.entry_id = e.id AND t_ex{i}.tag_name = ?)"
+        )
+        params.append(tag)
+    for i, (key, value) in enumerate(exclude_meta):
+        where_clauses.append(
+            f"NOT EXISTS (SELECT 1 FROM metadata m_ex{i} WHERE m_ex{i}.entry_id = e.id AND m_ex{i}.meta_key = ? AND m_ex{i}.meta_value = ?)"
+        )
+        params.extend([key, value])
+
+    from_clause = " ".join(list(dict.fromkeys(from_clauses))) # Remove duplicate JOINs
     where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
     sql_query = SELECT_MATCHES_TEMPLATE.format(
         from_clause=from_clause,
@@ -281,79 +277,63 @@ def search_command(
     matches."""
     rebuild_index_if_empty(conn, log_dir, config)
 
+    # Tokenize the query into inclusion and exclusion lists
+    (
+        include_text,
+        exclude_text,
+        include_meta,
+        exclude_meta,
+        include_tags,
+        exclude_tags,
+    ) = tokenize_query(query)
+
     # Add default since: filter for current month if not specified
-    text_terms, metadata_filters, tag_filters = tokenize_query(query)
-
-    # Check if since: filter is already present
-    has_since_filter = any(key == "since" for key, _ in metadata_filters)
-
-    # Add default since: for current month if not specified
+    has_since_filter = any(key == "since" for key, _ in include_meta)
     if not has_since_filter:
         current_month_start = date.today().replace(day=1).isoformat()
-        metadata_filters.append(("since", current_month_start))
+        include_meta.append(("since", current_month_start))
 
-    # Convert since: date expressions to actual filenames using
-    # DAY_FILE_PATTERN
-    # This ensures the filter works regardless of user's file extension
-    # (.txt, .md, etc.)
-    # Keep original dates for display purposes
+    # Keep original metadata for display purposes
+    original_metadata_filters = list(include_meta)
+
+    # Normalize date-based filenames for since/until filters
     day_file_pattern = config.get("DAY_FILE_PATTERN", "%Y-%m-%d.txt")
-    original_metadata_filters = list(metadata_filters)  # Keep for display
-
-    normalized_filters = []
-    for key, value in metadata_filters:
-        if key == "since" and value not in ("0", "all"):
-            # Parse date and format according to DAY_FILE_PATTERN
+    normalized_meta_filters = []
+    for key, value in include_meta:
+        if key in ("since", "until") and value not in ("0", "all"):
             try:
-                # Handle both YYYY-MM-DD and YYYY-MM formats
-                if len(value) == 7:  # YYYY-MM format
-                    date_obj = datetime.strptime(f"{value}-01", "%Y-%m-%d")
-                else:  # YYYY-MM-DD format
-                    date_obj = datetime.strptime(value, "%Y-%m-%d")
-                # Format using configured pattern
+                date_obj = datetime.strptime(value, "%Y-%m-%d")
                 filename = date_obj.strftime(day_file_pattern)
-                normalized_filters.append((key, filename))
+                normalized_meta_filters.append((key, filename))
             except ValueError:
-                # Invalid date format, keep original (will likely fail
-                # gracefully)
-                normalized_filters.append((key, value))
-        elif key == "until" and value not in ("0", "all"):
-            # Parse date and format according to DAY_FILE_PATTERN
-            try:
-                # Handle both YYYY-MM-DD and YYYY-MM formats
-                if len(value) == 7:  # YYYY-MM format
-                    date_obj = datetime.strptime(f"{value}-01", "%Y-%m-%d")
-                else:  # YYYY-MM-DD format
-                    date_obj = datetime.strptime(value, "%Y-%m-%d")
-                # Format using configured pattern
-                filename = date_obj.strftime(day_file_pattern)
-                normalized_filters.append((key, filename))
-            except ValueError:
-                # Invalid date format, keep original (will likely fail
-                # gracefully)
-                normalized_filters.append((key, value))
+                normalized_meta_filters.append((key, value))
         else:
-            normalized_filters.append((key, value))
+            normalized_meta_filters.append((key, value))
+    include_meta = normalized_meta_filters
 
-    metadata_filters = normalized_filters
-
-    if not any([text_terms, metadata_filters, tag_filters]) and \
-        not allow_empty:
+    if not any([include_text, exclude_text, include_meta, exclude_meta, include_tags, exclude_tags]) and not allow_empty:
         print("Search query is empty.")
         return
+
     sql_query, params = build_search_query(
-        text_terms, metadata_filters, tag_filters
+        include_text,
+        exclude_text,
+        include_meta,
+        exclude_meta,
+        include_tags,
+        exclude_tags,
     )
+
     locations = fetch_entry_locations(conn, sql_query, params)
     if locations is None:
         return
     if not locations:
         print(f"No entries matched '{query}'.")
         return
+
     matches = load_matches(locations, log_dir, config)
     print_matches(
-        matches, query, output_format, config, console,
-        original_metadata_filters
+        matches, query, output_format, config, console, original_metadata_filters
     )
 
 

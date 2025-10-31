@@ -199,33 +199,50 @@ def parse_stored_entry_remainder(
     return message, metadata, explicit_tags
 
 
+from .new_parser import tokenize
+
 def tokenize_query(
     query: str,
-) -> Tuple[List[str], List[Tuple[str, str]], List[str]]:
-    """Split a query into text terms, metadata filters, and tag filters.
+) -> Tuple[
+    List[str],
+    List[str],
+    List[Tuple[str, str]],
+    List[Tuple[str, str]],
+    List[str],
+    List[str],
+]:
+    """Split a query into text, metadata, and tag filters for inclusion and exclusion."""
+    tokens = tokenize(query)
 
-    Example:
-        >>> tokenize_query("#work status:done focus")
-        (['focus'], [('status', 'done')], ['work'])
-    """
-    try:
-        tokens = shlex.split(query)
-    except ValueError:
-        tokens = query.split()
     text_terms: List[str] = []
+    exclude_text_terms: List[str] = []
     metadata_filters: List[Tuple[str, str]] = []
+    exclude_metadata_filters: List[Tuple[str, str]] = []
     tag_filters: List[str] = []
+    exclude_tag_filters: List[str] = []
+
     for token in tokens:
-        if not token:
-            continue
-        if token.startswith("#"):
-            if tag := normalize_tag(token):
-                tag_filters.append(tag)
-        elif parsed := parse_metadata_token(token):
-            metadata_filters.append(parsed)
-        else:
-            text_terms.append(token.lower())
-    return text_terms, metadata_filters, tag_filters
+        if token.type == "WORD":
+            text_terms.append(token.value.lower())
+        elif token.type == "TAG":
+            tag_filters.append(token.value)
+        elif token.type == "METADATA":
+            metadata_filters.append(token.value)
+        elif token.type == "EXCLUDE_WORD":
+            exclude_text_terms.append(token.value.lower())
+        elif token.type == "EXCLUDE_TAG":
+            exclude_tag_filters.append(token.value)
+        elif token.type == "EXCLUDE_METADATA":
+            exclude_metadata_filters.append(token.value)
+
+    return (
+        text_terms,
+        exclude_text_terms,
+        metadata_filters,
+        exclude_metadata_filters,
+        tag_filters,
+        exclude_tag_filters,
+    )
 
 
 def parse_range_expression(
