@@ -172,6 +172,38 @@ def test_service_create_todo_with_metadata(mcp_env):
     assert "Deploy to production" in search["matches"][0]["text"]
 
 
+def test_service_suggest_tags_from_file(mcp_env):
+    service = mcp_server.KaydetService.initialize()
+    project_dir = mcp_env["log_dir"] / "project"
+    project_dir.mkdir()
+    tags_file = project_dir / ".kaydet.tags"
+    tags_file.write_text("# comment line\nwork\nproject-name\n", encoding="utf-8")
+
+    monkeypatch = mcp_env["monkeypatch"]
+    monkeypatch.chdir(project_dir)
+
+    suggestions = service.suggest_tags()
+    assert suggestions["success"] is True
+    assert suggestions["source"] == "tags_file"
+    assert suggestions["suggested_tags"] == ["work", "project-name"]
+    assert suggestions["directory"] == str(project_dir)
+
+
+def test_service_suggest_tags_from_directory_name(mcp_env):
+    service = mcp_server.KaydetService.initialize()
+    project_dir = mcp_env["log_dir"] / "Feature Space"
+    project_dir.mkdir()
+
+    monkeypatch = mcp_env["monkeypatch"]
+    monkeypatch.chdir(project_dir)
+
+    suggestions = service.suggest_tags()
+    assert suggestions["success"] is True
+    assert suggestions["source"] == "directory_name"
+    assert suggestions["suggested_tags"] == ["feature-space"]
+    assert suggestions["directory"] == str(project_dir)
+
+
 def test_serve_registers_tools(monkeypatch, mcp_env):
     recorded = {}
 
@@ -242,6 +274,7 @@ def test_serve_registers_tools(monkeypatch, mcp_env):
         "create_todo",
         "mark_todo_done",
         "list_todos",
+        "suggest_kaydet_tags",
     }
     assert required_tools <= names
 
@@ -249,3 +282,11 @@ def test_serve_registers_tools(monkeypatch, mcp_env):
         recorded["call_tool"]("add_entry", {"text": "from mcp"})
     )
     assert isinstance(response[0], FakeTextContent)
+
+    suggestion_response = asyncio.run(
+        recorded["call_tool"](
+            "suggest_kaydet_tags",
+            {"path": str(mcp_env["log_dir"])},
+        )
+    )
+    assert isinstance(suggestion_response[0], FakeTextContent)

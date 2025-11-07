@@ -10,6 +10,7 @@ Run with: kaydet-mcp
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -199,6 +200,69 @@ class KaydetService:
             for name, count in rows
         ]
         return {"success": True, "tags": tags}
+
+    @staticmethod
+    def _normalize_directory_tag(name: str) -> str:
+        """Normalize a directory name into a tag-friendly slug."""
+        slug = re.sub(r"[^a-z0-9\-]+", "-", name.lower())
+        return slug.strip("-")
+
+    def suggest_tags(self, directory: Path | str | None = None) -> dict[str, Any]:
+        """Suggest tags based on the active project directory."""
+        inspected_dir = (
+            Path(directory).expanduser()
+            if directory is not None
+            else Path.cwd()
+        )
+
+        if not inspected_dir.exists():
+            return {
+                "success": False,
+                "error": f"Directory does not exist: {inspected_dir}",
+            }
+        if not inspected_dir.is_dir():
+            return {
+                "success": False,
+                "error": f"Not a directory: {inspected_dir}",
+            }
+
+        tags_file = inspected_dir / ".kaydet.tags"
+        if tags_file.is_file():
+            try:
+                lines = tags_file.read_text(encoding="utf-8").splitlines()
+            except OSError as error:  # pragma: no cover - filesystem edge case
+                return {
+                    "success": False,
+                    "error": f"Failed to read {tags_file}: {error}",
+                }
+            tags = [
+                line.strip()
+                for line in lines
+                if line.strip() and not line.strip().startswith("#")
+            ]
+            if tags:
+                return {
+                    "success": True,
+                    "suggested_tags": tags,
+                    "source": "tags_file",
+                    "directory": str(inspected_dir),
+                }
+
+        normalized = self._normalize_directory_tag(inspected_dir.name)
+        if not normalized:
+            return {
+                "success": False,
+                "error": (
+                    "Unable to derive tag suggestion from directory name. "
+                    "Create a .kaydet.tags file to define tags explicitly."
+                ),
+            }
+        return {
+            "success": True,
+            "suggested_tags": [normalized],
+            "source": "directory_name",
+            "directory": str(inspected_dir),
+        }
 
     def get_stats(
         self, *, year: int | None = None, month: int | None = None
@@ -469,6 +533,22 @@ async def serve() -> None:
                 },
             ),
             Tool(
+                name="suggest_kaydet_tags",
+                description="Suggest project tags based on the current directory",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": (
+                                "Directory to inspect. Defaults to the current "
+                                "working directory."
+                            ),
+                        },
+                    },
+                },
+            ),
+            Tool(
                 name="get_stats",
                 description="Get entry counts for a given month",
                 inputSchema={
@@ -586,6 +666,10 @@ async def serve() -> None:
 
         if name == "list_tags":
             result = service.list_tags()
+            return [TextContent(type="text", text=json.dumps(result))]
+
+        if name == "suggest_kaydet_tags":
+            result = service.suggest_tags(directory=arguments.get("path"))
             return [TextContent(type="text", text=json.dumps(result))]
 
         if name == "get_stats":
