@@ -245,3 +245,34 @@ def open_editor(initial_text: str, editor_command: str) -> str:
             remove(tmp_path)
         except OSError:
             pass
+
+
+def open_file_in_editor(file_path: Path, editor_command: str) -> None:
+    """Open a file directly in the configured editor."""
+    subprocess.call(shlex.split(editor_command) + [str(file_path)])
+
+
+def migrate_storage(old_path: Path, new_path: Path) -> None:
+    """Move all .txt files from old storage path to new storage path."""
+    if not old_path.exists():
+        print(f"Old storage path does not exist: {old_path}")
+        return
+
+    new_path.mkdir(parents=True, exist_ok=True)
+
+    # Move all .txt files
+    txt_files = list(old_path.glob("*.txt"))
+    if not txt_files:
+        print(f"No .txt files found in {old_path}")
+        return
+
+    print(f"\nMigrating {len(txt_files)} files...")
+    for txt_file in txt_files:
+        target = new_path / txt_file.name
+        if target.exists():
+            print(f"  ⚠️  Skipping {txt_file.name} (already exists in target)")
+        else:
+            txt_file.rename(target)
+            print(f"  ✓ Moved {txt_file.name}")
+
+    print(f"\n✓ Migration complete: {old_path} → {new_path}")
