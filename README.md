@@ -198,6 +198,12 @@ Then ask Claude:
 
 Your AI assistant with perfect memory of your own data.
 
+### MCP Tools
+
+- `suggest_kaydet_tags` – Suggest tags for assistants by reading `.kaydet.tags` in
+  the current project or falling back to the directory name when no override is
+  defined.
+
 ## Use Cases
 
 **Work Logging**

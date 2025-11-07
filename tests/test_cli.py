@@ -30,16 +30,22 @@ def setup_kaydet(monkeypatch, tmp_path: Path) -> dict:
     config = ConfigParser(interpolation=None)
     config.add_section("SETTINGS")
     config["SETTINGS"]["LOG_DIR"] = str(fake_log_dir)
+    config["SETTINGS"]["STORAGE_DIR"] = str(fake_log_dir)
     config["SETTINGS"]["DAY_FILE_PATTERN"] = "%Y-%m-%d.txt"
     config["SETTINGS"]["DAY_TITLE_PATTERN"] = "%Y/%m/%d/ - %A"
     config["SETTINGS"]["EDITOR"] = "vim"
+
+    # Create fake index dir (separate from storage)
+    fake_index_dir = fake_home / ".local" / "share" / "kaydet"
+    fake_index_dir.mkdir(parents=True, exist_ok=True)
 
     def fake_load_config():
         return (
             config["SETTINGS"],
             fake_config_path,
             fake_config_dir,
-            fake_log_dir,
+            fake_log_dir,  # storage_dir
+            fake_index_dir,  # index_dir
         )
 
     monkeypatch.setattr(cli, "load_config", fake_load_config)
@@ -48,6 +54,7 @@ def setup_kaydet(monkeypatch, tmp_path: Path) -> dict:
         "monkeypatch": monkeypatch,
         "fake_log_dir": fake_log_dir,
         "fake_config_dir": fake_config_dir,
+        "fake_index_dir": fake_index_dir,
     }
 
 
@@ -116,7 +123,8 @@ def test_add_entry_with_tags(setup_kaydet, mock_datetime_factory):
     )
 
     # 2. Check the SQLite database
-    db_path = fake_log_dir / "index.db"
+    fake_index_dir = setup_kaydet["fake_index_dir"]
+    db_path = fake_index_dir / "index.db"
     assert db_path.exists()
     db = sqlite3.connect(db_path)
     cursor = db.cursor()
@@ -171,7 +179,8 @@ def test_add_entry_with_metadata_tokens(setup_kaydet, mock_datetime_factory):
         content,
     )
 
-    db_path = fake_log_dir / "index.db"
+    fake_index_dir = setup_kaydet["fake_index_dir"]
+    db_path = fake_index_dir / "index.db"
     assert db_path.exists()
     db = sqlite3.connect(db_path)
     cursor = db.cursor()
@@ -307,18 +316,18 @@ def test_search_command(setup_kaydet, capsys):
     (fake_log_dir / "2025-10-01.txt").write_text(
         "2025/10/01/ - Wednesday\n"
         "-----------------------\n"
-        "10:00: An entry about a secret project.\n"
-        "11:00: Another line that should not match.\n"
+        "10:00 [1]: An entry about a secret project.\n"
+        "11:00 [2]: Another line that should not match.\n"
     )
     (fake_log_dir / "2025-10-02.txt").write_text(
         "2025/10/02/ - Thursday\n"
         "----------------------\n"
-        "14:00: Planning the #secret-meeting.\n"
+        "14:00 [3]: Planning the #secret-meeting.\n"
     )
     (fake_log_dir / "2025-10-03.txt").write_text(
         "2025/10/03/ - Friday\n"
         "--------------------\n"
-        "16:00: This is a completely unrelated note.\n"
+        "16:00 [4]: This is a completely unrelated note.\n"
     )
 
     monkeypatch.setattr(sys, "argv", ["kaydet", "--filter", "secret"])
@@ -470,7 +479,8 @@ def test_doctor_command(setup_kaydet, capsys):
         legacy_content,
     )
 
-    db_path = fake_log_dir / "index.db"
+    fake_index_dir = setup_kaydet["fake_index_dir"]
+    db_path = fake_index_dir / "index.db"
     assert db_path.exists()
     db = sqlite3.connect(db_path)
     cursor = db.cursor()
@@ -542,7 +552,8 @@ def test_edit_command_updates_entry(
     cli.main()
     capsys.readouterr()
 
-    db_path = fake_log_dir / "index.db"
+    fake_index_dir = setup_kaydet["fake_index_dir"]
+    db_path = fake_index_dir / "index.db"
     with sqlite3.connect(db_path) as db:
         cursor = db.cursor()
         cursor.execute(
@@ -616,7 +627,8 @@ def test_delete_command_removes_entry(
     cli.main()
     capsys.readouterr()
 
-    db_path = fake_log_dir / "index.db"
+    fake_index_dir = setup_kaydet["fake_index_dir"]
+    db_path = fake_index_dir / "index.db"
     with sqlite3.connect(db_path) as db:
         cursor = db.cursor()
         cursor.execute(
@@ -681,7 +693,8 @@ def test_conflicting_numeric_id_preserves_original_entry(
     cli.main()
     capsys.readouterr()
 
-    db_path = fake_log_dir / "index.db"
+    fake_index_dir = setup_kaydet["fake_index_dir"]
+    db_path = fake_index_dir / "index.db"
     db = sqlite3.connect(db_path)
     cursor = db.cursor()
 
@@ -727,7 +740,8 @@ def test_today_file_waits_until_midnight(
     first_content = todays_file.read_text()
     assert re.search(r"21:00 \[\d+\]: Manual entry\n", first_content)
 
-    db_path = fake_log_dir / "index.db"
+    fake_index_dir = setup_kaydet["fake_index_dir"]
+    db_path = fake_index_dir / "index.db"
     db = sqlite3.connect(db_path)
     cursor = db.cursor()
     cursor.execute("SELECT COUNT(*) FROM entries")
@@ -1120,14 +1134,20 @@ def test_load_config_creation(monkeypatch, tmp_path):
     )
     monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
 
-    section, config_path, _, log_dir = cli.load_config()
+    # Mock prompt_storage_location to return default storage path
+    from kaydet import utils
+    default_storage = tmp_path / "Documents" / "Kaydet"
+    monkeypatch.setattr(utils, "prompt_storage_location", lambda: default_storage)
+
+    section, config_path, _, storage_dir, index_dir = cli.load_config()
 
     assert config_path.exists()
     assert config_path.name == "config.ini"
     assert section["editor"] == "vim"
-    assert str(tmp_path / ".kaydet") in section["log_dir"]
-    assert log_dir == tmp_path / ".kaydet"
-    assert log_dir.exists()
+    assert section["storage_dir"] == str(default_storage)
+    assert storage_dir == default_storage
+    assert storage_dir.exists()
+    assert index_dir.exists()
 
 def test_load_config_existing_partial(monkeypatch, tmp_path):
     """Test that missing values are populated in an existing config."""
@@ -1139,30 +1159,38 @@ def test_load_config_existing_partial(monkeypatch, tmp_path):
     config_dir.mkdir(parents=True)
     config_path = config_dir / "config.ini"
 
-    custom_path = tmp_path / "custom" / "path"
-    config_content = f"[SETTINGS]\nlog_dir = {custom_path}\n"
+    custom_storage = tmp_path / "custom" / "storage"
+    config_content = f"[SETTINGS]\nstorage_dir = {custom_storage}\nlog_dir = {tmp_path / '.kaydet'}\n"
     config_path.write_text(config_content)
 
-    section, _, _, log_dir = cli.load_config()
+    section, _, _, storage_dir, index_dir = cli.load_config()
 
-    assert section["log_dir"] == str(custom_path)
+    assert section["storage_dir"] == str(custom_storage)
     assert section["editor"] == "vim"
-    assert log_dir == custom_path
-    assert log_dir.exists()
+    assert storage_dir == custom_storage
+    assert storage_dir.exists()
+    assert index_dir.exists()
 
 def test_load_config_xdg_home(monkeypatch, tmp_path):
     """Test that XDG_CONFIG_HOME environment variable is respected."""
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
     monkeypatch.setitem(
         cli.DEFAULT_SETTINGS, "LOG_DIR", str(tmp_path / ".kaydet")
     )
     xdg_path = tmp_path / "custom_xdg"
     monkeypatch.setenv("XDG_CONFIG_HOME", str(xdg_path))
 
-    _, config_path, _, log_dir = cli.load_config()
+    # Mock prompt_storage_location to return default storage path
+    from kaydet import utils
+    default_storage = tmp_path / "Documents" / "Kaydet"
+    monkeypatch.setattr(utils, "prompt_storage_location", lambda: default_storage)
+
+    _, config_path, _, storage_dir, index_dir = cli.load_config()
 
     assert str(xdg_path / "kaydet") in str(config_path.parent)
-    assert log_dir == Path(cli.DEFAULT_SETTINGS["LOG_DIR"]).expanduser()
-    assert log_dir.exists()
+    assert storage_dir == default_storage
+    assert storage_dir.exists()
+    assert index_dir.exists()
 
 
 # --- Final push for 100% coverage ---

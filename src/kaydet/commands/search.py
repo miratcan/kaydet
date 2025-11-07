@@ -246,11 +246,7 @@ def print_matches(
         # Show date range
         status_msg += f" ({since_value} to {until_value})"
     elif has_since:
-        current_month_start = date.today().replace(day=1).isoformat()
-        if since_value == current_month_start:
-            status_msg += f" (since {since_value}, current month)"
-        else:
-            status_msg += f" (since {since_value})"
+        status_msg += f" (since {since_value})"
     elif has_until:
         status_msg += f" (until {until_value})"
 
@@ -286,12 +282,6 @@ def search_command(
         include_tags,
         exclude_tags,
     ) = tokenize_query(query)
-
-    # Add default since: filter for current month if not specified
-    has_since_filter = any(key == "since" for key, _ in include_meta)
-    if not has_since_filter:
-        current_month_start = date.today().replace(day=1).isoformat()
-        include_meta.append(("since", current_month_start))
 
     # Keep original metadata for display purposes
     original_metadata_filters = list(include_meta)

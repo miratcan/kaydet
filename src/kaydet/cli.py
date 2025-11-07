@@ -185,7 +185,7 @@ def build_parser(config_path: Path) -> argparse.ArgumentParser:
 
 def main() -> None:
     """Application entry point for the kaydet CLI."""
-    config, config_path, config_dir, log_dir = load_config()
+    config, config_path, config_dir, storage_dir, index_dir = load_config()
     parser = build_parser(config_path)
     args = parser.parse_args()
 
@@ -193,30 +193,30 @@ def main() -> None:
     console = Console()
 
     if args.reminder:
-        reminder_command(config_dir, log_dir, now)
+        reminder_command(config_dir, storage_dir, now)
         return
     if args.open_folder:
-        startfile(str(log_dir))
+        startfile(str(storage_dir))
         return
 
-    db_path = log_dir / INDEX_FILENAME
+    db_path = index_dir / INDEX_FILENAME
     conn = database.get_db_connection(db_path)
     database.initialize_database(conn)
 
     if args.doctor:
-        doctor_command(conn, log_dir, config, now)
+        doctor_command(conn, storage_dir, config, now)
         return
 
-    sync_modified_diary_files(conn, log_dir, config, now)
-    rebuild_index_if_empty(conn, log_dir, config, now)
+    sync_modified_diary_files(conn, storage_dir, config, now)
+    rebuild_index_if_empty(conn, storage_dir, config, now)
 
     # TODO: I hated this, will be removed in future.
     if args.browse:
-        browse_command(conn, log_dir, config)
+        browse_command(conn, storage_dir, config)
         return
 
     if args.stats:
-        stats_command(log_dir, config, now, args.output_format)
+        stats_command(storage_dir, config, now, args.output_format)
         return
 
     if args.list_tags:
@@ -234,7 +234,7 @@ def main() -> None:
         has_todo_text = bool(args.todo)
 
         if has_todo_text:
-            todo_command(args, config, config_dir, log_dir, now, conn)
+            todo_command(args, config, config_dir, storage_dir, now, conn)
         elif args.filter:
             # Filter todos and display in todo format
             from .commands.search import build_search_query, load_matches
@@ -269,7 +269,7 @@ def main() -> None:
                 print(f"No todos found matching '{args.filter}'.")
                 return
 
-            matches = load_matches(locations, log_dir, config)
+            matches = load_matches(locations, storage_dir, config)
 
             # Convert search results to todo format
             from .formatters import format_todo_results
@@ -311,7 +311,7 @@ def main() -> None:
         return
 
     if args.done is not None:
-        done_command(conn, log_dir, config, args.done, now)
+        done_command(conn, storage_dir, config, args.done, now)
         return
 
     # Handle --today: add today's date as a since: filter
@@ -331,7 +331,7 @@ def main() -> None:
         # allow_empty=True lets --list show all entries when no filter
         # is provided
         search_command(
-            conn, log_dir, config, query, args.output_format, console=console,
+            conn, storage_dir, config, query, args.output_format, console=console,
             allow_empty=True
         )
         return
@@ -339,7 +339,7 @@ def main() -> None:
     # Handle standalone --filter (shorthand for --list --filter)
     if args.filter:
         search_command(
-            conn, log_dir, config, args.filter, args.output_format,
+            conn, storage_dir, config, args.filter, args.output_format,
             console=console
         )
         return
@@ -348,12 +348,12 @@ def main() -> None:
         print("Use either --edit or --delete, not both.")
         return
     if args.edit is not None:
-        edit_entry_command(conn, log_dir, config, args.edit, now)
+        edit_entry_command(conn, storage_dir, config, args.edit, now)
         return
     if args.delete is not None:
         delete_entry_command(
             conn,
-            log_dir,
+            storage_dir,
             config,
             args.delete,
             assume_yes=args.assume_yes,
@@ -362,5 +362,5 @@ def main() -> None:
         return
 
     add_entry_command(
-        args, config, config_dir, log_dir, now, conn
+        args, config, config_dir, storage_dir, now, conn
     )

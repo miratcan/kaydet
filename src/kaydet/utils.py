@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import platform
 import shlex
 import subprocess
 from configparser import ConfigParser, SectionProxy
@@ -33,8 +34,59 @@ LAST_ENTRY_FILENAME = "last_entry_timestamp"
 REMINDER_THRESHOLD = timedelta(hours=2)
 
 
-def load_config() -> Tuple[SectionProxy, Path, Path, Path]:
-    """Load configuration, ensuring directories and defaults exist."""
+def get_default_storage_path() -> Path:
+    """Return the default storage path based on the operating system."""
+    system = platform.system()
+
+    if system == "Darwin":  # macOS
+        return Path.home() / "Documents" / "Kaydet"
+    elif system == "Windows":
+        return Path.home() / "Documents" / "Kaydet"
+    else:  # Linux and others
+        return Path.home() / "Kaydet"
+
+
+def get_default_index_path() -> Path:
+    """Return the default index path (always local)."""
+    return Path(
+        env.get("XDG_DATA_HOME") or Path.home() / ".local" / "share"
+    ) / "kaydet"
+
+
+def prompt_storage_location() -> Path:
+    """Prompt user for storage location on first run."""
+    print("\nWelcome to Kaydet!\n")
+    print("Where should I store your entries?")
+    print("(Plain text files, safe to sync with cloud storage)\n")
+
+    default = get_default_storage_path()
+    print(f"Default: {default}")
+
+    try:
+        user_input = input("Path (or press Enter for default): ").strip()
+    except (EOFError, KeyboardInterrupt):
+        print("\nUsing default path.")
+        user_input = ""
+
+    if not user_input:
+        storage_path = default
+    else:
+        storage_path = Path(user_input).expanduser()
+
+    storage_path.mkdir(parents=True, exist_ok=True)
+
+    print(f"\n✓ Kaydet will store entries in: {storage_path}")
+    print(f"✓ Index stored locally in: {get_default_index_path()}\n")
+
+    return storage_path
+
+
+def load_config() -> Tuple[SectionProxy, Path, Path, Path, Path]:
+    """Load configuration, ensuring directories and defaults exist.
+
+    Returns:
+        Tuple of (config_section, config_path, config_dir, storage_dir, index_dir)
+    """
     current_home = Path.home()
     home_config_dir = current_home / ".config" / "kaydet"
     xdg_root = env.get("XDG_CONFIG_HOME")
@@ -73,6 +125,14 @@ def load_config() -> Tuple[SectionProxy, Path, Path, Path]:
     if CONFIG_SECTION not in parser:
         parser[CONFIG_SECTION] = {}
     section = parser[CONFIG_SECTION]
+
+    # Check if STORAGE_DIR is set; if not, this is first run
+    if not section.get("STORAGE_DIR"):
+        storage_dir = prompt_storage_location()
+        section["STORAGE_DIR"] = str(storage_dir)
+        with config_path.open("w", encoding="utf-8") as config_file:
+            parser.write(config_file)
+
     updated = False
     for key, value in DEFAULT_SETTINGS.items():
         if not section.get(key):
@@ -82,9 +142,29 @@ def load_config() -> Tuple[SectionProxy, Path, Path, Path]:
         with config_path.open("w", encoding="utf-8") as config_file:
             parser.write(config_file)
 
-    log_dir = Path(section["LOG_DIR"]).expanduser()
-    log_dir.mkdir(parents=True, exist_ok=True)
-    return section, config_path, config_dir, log_dir
+    # Storage directory: where .txt files live (can be synced)
+    storage_dir = Path(section["STORAGE_DIR"]).expanduser()
+    storage_dir.mkdir(parents=True, exist_ok=True)
+
+    # Index directory: where index.db lives (always local)
+    # Use LOG_DIR for backward compatibility, or default index path
+    if section.get("INDEX_DIR"):
+        index_dir = Path(section["INDEX_DIR"]).expanduser()
+    else:
+        # For backward compatibility: if LOG_DIR was customized, use it for index
+        # Otherwise, use the new default index path
+        log_dir_value = section.get("LOG_DIR", "")
+        default_log_dir = DEFAULT_SETTINGS["LOG_DIR"]
+        if log_dir_value and log_dir_value != default_log_dir:
+            # User had a custom LOG_DIR, keep using it for index
+            index_dir = Path(log_dir_value).expanduser()
+        else:
+            # Use new default
+            index_dir = get_default_index_path()
+
+    index_dir.mkdir(parents=True, exist_ok=True)
+
+    return section, config_path, config_dir, storage_dir, index_dir
 
 
 
