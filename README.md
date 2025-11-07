@@ -37,9 +37,9 @@ pip install "git+https://github.com/miratcan/kaydet.git#egg=kaydet[mcp]"
 kaydet "Fixed auth bug #work commit:abc123 time:2h status:done"
 
 # Search by metadata
-kaydet --search "status:done"
-kaydet --search "time:>1"
-kaydet --search "commit:abc123"
+kaydet --filter "status:done"
+kaydet --filter "time:>1"
+kaydet --filter "commit:abc123"
 
 # List all tags
 kaydet --tags
@@ -90,9 +90,9 @@ kaydet "Morning standup went well #work"
 kaydet "Deep work session #focus time:3h intensity:high project:kaydet"
 
 # Search
-kaydet --search "#work"
-kaydet --search "project:kaydet status:done"
-kaydet --search "time:>2"
+kaydet --filter "#work"
+kaydet --filter "project:kaydet status:done"
+kaydet --filter "time:>2"
 
 # Todo Management
 kaydet --todo "Write unit tests priority:high"
@@ -215,7 +215,7 @@ kaydet "Investigating prod timeout #oncall status:wip time:1.5h"
 **Time Tracking**
 ```bash
 kaydet "Deep work on ETL pipeline #work time:3h focus:high"
-kaydet --search "time:>2"  # Find long sessions
+kaydet --filter "time:>2"  # Find long sessions
 ```
 
 **Personal Journaling**
@@ -227,7 +227,7 @@ kaydet "Read Atomic Habits chapter 3 #reading"
 **Expense Tracking**
 ```bash
 kaydet "Lunch with client #expense amount:850 currency:TRY billable:yes"
-kaydet --search "billable:yes"  # Generate invoice data
+kaydet --filter "billable:yes"  # Generate invoice data
 ```
 
 ## Development
@@ -244,6 +244,61 @@ pip install -e .[dev]
 pytest
 ruff check src
 ```
+
+## Cloud Sync & Mobile
+
+Kaydet separates storage (plain text files) from index (SQLite database), making cloud sync simple and safe.
+
+### How it works
+
+```
+~/Documents/Kaydet/        → Synced (Google Drive, iCloud, Dropbox)
+  ├── 2025-01-15.txt
+  ├── 2025-01-16.txt
+  └── ...
+
+~/.local/share/kaydet/     → Local only (not synced)
+  └── index.db
+```
+
+**Why this works:**
+- Plain text files are the single source of truth
+- Each device builds its own search index
+- No conflicts, no corruption
+- Zero infrastructure cost
+
+### Setup for cloud sync
+
+1. **First run** — Kaydet will ask where to store entries:
+   ```bash
+   kaydet "First entry"
+
+   # Choose your cloud folder:
+   Path: ~/Google Drive/Kaydet
+   ```
+
+2. **Change location later** — Edit config and migrate:
+   ```bash
+   kaydet --config
+
+   # Edit storage_dir in your editor
+   # Kaydet will offer to move files automatically
+   ```
+
+3. **On other devices** — Install Kaydet, set same folder:
+   ```bash
+   kaydet "First entry on phone"
+   Path: ~/Google Drive/Kaydet  # Same path
+   ```
+
+### Supported cloud providers
+
+- **Google Drive** (recommended for Android)
+- **iCloud Drive** (recommended for iOS/macOS)
+- **Dropbox** (cross-platform)
+- **Any folder sync** (Syncthing, Resilio, etc.)
+
+**Note:** Index is always local. Each device maintains its own `index.db` for fast search.
 
 ## Contributing
 

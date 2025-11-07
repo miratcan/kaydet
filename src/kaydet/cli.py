@@ -165,6 +165,12 @@ def build_parser(config_path: Path) -> argparse.ArgumentParser:
         action="store_true",
         help="Automatically confirm prompts.",
     )
+    management_group.add_argument(
+        "--config",
+        dest="edit_config",
+        action="store_true",
+        help="Edit configuration file in your default editor.",
+    )
 
     # Global Options
     parser.add_argument(
@@ -197,6 +203,36 @@ def main() -> None:
         return
     if args.open_folder:
         startfile(str(storage_dir))
+        return
+    if args.edit_config:
+        from .utils import open_file_in_editor, migrate_storage
+
+        # Save old storage path
+        old_storage_dir = storage_dir
+
+        # Open config in editor
+        open_file_in_editor(config_path, config["EDITOR"])
+
+        # Reload config to check for changes
+        new_config, _, _, new_storage_dir, _ = load_config()
+
+        # Check if storage path changed
+        if old_storage_dir != new_storage_dir:
+            print(f"\nStorage path changed:")
+            print(f"  Old: {old_storage_dir}")
+            print(f"  New: {new_storage_dir}")
+
+            try:
+                response = input("\nMove files to new location? [y/N]: ").strip().lower()
+                if response == 'y':
+                    migrate_storage(old_storage_dir, new_storage_dir)
+                else:
+                    print("\n⚠️  Files not moved. You may need to move them manually.")
+            except (EOFError, KeyboardInterrupt):
+                print("\n\n⚠️  Files not moved. You may need to move them manually.")
+        else:
+            print("\n✓ Configuration saved.")
+
         return
 
     db_path = index_dir / INDEX_FILENAME
