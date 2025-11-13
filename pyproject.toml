@@ -26,11 +26,7 @@ classifiers = [
     "Topic :: Office/Business :: Scheduling",
 ]
 requires-python = ">=3.10"
-dependencies = [
-    "universal-startfile>=0.2",
-    "textual>=0.58.0",
-    "mcp>=0.9.0",
-]
+dependencies = []
 
 [project.optional-dependencies]
 dev = [
@@ -38,6 +34,10 @@ dev = [
     "ruff==0.6.1",
     "pytest>=8.3",
     "pytest-cov>=5.0",
+    "mcp>=0.9.0",
+]
+mcp = [
+    "mcp>=0.9.0",
 ]
 
 [project.urls]

@@ -16,9 +16,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
 
-from mcp.server import Server
-from mcp.server.stdio import stdio_server
-from mcp.types import TextContent, Tool
+import sys
 
 from . import database
 from .cli import INDEX_FILENAME
@@ -38,6 +36,43 @@ from .sync import sync_modified_diary_files
 from .utils import load_config
 
 
+class MissingMCPDependencyError(RuntimeError):
+    """Raised when the optional MCP dependency is missing."""
+
+
+Server: Any | None = None
+stdio_server: Any | None = None
+TextContent: Any | None = None
+Tool: Any | None = None
+
+
+def _load_mcp_dependencies():
+    """Return MCP objects or raise a helpful error if missing."""
+
+    global Server, stdio_server, TextContent, Tool
+    if all(symbol is not None for symbol in (Server, stdio_server, TextContent, Tool)):
+        return Server, stdio_server, TextContent, Tool
+
+    try:
+        from mcp.server import Server as MCPServer
+        from mcp.server.stdio import stdio_server as MCPStdio
+        from mcp.types import TextContent as MCPTextContent, Tool as MCPTool
+    except ModuleNotFoundError as error:  # pragma: no cover - import guard
+        raise MissingMCPDependencyError(
+            (
+                "kaydet-mcp requires the optional 'mcp' dependency. "
+                "Install it via `pip install 'kaydet[mcp]'` or the "
+                "GitHub equivalent `pip install \"git+https://github.com/"
+                "miratcan/kaydet.git#egg=kaydet[mcp]\"`."
+            )
+        ) from error
+    Server = MCPServer
+    stdio_server = MCPStdio
+    TextContent = MCPTextContent
+    Tool = MCPTool
+    return Server, stdio_server, TextContent, Tool
+
+
 @dataclass
 class KaydetService:
     """Programmatic interface over Kaydet command logic."""
@@ -49,14 +84,20 @@ class KaydetService:
 
     @classmethod
     def initialize(cls) -> "KaydetService":
-        config, _config_path, config_dir, log_dir = load_config()
-        db_path = log_dir / INDEX_FILENAME
+        (
+            config,
+            _config_path,
+            config_dir,
+            storage_dir,
+            index_dir,
+        ) = load_config()
+        db_path = index_dir / INDEX_FILENAME
         conn = database.get_db_connection(db_path)
         database.initialize_database(conn)
         return cls(
             config=config,
             config_dir=config_dir,
-            log_dir=log_dir,
+            log_dir=storage_dir,
             conn=conn,
         )
 
@@ -424,6 +465,8 @@ class KaydetService:
 
 async def serve() -> None:
     """Start the MCP server."""
+
+    Server, stdio_server, TextContent, Tool = _load_mcp_dependencies()
     service = KaydetService.initialize()
     server = Server("kaydet")
 
@@ -712,7 +755,11 @@ def main() -> None:
     """Entry point for the MCP server."""
     import asyncio
 
-    asyncio.run(serve())
+    try:
+        asyncio.run(serve())
+    except MissingMCPDependencyError as error:
+        print(error, file=sys.stderr)
+        raise SystemExit(1) from error
 
 
 if __name__ == "__main__":

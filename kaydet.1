@@ -36,7 +36,7 @@ Create a new todo entry (e.g., 'kaydet --todo "Buy groceries #home"'). Use witho
 .TP
 \fB--done\fR \fIID\fR
 Mark a todo as done by ID (e.g., 'kaydet --done 42').
-.SS Query & Browse
+.SS Query
 .TP
 \fB--list\fR
 List all entries. Use with --filter to narrow results.
@@ -49,9 +49,6 @@ List all tags.
 .TP
 \fB--stats\fR
 Show calendar stats.
-.TP
-\fB--browse\fR
-Open the interactive browser.
 .SS Management
 .TP
 \fB--doctor\fR
@@ -75,6 +72,11 @@ $ kaydet --editor
 .RE
 .SH CONFIGURATION
 You can configure this by editing: /Users/mirat/.config/kaydet/config.ini
+.SH MCP SERVER
+The \fIkaydet-mcp\fR command requires the optional MCP dependency.
+Install it with \fBpip install 'kaydet[mcp]'\fR (or the GitHub equivalent
+\fBpip install \"git+https://github.com/miratcan/kaydet.git#egg=kaydet[mcp]\"\fR)
+before launching the server.
 .SH AUTHOR
 Mirat Can Bayrak
 .SH BUGS

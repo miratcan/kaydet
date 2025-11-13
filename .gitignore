@@ -11,3 +11,4 @@ repomix-output.xml
 build/
 UNKNOWN.egg-info/
 *.bak
+.pip/

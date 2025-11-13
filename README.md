@@ -30,6 +30,9 @@ Or with MCP support for AI integration:
 pip install "git+https://github.com/miratcan/kaydet.git#egg=kaydet[mcp]"
 ```
 
+> The `kaydet-mcp` entry point stays installed, but it only becomes usable
+> after installing this optional `mcp` extra.
+
 ## Quick Start
 
 ```bash
@@ -74,7 +77,6 @@ Built-in MCP server exposes your archive to Claude Desktop. Ask your AI about yo
 - **Edit/delete by ID**: Stable numeric identifiers for every entry
 - **Plain text storage**: Human-readable `.txt` files, one per day
 - **SQLite indexing**: Fast search across thousands of entries
-- **Browse mode**: Optional TUI with vim-like navigation
 - **Git-friendly**: Version your diary, sync across devices
 - **MCP integration**: Connect to Claude Desktop and other AI tools with todo support
 
