@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+### Removed
+- Dropped the Textual-powered `--browse` command and dependency so the CLI ships without the TUI bundle.
+- Removed the external `universal-startfile` dependency now that the built-in `startfile` helper ships inside the `kaydet` package.
+### Changed
+- Made the MCP integration an optional extra; install with `pip install 'kaydet[mcp]'` (or the GitHub equivalent) to run `kaydet-mcp`.
+
 ## [0.33.0] - 2025-10-30
 ### Added
 - Introduced `--list` command for listing all entries with optional `--filter` modifier for cleaner, more intuitive CLI semantics

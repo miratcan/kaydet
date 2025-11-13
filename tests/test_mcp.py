@@ -20,10 +20,14 @@ def mcp_env(monkeypatch, tmp_path: Path):
     fake_config_path = fake_config_dir / "config.ini"
     fake_log_dir = fake_home / ".kaydet"
     fake_log_dir.mkdir(parents=True, exist_ok=True)
+    fake_index_dir = fake_home / ".kaydet_index"
+    fake_index_dir.mkdir(parents=True, exist_ok=True)
 
     config = ConfigParser(interpolation=None)
     config.add_section("SETTINGS")
     config["SETTINGS"]["LOG_DIR"] = str(fake_log_dir)
+    config["SETTINGS"]["STORAGE_DIR"] = str(fake_log_dir)
+    config["SETTINGS"]["INDEX_DIR"] = str(fake_index_dir)
     config["SETTINGS"]["DAY_FILE_PATTERN"] = "%Y-%m-%d.txt"
     config["SETTINGS"]["DAY_TITLE_PATTERN"] = "%Y/%m/%d/ - %A"
     config["SETTINGS"]["EDITOR"] = "vim"
@@ -34,6 +38,7 @@ def mcp_env(monkeypatch, tmp_path: Path):
             fake_config_path,
             fake_config_dir,
             fake_log_dir,
+            fake_index_dir,
         )
 
     monkeypatch.setattr(mcp_server, "load_config", fake_load_config)

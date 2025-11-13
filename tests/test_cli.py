@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import os
 import re
 import sqlite3
@@ -13,7 +12,6 @@ import pytest
 
 from kaydet import __version__ as package_version
 from kaydet import cli
-from kaydet.commands import browse as browse_module
 from kaydet.models import Entry
 
 
@@ -962,131 +960,6 @@ def test_search_no_results(setup_kaydet, capsys):
     captured = capsys.readouterr()
     assert "No entries matched 'nonexistent'." in captured.out
 
-def test_browse_launches_textual_app(
-    setup_kaydet, capsys, mock_datetime_factory, tmp_path
-):
-    """CLI should invoke the Textual browse UI when requested."""
-    monkeypatch = setup_kaydet["monkeypatch"]
-    mock_datetime_factory(datetime(2025, 9, 30, 10, 0, 0))
-
-    fake_entry = Entry(
-        entry_id="42",
-        day=date(2025, 9, 30),
-        timestamp="10:00",
-        lines=("Test entry body",),
-        tags=("focus",),
-        metadata={},
-        metadata_numbers={},
-        source=tmp_path / "2025-09-30.txt",
-    )
-
-    monkeypatch.setattr(sys, "argv", ["kaydet", "--browse"])
-    monkeypatch.setattr(
-        browse_module,
-        "_collect_entries",
-        lambda *args, **kwargs: [fake_entry],
-    )
-
-    run_calls: list[browse_module.BrowseApp] = []
-
-    def fake_run(self):
-        run_calls.append(self)
-
-    monkeypatch.setattr(browse_module.BrowseApp, "run", fake_run)
-
-    cli.main()
-
-    assert run_calls, "BrowseApp.run should be invoked"
-    output = capsys.readouterr().out
-    assert "No diary entries to browse yet." not in output
-
-def test_browse_app_updates_detail(tmp_path: Path):
-    """Textual browse view updates the detail panel when navigating."""
-    log_file = tmp_path / "2025-09-30.txt"
-    log_file.write_text("placeholder\n", encoding="utf-8")
-
-    entries = [
-        Entry(
-            entry_id="101",
-            day=date(2025, 9, 30),
-            timestamp="10:00",
-            lines=("First entry body",),
-            tags=("work",),
-            metadata={},
-            metadata_numbers={},
-            source=log_file,
-        ),
-        Entry(
-            entry_id="102",
-            day=date(2025, 9, 29),
-            timestamp="09:00",
-            lines=("Second entry body",),
-            tags=(),
-            metadata={"status": "done"},
-            metadata_numbers={},
-            source=log_file,
-        ),
-    ]
-
-    async def run_app():
-        async with browse_module.BrowseApp(entries).run_test() as pilot:
-            assert "First entry body" in pilot.app.detail_text
-            sidebar = pilot.app.query_one(
-                "#sidebar", browse_module.ListView
-            )
-            first_entry_item = next(
-                child
-                for child in sidebar.children
-                if isinstance(child, browse_module.EntryListItem)
-            )
-            assert "[" not in browse_module._format_entry_summary(
-                first_entry_item.entry
-            )
-
-            await pilot.press("j")
-            await pilot.pause()
-            assert "Second entry body" in pilot.app.detail_text
-
-            await pilot.press("k")
-            await pilot.pause()
-            assert "First entry body" in pilot.app.detail_text
-
-    asyncio.run(run_app())
-
-def test_make_entry_text_truncates():
-    """Entry summaries should be ellipsized to fit sidebar width."""
-    entry = Entry(
-        entry_id="200",
-        day=date(2025, 9, 28),
-        timestamp="08:00",
-        lines=(
-            "This is a very long entry that should be "
-            "truncated in the sidebar",
-        ),
-        tags=(),
-        metadata={},
-        metadata_numbers={},
-        source=Path("2025-09-28.txt"),
-    )
-
-    rendered = browse_module._make_entry_text(entry, width=16)
-    assert rendered.plain.endswith("…")
-    assert len(rendered.plain) <= 16
-
-def test_format_entry_summary_skips_leading_blank_lines():
-    entry = Entry(
-        entry_id="333",
-        day=date(2025, 9, 27),
-        timestamp="12:34",
-        lines=("", " First real line", "Another"),
-        tags=(),
-        metadata={},
-        metadata_numbers={},
-        source=Path("2025-09-27.txt"),
-    )
-
-    summary = browse_module._format_entry_summary(entry)
-    assert summary == "12:34 First real line"
 
 def test_tags_no_tags(setup_kaydet, capsys):
     """Test the --tags command when no tag directories exist."""

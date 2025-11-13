@@ -10,12 +10,11 @@ from textwrap import dedent
 
 from rich.console import Console
 
-from startfile import startfile
+from .startfile import startfile
 
 from . import __description__, __version__, database
 from .commands import (
     add_entry_command,
-    browse_command,
     delete_entry_command,
     doctor_command,
     done_command,
@@ -103,8 +102,8 @@ def build_parser(config_path: Path) -> argparse.ArgumentParser:
     )
 
 
-    # Query & Browse
-    query_group = parser.add_argument_group("Query & Browse")
+    # Query commands
+    query_group = parser.add_argument_group("Query")
     query_group.add_argument(
         "--list",
         dest="list_entries",
@@ -131,12 +130,6 @@ def build_parser(config_path: Path) -> argparse.ArgumentParser:
         dest="stats",
         action="store_true",
         help="Show calendar stats.",
-    )
-    query_group.add_argument(
-        "--browse",
-        dest="browse",
-        action="store_true",
-        help="Open the interactive browser.",
     )
 
     # Management
@@ -245,11 +238,6 @@ def main() -> None:
 
     sync_modified_diary_files(conn, storage_dir, config, now)
     rebuild_index_if_empty(conn, storage_dir, config, now)
-
-    # TODO: I hated this, will be removed in future.
-    if args.browse:
-        browse_command(conn, storage_dir, config)
-        return
 
     if args.stats:
         stats_command(storage_dir, config, now, args.output_format)

@@ -42,6 +42,8 @@ pipx install git+https://github.com/miratcan/kaydet.git
 pip install "git+https://github.com/miratcan/kaydet.git#egg=kaydet[mcp]"
 ```
 
+> `kaydet-mcp` komutu, bu opsiyonel `mcp` paketini kurduğunuzda aktifleşir.
+
 ## Kaydet’i Farklı Kılan Nedir?
 
 ### Notion Ağırken
@@ -150,7 +152,6 @@ kaydet --folder
 # Bakım
 kaydet --tags             # etiket ve sayıları listele
 kaydet --doctor           # dosyalara dokunduysanız indeksi yenile
-kaydet --browse           # isteğe bağlı Textual tarayıcısını aç
 
 # Arşivde avlanın
 kaydet --search şükran
@@ -161,8 +162,6 @@ kaydet --search "time:>1"
 kaydet --edit 42
 kaydet --delete 42 --yes   # onay istemeden sil
 ```
-
-> Etkileşimli gezinme arayüzü için `pip install "kaydet[browse]"` komutunu çalıştırın.
 
 ### İstatistikler Nasıl Görünür?
 
