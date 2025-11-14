@@ -39,11 +39,18 @@ def build_parser(config_path: Path) -> argparse.ArgumentParser:
         prog="kaydet",
         description=__description__,
         epilog=dedent(
-            f"""You can configure this by editing: {config_path}\n\n"""
-            "  $ kaydet 'I am feeling grateful now.'\n"
-            '  $ kaydet "Fixed bug #work #urgent status:done time:2h"\n'
-            "  $ kaydet --editor"
-            ""
+            f"""\
+            Quick Start:
+              kaydet 'Meeting with team #work time:2h'
+              kaydet --editor
+              kaydet --todo "Buy groceries #home"
+              kaydet --filter "#work status:done"
+              kaydet --list --today
+
+            Documentation:
+              Query syntax: docs/QUERY_SYNTAX.md
+              Configuration: {config_path}
+            """
         ),
         formatter_class=argparse.RawTextHelpFormatter,
     )
@@ -114,7 +121,26 @@ def build_parser(config_path: Path) -> argparse.ArgumentParser:
         "--filter",
         dest="filter",
         metavar="QUERY",
-        help="Filter entries or todos by query.",
+        help=dedent("""\
+            Filter entries or todos by query.
+
+            Examples:
+              kaydet --filter "#work status:done"
+              kaydet --filter "meeting time:>2"
+              kaydet --filter "#harcama miktar:100..500"
+              kaydet --filter "#work -#urgent since:2025-01-01"
+
+            Syntax:
+              #tag          - Match tag
+              key:value     - Match metadata
+              key:>N        - Comparison (>, >=, <, <=)
+              key:N..M      - Range
+              key:*         - Wildcard
+              -term         - Exclude
+              since:DATE    - Date filter (YYYY-MM-DD)
+
+            See docs/QUERY_SYNTAX.md for full documentation.
+            """),
     )
     query_group.add_argument(
         "--today",

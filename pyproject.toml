@@ -26,7 +26,9 @@ classifiers = [
     "Topic :: Office/Business :: Scheduling",
 ]
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "rich>=13.0",
+]
 
 [project.optional-dependencies]
 dev = [

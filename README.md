@@ -79,6 +79,7 @@ Built-in MCP server exposes your archive to Claude Desktop. Ask your AI about yo
 - **SQLite indexing**: Fast search across thousands of entries
 - **Git-friendly**: Version your diary, sync across devices
 - **MCP integration**: Connect to Claude Desktop and other AI tools with todo support
+- **Sync at Home**: Offline-first phone workflow that syncs over your home LAN via the fingerprint protocol.
 
 ## Usage
 
@@ -205,6 +206,9 @@ Your AI assistant with perfect memory of your own data.
 - `suggest_kaydet_tags` – Suggest tags for assistants by reading `.kaydet.tags` in
   the current project or falling back to the directory name when no override is
   defined.
+
+- [`Sync at Home` protocol](docs/SYNC_AT_HOME.md) documents how the phone ↔
+  desktop LAN sync will work (SSID algılama, hash takası, append-both merge).
 
 ## Use Cases
 

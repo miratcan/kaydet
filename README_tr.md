@@ -62,6 +62,9 @@ pip install "git+https://github.com/miratcan/kaydet.git#egg=kaydet[mcp]"
 - Dahili MCP sunucusu arşivinizi Claude ve benzeri asistanlara açar.
 - JSON çıktılar otomasyonlara ve betiklerinize hazır veri sağlar.
 
+[`Sync at Home` protokolü](docs/SYNC_AT_HOME.md) SSID algılama, fingerprint
+değişimi ve append-both birleşim tekniğini adım adım anlatır.
+
 ## Terminalden Sahneler
 
 Kaydet, oynadığınız her rolü kaydeder. İşte birkaç sahne.
@@ -133,6 +136,7 @@ kaydet --search "billable:yes"
 - **Akıllı yapı** – etiket, metaveri ve sayılar otomatik indekslenir.
 - **Nazik hatırlatmalar** – uzun süre yazmadığınızda isteğe bağlı uyarı.
 - **Taşınabilir** – Python 3.10+ olan her yerde çalışır.
+- **Sync at Home** – telefon dışarıdayken offline, eve dönünce LAN üzerinden hash tabanlı eşitleme.
 
 ## Günlük Araç Takımı
 
