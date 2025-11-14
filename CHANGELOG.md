@@ -3,11 +3,29 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
-### Removed
-- Dropped the Textual-powered `--browse` command and dependency so the CLI ships without the TUI bundle.
-- Removed the external `universal-startfile` dependency now that the built-in `startfile` helper ships inside the `kaydet` package.
+
+## [0.33.1] - 2025-11-14
+### Added
+- Comprehensive query syntax documentation in `docs/QUERY_SYNTAX.md` with examples and patterns
+- ZEN principle identifiers (ZEN-NATURAL, ZEN-INTUITIVE, etc.) for better cross-referencing in documentation
+- Enhanced CLI help text with inline examples for `--filter` command and quick start guide
+
 ### Changed
-- Made the MCP integration an optional extra; install with `pip install 'kaydet[mcp]'` (or the GitHub equivalent) to run `kaydet-mcp`.
+- Rewrote `docs/SYNC_AT_HOME.md` with improved structure, race condition fixes, and 3-endpoint protocol design
+- Updated ZEN.md principles for clarity and consistency (all principles now start with "kaydet")
+- Merged query tokenizer into parsers module for better code organization (removed separate tokenizer.py)
+- Improved breaking change policy in ZEN.md: "Breaking changes are acceptable when documented in CHANGELOG"
+
+### Fixed
+- Added missing `rich>=13.0` dependency to pyproject.toml (was imported but not declared)
+
+### Removed
+- Dropped the Textual-powered `--browse` command and dependency so the CLI ships without the TUI bundle
+- Removed the external `universal-startfile` dependency now that the built-in `startfile` helper ships inside the `kaydet` package
+
+### Documentation
+- Made the MCP integration an optional extra; install with `pip install 'kaydet[mcp]'` (or the GitHub equivalent) to run `kaydet-mcp`
+- Documented the upcoming Sync at Home protocol (SSID detection, fingerprint exchange, append-both merge) in `docs/SYNC_AT_HOME.md` and referenced it from the READMEs
 
 ## [0.33.0] - 2025-10-30
 ### Added

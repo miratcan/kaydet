@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from kaydet.new_parser import Token, tokenize
+from kaydet.parsers import Token, tokenize
 
 
 def test_tokenize_simple_word():
