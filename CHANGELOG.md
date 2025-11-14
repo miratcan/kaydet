@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- Fixed `--todo` without arguments to list todos instead of showing help text
+- Fixed `--at` flag entry injection corruption (used wrong regex, added extra indentation)
+- Fixed `DAY_FILE_PATTERN` customization broken by hardcoded `*.txt` glob patterns
+
 ## [0.33.1] - 2025-11-14
 ### Added
 - Comprehensive query syntax documentation in `docs/QUERY_SYNTAX.md` with examples and patterns

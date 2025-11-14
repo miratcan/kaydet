@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 from ..parsers import count_entries, resolve_entry_date
-from ..utils import DEFAULT_SETTINGS
+from ..utils import DEFAULT_SETTINGS, get_file_glob_from_pattern
 
 
 def stats_command(
@@ -25,7 +25,10 @@ def stats_command(
             print("No diary entries found yet.")
         return
 
-    if not any(log_dir.glob("*.txt")):
+    day_pattern = config.get("DAY_FILE_PATTERN", DEFAULT_SETTINGS["DAY_FILE_PATTERN"])
+    glob_pattern = get_file_glob_from_pattern(day_pattern)
+
+    if not any(log_dir.glob(glob_pattern)):
         if output_format == "json":
             print(json.dumps({"error": "No diary entries found yet."}))
         else:

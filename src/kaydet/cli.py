@@ -350,14 +350,9 @@ def main() -> None:
                 todos, args.output_format, config=config, console=console
             )
         else:
-            print(
-                '\nTo create a new todo: kaydet --todo '
-                '"your task description"'
-            )
-            print(
-                'To filter todos: kaydet --todo --filter '
-                '"#work priority:high"'
-            )
+            # kaydet --todo (no arguments) → list all todos
+            from .commands.todo import list_todos_command
+            list_todos_command(conn, storage_dir, config, args.output_format, console)
         return
 
     if args.done is not None:

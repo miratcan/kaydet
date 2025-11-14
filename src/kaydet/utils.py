@@ -34,6 +34,27 @@ LAST_ENTRY_FILENAME = "last_entry_timestamp"
 REMINDER_THRESHOLD = timedelta(hours=2)
 
 
+def get_file_glob_from_pattern(pattern: str) -> str:
+    """
+    Derive a glob pattern from DAY_FILE_PATTERN.
+
+    Examples:
+        "%Y-%m-%d.txt" -> "*.txt"
+        "%Y-%m-%d.md" -> "*.md"
+        "notes-%Y%m%d.org" -> "*.org"
+        "%Y-%m-%d" -> "*"
+    """
+    # Find file extension (last dot onwards)
+    if '.' in pattern:
+        extension = pattern.rsplit('.', 1)[-1]
+        # Check if extension contains strftime directives
+        if '%' in extension:
+            # Extension is templated, can't reliably determine
+            return "*"
+        return f"*.{extension}"
+    return "*"
+
+
 def get_default_storage_path() -> Path:
     """Return the default storage path based on the operating system."""
     system = platform.system()
@@ -178,7 +199,8 @@ def iter_diary_entries(
     day_file_pattern = config.get(
         "DAY_FILE_PATTERN", DEFAULT_SETTINGS["DAY_FILE_PATTERN"]
     )
-    for candidate in sorted(log_dir.glob("*.txt")):
+    glob_pattern = get_file_glob_from_pattern(day_file_pattern)
+    for candidate in sorted(log_dir.glob(glob_pattern)):
         if not candidate.is_file():
             continue
         entry_date = resolve_entry_date(candidate, day_file_pattern)

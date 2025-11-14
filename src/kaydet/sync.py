@@ -20,7 +20,7 @@ from .parsers import (
     parse_day_entries,
     resolve_entry_date,
 )
-from .utils import DEFAULT_SETTINGS
+from .utils import DEFAULT_SETTINGS, get_file_glob_from_pattern
 
 logger = logging.getLogger(__name__)
 
@@ -222,6 +222,7 @@ def sync_modified_diary_files(
         "DAY_FILE_PATTERN",
         DEFAULT_SETTINGS["DAY_FILE_PATTERN"],
     )
+    glob_pattern = get_file_glob_from_pattern(day_pattern)
 
     cursor = conn.cursor()
     cursor.execute(
@@ -233,7 +234,7 @@ def sync_modified_diary_files(
 
     normalized_files: List[Path] = []
 
-    for day_file in sorted(log_dir.glob("*.txt")):
+    for day_file in sorted(log_dir.glob(glob_pattern)):
         if not day_file.is_file():
             continue
         file_mtime = day_file.stat().st_mtime

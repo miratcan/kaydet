@@ -11,6 +11,7 @@ from typing import Dict, Iterable, Tuple
 
 from .. import database
 from ..parsers import (
+    ENTRY_LINE_PATTERN,
     deduplicate_tags,
     extract_tags_from_text,
     extract_words_from_text,
@@ -58,8 +59,8 @@ def inject_entry(
         extra_tag_markers,
         entry_id=str(entry_id),
     )
-    new_entry_content = [header_line] + [f"  {line}" for line in message_lines[1:]]
-
+    # Body lines written verbatim (no extra indentation, matching append_entry behavior)
+    new_entry_content = [header_line] + list(message_lines[1:])
 
     if not day_file.exists():
         with day_file.open("w", encoding="utf-8") as handle:
@@ -72,9 +73,10 @@ def inject_entry(
     inserted = False
 
     for line in lines:
-        match = re.match(r"(\d{2}:\d{2})", line)
+        # Use ENTRY_LINE_PATTERN to detect actual entry headers (not body lines starting with time)
+        match = ENTRY_LINE_PATTERN.match(line)
         if not inserted and match:
-            line_timestamp = match.group(1)
+            line_timestamp = match.group(1)  # HH:MM from pattern
             if timestamp < line_timestamp:
                 output_lines.extend(new_entry_content)
                 inserted = True
