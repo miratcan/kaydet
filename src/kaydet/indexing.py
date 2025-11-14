@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 from .commands.doctor import doctor_command
+from .utils import DEFAULT_SETTINGS, get_file_glob_from_pattern
 
 SELECT_ENTRY_COUNT_SQL = "SELECT COUNT(*) FROM entries"
 
@@ -19,13 +20,15 @@ def rebuild_index_if_empty(
     current_time: datetime | None = None,
 ) -> None:
     """Trigger a doctor rebuild when the index tables are empty."""
+    day_pattern = config.get("DAY_FILE_PATTERN", DEFAULT_SETTINGS["DAY_FILE_PATTERN"])
+    glob_pattern = get_file_glob_from_pattern(day_pattern)
 
     cursor = conn.cursor()
     cursor.execute(SELECT_ENTRY_COUNT_SQL)
     entry_count = cursor.fetchone()[0]
     if entry_count != 0 or not log_dir.exists():
         return
-    if not any(log_dir.glob("*.txt")):
+    if not any(log_dir.glob(glob_pattern)):
         return
 
     print("Search index is empty. Rebuilding from existing files...")
