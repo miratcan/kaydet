@@ -33,7 +33,7 @@ from .utils import DEFAULT_SETTINGS, load_config  # noqa: F401
 INDEX_FILENAME = "index.db"
 
 
-def build_parser(config_path: Path) -> argparse.ArgumentParser:
+def build_parser(config_path: Path, storage_path: Path) -> argparse.ArgumentParser:
     """Create the kaydet CLI argument parser."""
     parser = argparse.ArgumentParser(
         prog="kaydet",
@@ -50,6 +50,8 @@ def build_parser(config_path: Path) -> argparse.ArgumentParser:
             Documentation:
               Query syntax: docs/QUERY_SYNTAX.md
               Configuration: {config_path}
+              Storage: {storage_path}
+              (Change via config.ini → STORAGE_DIR; Kaydet will move files for you)
             """
         ),
         formatter_class=argparse.RawTextHelpFormatter,
@@ -104,8 +106,9 @@ def build_parser(config_path: Path) -> argparse.ArgumentParser:
         "--done",
         dest="done",
         type=int,
+        nargs="+",
         metavar="ID",
-        help="Mark a todo as done by ID (e.g., 'kaydet --done 42').",
+        help="Mark todos as done by ID (e.g., 'kaydet --done 1 2 3').",
     )
 
 
@@ -211,7 +214,7 @@ def build_parser(config_path: Path) -> argparse.ArgumentParser:
 def main() -> None:
     """Application entry point for the kaydet CLI."""
     config, config_path, config_dir, storage_dir, index_dir = load_config()
-    parser = build_parser(config_path)
+    parser = build_parser(config_path, storage_dir)
     args = parser.parse_args()
 
     now = datetime.now()
@@ -356,7 +359,8 @@ def main() -> None:
         return
 
     if args.done is not None:
-        done_command(conn, storage_dir, config, args.done, now)
+        for entry_id in args.done:
+            done_command(conn, storage_dir, config, entry_id, now)
         return
 
     # Handle --today: add today's date as a since: filter
@@ -372,12 +376,24 @@ def main() -> None:
 
     # Handle --list (with optional --filter)
     if args.list_entries:
-        query = args.filter if args.filter else ""
+        query = (args.filter or "").strip()
+        default_since_hint = None
+        if not query:
+            month_start = now.replace(day=1).date().isoformat()
+            query = f"since:{month_start}"
+            default_since_hint = month_start
+
         # allow_empty=True lets --list show all entries when no filter
         # is provided
         search_command(
-            conn, storage_dir, config, query, args.output_format, console=console,
-            allow_empty=True
+            conn,
+            storage_dir,
+            config,
+            query,
+            args.output_format,
+            console=console,
+            allow_empty=True,
+            default_since_hint=default_since_hint,
         )
         return
 
