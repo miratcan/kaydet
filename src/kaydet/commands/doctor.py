@@ -26,7 +26,7 @@ def doctor_command(
     conn: sqlite3.Connection,
     log_dir: Path,
     config: SectionProxy,
-    now: datetime
+    now: datetime,
 ):
     """Rebuild the SQLite index while normalizing diary entry IDs."""
     print(

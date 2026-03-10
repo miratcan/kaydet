@@ -5,14 +5,13 @@ import re
 import sqlite3
 import sys
 from configparser import ConfigParser
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
 
 from kaydet import __version__ as package_version
-from kaydet import cli
-from kaydet.models import Entry
+from kaydet import cli, utils
 
 
 @pytest.fixture
@@ -89,9 +88,12 @@ def test_add_simple_entry(setup_kaydet, mock_datetime_factory):
     assert log_file.exists()
     content = log_file.read_text()
     assert "2025/09/30/ - Tuesday" in content
-    print(f"\nDEBUG: Content repr: {repr(content)}")
-    print(f"DEBUG: Regex repr: {repr(r'10:30 \[\[(\d+)\]+\]: my first test entry')}")
-    assert re.search(r"2025/09/30/ - Tuesday\n--------------------\n10:30 \[\d+\]: my first test entry\n", content)
+    regex = (
+        r"2025/09/30/ - Tuesday\n"
+        r"--------------------\n"
+        r"10:30 \[\d+\]: my first test entry\n"
+    )
+    assert re.search(regex, content)
 
 
 def test_add_entry_with_tags(setup_kaydet, mock_datetime_factory):
@@ -116,7 +118,9 @@ def test_add_entry_with_tags(setup_kaydet, mock_datetime_factory):
     # Check for the new format with numeric IDs
     # Tags are now extracted from message and appended naturally
     assert re.search(
-        r"2025/09/30/ - Tuesday\n--------------------\n11:00 \[\d+\]: This is a test for and #project-a #work\n",
+        r"2025/09/30/ - Tuesday\n--------------------\n"
+        r"11:00 \[\d+\]: This is a test for and "
+        r"#project-a #work\n",
         content,
     )
 
@@ -208,9 +212,7 @@ def test_add_entry_with_metadata_tokens(setup_kaydet, mock_datetime_factory):
     db.close()
 
 
-def test_add_entry_prints_id(
-    setup_kaydet, mock_datetime_factory, capsys
-):
+def test_add_entry_prints_id(setup_kaydet, mock_datetime_factory, capsys):
     """Adding an entry should report the new numeric identifier."""
     monkeypatch = setup_kaydet["monkeypatch"]
     mock_datetime_factory(datetime(2025, 9, 30, 14, 0, 0))
@@ -244,9 +246,11 @@ def test_editor_usage(setup_kaydet, mock_datetime_factory):
     assert log_file.exists()
     content = log_file.read_text()
     assert re.search(
-        r"2025/09/30/ - Tuesday\n--------------------\n12:00 \[\d+\]: This entry came from the editor.\n",
+        r"2025/09/30/ - Tuesday\n--------------------\n"
+        r"12:00 \[\d+\]: This entry came from the editor.\n",
         content,
     )
+
 
 def test_stats_command(setup_kaydet, capsys, mock_datetime_factory):
     """Test the --stats command output."""
@@ -305,6 +309,7 @@ def test_version_flag(setup_kaydet, capsys):
     captured = capsys.readouterr()
     assert f"kaydet {package_version}" in captured.out
 
+
 def test_search_command(setup_kaydet, capsys):
     """Test the --search command output."""
     fake_log_dir = setup_kaydet["fake_log_dir"]
@@ -341,6 +346,7 @@ def test_search_command(setup_kaydet, capsys):
     assert "secret-meeting" in output
     assert "unrelated note" not in output
     assert "Listed 2 entries containing secret" in output
+
 
 def test_search_with_metadata_filters(
     setup_kaydet, capsys, mock_datetime_factory
@@ -447,6 +453,7 @@ def test_tags_command(setup_kaydet, capsys, mock_datetime_factory):
         "#work                1 entry",
     ]
 
+
 def test_doctor_command(setup_kaydet, capsys):
     """Ensure --doctor rebuilds the index from legacy files."""
     fake_log_dir = setup_kaydet["fake_log_dir"]
@@ -521,7 +528,9 @@ def test_manual_edit_sync_before_search(
         encoding="utf-8",
     )
 
-    monkeypatch.setattr(sys, "argv", ["kaydet", "--filter", "#updated since:0"])
+    monkeypatch.setattr(
+        sys, "argv", ["kaydet", "--filter", "#updated since:0"]
+    )
     cli.main()
     output = capsys.readouterr().out
 
@@ -554,9 +563,7 @@ def test_edit_command_updates_entry(
     db_path = fake_index_dir / "index.db"
     with sqlite3.connect(db_path) as db:
         cursor = db.cursor()
-        cursor.execute(
-            "SELECT id FROM entries WHERE timestamp = '09:00'"
-        )
+        cursor.execute("SELECT id FROM entries WHERE timestamp = '09:00'")
         entry_id = cursor.fetchone()[0]
 
     edited_content = (
@@ -629,9 +636,7 @@ def test_delete_command_removes_entry(
     db_path = fake_index_dir / "index.db"
     with sqlite3.connect(db_path) as db:
         cursor = db.cursor()
-        cursor.execute(
-            "SELECT id FROM entries WHERE timestamp = '09:00'"
-        )
+        cursor.execute("SELECT id FROM entries WHERE timestamp = '09:00'")
         entry_id = cursor.fetchone()[0]
 
     prompted = []
@@ -766,6 +771,7 @@ def test_reminder_no_previous_entries(setup_kaydet, capsys):
     captured = capsys.readouterr()
     assert "You haven't written any Kaydet entries yet." in captured.out
 
+
 def test_reminder_recent_entry(setup_kaydet, capsys):
     """Test the reminder command when a recent entry exists."""
     monkeypatch = setup_kaydet["monkeypatch"]
@@ -781,6 +787,7 @@ def test_reminder_recent_entry(setup_kaydet, capsys):
 
     captured = capsys.readouterr()
     assert captured.out == ""
+
 
 def test_reminder_old_entry(setup_kaydet, capsys):
     """Test the reminder command when the last entry is old."""
@@ -801,6 +808,7 @@ def test_reminder_old_entry(setup_kaydet, capsys):
         in captured.out
     )
 
+
 def test_folder_command_opens_main_log_dir(setup_kaydet, mocker):
     """Test that `kaydet --folder` opens the main log directory."""
     fake_log_dir = setup_kaydet["fake_log_dir"]
@@ -812,6 +820,7 @@ def test_folder_command_opens_main_log_dir(setup_kaydet, mocker):
     cli.main()
 
     mock_startfile.assert_called_once_with(str(fake_log_dir))
+
 
 def test_read_diary_with_bad_encoding(
     setup_kaydet, capsys, mock_datetime_factory
@@ -834,6 +843,7 @@ def test_read_diary_with_bad_encoding(
     captured = capsys.readouterr()
     output = captured.out
     assert "Total entries this month: 2" in output
+
 
 def test_reminder_fallback_to_mtime(
     setup_kaydet, capsys, mock_datetime_factory
@@ -866,6 +876,7 @@ def test_reminder_fallback_to_mtime(
         in captured.out
     )
 
+
 def test_stats_no_log_dir(setup_kaydet, capsys, mock_datetime_factory):
     """Test --stats command when the log directory does not exist."""
     monkeypatch = setup_kaydet["monkeypatch"]
@@ -877,6 +888,7 @@ def test_stats_no_log_dir(setup_kaydet, capsys, mock_datetime_factory):
 
     captured = capsys.readouterr()
     assert "No diary entries found yet." in captured.out
+
 
 def test_stats_over_99_entries(setup_kaydet, capsys, mock_datetime_factory):
     """Test --stats command for a day with 100+ entries."""
@@ -897,6 +909,7 @@ def test_stats_over_99_entries(setup_kaydet, capsys, mock_datetime_factory):
 
     assert " 5[**]" in output
     assert "Total entries this month: 100" in output
+
 
 def test_open_editor_flow(setup_kaydet, mock_datetime_factory, mocker):
     """Test the full flow of opening an editor and saving the content."""
@@ -923,6 +936,7 @@ def test_open_editor_flow(setup_kaydet, mock_datetime_factory, mocker):
     assert log_file.exists()
     assert editor_content in log_file.read_text()
 
+
 def test_legacy_tag_parsing(setup_kaydet, capsys):
     """Test that legacy [tag] format is parsed correctly."""
     fake_log_dir = setup_kaydet["fake_log_dir"]
@@ -942,6 +956,7 @@ def test_legacy_tag_parsing(setup_kaydet, capsys):
 
     assert "Rebuilt search index for 1 entry." in output
     assert "Tags: #project: 1, #work: 1" in output
+
 
 def test_search_no_results(setup_kaydet, capsys):
     """Test the --search command when no entries match."""
@@ -974,6 +989,7 @@ def test_tags_no_tags(setup_kaydet, capsys):
     captured = capsys.readouterr()
     assert "No tags have been recorded yet." in captured.out
 
+
 def test_empty_entry_from_editor(setup_kaydet, capsys, mock_datetime_factory):
     """Test that saving an empty entry from the editor does nothing."""
     fake_log_dir = setup_kaydet["fake_log_dir"]
@@ -999,6 +1015,7 @@ def test_empty_entry_from_editor(setup_kaydet, capsys, mock_datetime_factory):
 
 # --- Tests for load_config (without setup_kaydet fixture) ---
 
+
 def test_load_config_creation(monkeypatch, tmp_path):
     """Test that a new config file is created from scratch."""
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
@@ -1008,9 +1025,11 @@ def test_load_config_creation(monkeypatch, tmp_path):
     monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
 
     # Mock prompt_storage_location to return default storage path
-    from kaydet import utils
+
     default_storage = tmp_path / "Documents" / "Kaydet"
-    monkeypatch.setattr(utils, "prompt_storage_location", lambda: default_storage)
+    monkeypatch.setattr(
+        utils, "prompt_storage_location", lambda: default_storage
+    )
 
     section, config_path, _, storage_dir, index_dir = cli.load_config()
 
@@ -1021,6 +1040,7 @@ def test_load_config_creation(monkeypatch, tmp_path):
     assert storage_dir == default_storage
     assert storage_dir.exists()
     assert index_dir.exists()
+
 
 def test_load_config_existing_partial(monkeypatch, tmp_path):
     """Test that missing values are populated in an existing config."""
@@ -1033,7 +1053,11 @@ def test_load_config_existing_partial(monkeypatch, tmp_path):
     config_path = config_dir / "config.ini"
 
     custom_storage = tmp_path / "custom" / "storage"
-    config_content = f"[SETTINGS]\nstorage_dir = {custom_storage}\nlog_dir = {tmp_path / '.kaydet'}\n"
+    log_dir = tmp_path / ".kaydet"
+    config_content = (
+        f"[SETTINGS]\nstorage_dir = {custom_storage}\n"
+        f"log_dir = {log_dir}\n"
+    )
     config_path.write_text(config_content)
 
     section, _, _, storage_dir, index_dir = cli.load_config()
@@ -1043,6 +1067,7 @@ def test_load_config_existing_partial(monkeypatch, tmp_path):
     assert storage_dir == custom_storage
     assert storage_dir.exists()
     assert index_dir.exists()
+
 
 def test_load_config_xdg_home(monkeypatch, tmp_path):
     """Test that XDG_CONFIG_HOME environment variable is respected."""
@@ -1054,9 +1079,11 @@ def test_load_config_xdg_home(monkeypatch, tmp_path):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(xdg_path))
 
     # Mock prompt_storage_location to return default storage path
-    from kaydet import utils
+
     default_storage = tmp_path / "Documents" / "Kaydet"
-    monkeypatch.setattr(utils, "prompt_storage_location", lambda: default_storage)
+    monkeypatch.setattr(
+        utils, "prompt_storage_location", lambda: default_storage
+    )
 
     _, config_path, _, storage_dir, index_dir = cli.load_config()
 
@@ -1067,6 +1094,7 @@ def test_load_config_xdg_home(monkeypatch, tmp_path):
 
 
 # --- Final push for 100% coverage ---
+
 
 def test_search_multiline_result(setup_kaydet, capsys):
     """Test that multiline search results are printed correctly."""
@@ -1094,6 +1122,7 @@ def test_search_multiline_result(setup_kaydet, capsys):
     assert "    This is the second line." in output
     assert "    And a third." in output
 
+
 def test_doctor_with_untagged_entries(setup_kaydet, capsys):
     """Test that the doctor command handles entries with no tags."""
     fake_log_dir = setup_kaydet["fake_log_dir"]
@@ -1118,6 +1147,7 @@ def test_doctor_with_untagged_entries(setup_kaydet, capsys):
     assert "Rebuilt search index for 2 entries." in captured.out
     assert "Tags: #work: 1" in captured.out
 
+
 def test_stats_ignores_directories(
     setup_kaydet, capsys, mock_datetime_factory
 ):
@@ -1138,9 +1168,11 @@ def test_stats_ignores_directories(
     # Check that only the file is counted and the directory is ignored
     assert "Total entries this month: 1" in captured.out
 
+
 def test_extract_tags_empty_string():
     """Test the pure function extract_tags_from_text with an empty string."""
     assert cli.extract_tags_from_text("") == ()
+
 
 def test_search_with_colon_containing_text(
     setup_kaydet, capsys, mock_datetime_factory
@@ -1201,9 +1233,7 @@ def test_search_with_colon_containing_text(
     assert "http://example.com" not in output
 
 
-def test_add_entry_with_at_flag(
-    setup_kaydet, mock_datetime_factory, capsys
-):
+def test_add_entry_with_at_flag(setup_kaydet, mock_datetime_factory, capsys):
     """Test adding entries with the --at flag for custom timestamps."""
     fake_log_dir = setup_kaydet["fake_log_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
@@ -1219,7 +1249,7 @@ def test_add_entry_with_at_flag(
     capsys.readouterr()  # Clear stdout
 
     # 2. Inject an entry into the middle of the day
-    mock_datetime_factory(datetime(2025, 10, 25, 14, 0, 0)) # "now" is 14:00
+    mock_datetime_factory(datetime(2025, 10, 25, 14, 0, 0))  # "now" is 14:00
     monkeypatch.setattr(
         sys,
         "argv",
@@ -1233,7 +1263,8 @@ def test_add_entry_with_at_flag(
     # Check chronological order
     assert re.search(
         r"10:00.*First entry.*\n11:00.*Second entry.*\n12:00.*Third entry",
-        content, re.DOTALL
+        content,
+        re.DOTALL,
     )
 
     # 3. Inject an entry into a past date

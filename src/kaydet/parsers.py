@@ -13,23 +13,32 @@ from .models import Entry
 
 # Query tokenization
 
+
+def tokenize_query_terms(text: str) -> list[str]:
+    """Split raw query text into shell-like tokens respecting quotes."""
+    if not text:
+        return []
+    return shlex.split(text)
+
+
 @dataclass
 class Token:
     """A token parsed from a search query."""
+
     type: str
     value: str | tuple[str, str]
 
 
 def _parse_base_token(word: str) -> Token:
     """Parses a word into a single non-exclusion token."""
-    # Explicitly check for URL schemes to prevent them from being parsed as metadata.
+    # Check for URL schemes to prevent metadata parsing.
     if "://" in word:
         return Token("WORD", word)
 
     if word.startswith("#"):
         return Token("TAG", word[1:])
 
-    # A key must start with a lowercase letter, followed by letters, numbers, _, or -.
+    # Key: lowercase letter, then letters/numbers/_/-.
     if re.match(r"^[a-z][a-z0-9_-]*:", word):
         parts = word.split(":", 1)
         # This check is slightly redundant due to the regex, but safe.
@@ -43,11 +52,13 @@ def tokenize(text: str) -> list[Token]:
     """Converts a search query string into a list of tokens."""
     tokens = []
 
-    for word in text.split():
+    for word in tokenize_query_terms(text):
         if word.startswith("-") and len(word) > 1:
             base_token = _parse_base_token(word[1:])
             # Construct the exclusion token
-            tokens.append(Token(f"EXCLUDE_{base_token.type}", base_token.value))
+            tokens.append(
+                Token(f"EXCLUDE_{base_token.type}", base_token.value)
+            )
         else:
             tokens.append(_parse_base_token(word))
 
@@ -64,7 +75,8 @@ ENTRY_LINE_PATTERN = re.compile(
 LEGACY_TAG_PATTERN = re.compile(
     r"^[\[(](?P<tags>[a-z-]+(?:,[a-z-]+)*)[\])]\s*"
 )
-HASHTAG_PATTERN = re.compile(r"#([a-z-]+)")
+HASHTAG_PATTERN = re.compile(r"(?<!\\)#([a-z][a-z0-9_-]*)")
+REAL_HASHTAG_TOKEN_PATTERN = re.compile(r"(?<!\\)#[a-z][a-z0-9_-]*")
 TAG_PATTERN = re.compile(r"^[a-z-]+$")
 KEY_VALUE_PATTERN = re.compile(r"^(?P<key>[a-z][a-z0-9_-]*):(?P<value>.+)")
 NUMERIC_PATTERN = re.compile(r"^[-+]?\d+(?:\.\d+)?$")
@@ -81,7 +93,7 @@ def normalize_tag(tag: str) -> Optional[str]:
     """
     cleaned = tag.strip().lstrip("#").lower()
     # Extract only valid tag characters (letters and hyphens)
-    match = re.match(r'^([a-z][a-z0-9_-]*)', cleaned)
+    match = re.match(r"^([a-z][a-z0-9_-]*)", cleaned)
     if match:
         return match.group(1)
     return None
@@ -158,7 +170,9 @@ def partition_entry_tokens(
     tags = list(extract_tags_from_text(full_text))
 
     # Remove hashtags from text
-    text_without_tags = re.sub(r"#[a-z][a-z0-9_-]*", "", full_text)
+    text_without_tags = REAL_HASHTAG_TOKEN_PATTERN.sub("", full_text)
+    text_without_tags = text_without_tags.replace("\\#", "#")
+    text_without_tags = text_without_tags.replace("\\#", "#")
 
     # Extract and remove metadata (key:value pairs)
     metadata: Dict[str, str] = {}
@@ -253,7 +267,7 @@ def tokenize_query(
     List[str],
     List[str],
 ]:
-    """Split a query into text, metadata, and tag filters for inclusion and exclusion."""
+    """Split a query into text, metadata, and tag filters."""
     tokens = tokenize(query)
 
     text_terms: List[str] = []

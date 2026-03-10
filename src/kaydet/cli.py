@@ -10,8 +10,6 @@ from textwrap import dedent
 
 from rich.console import Console
 
-from .startfile import startfile
-
 from . import __description__, __version__, database
 from .commands import (
     add_entry_command,
@@ -25,15 +23,34 @@ from .commands import (
     tags_command,
     todo_command,
 )
+from .commands.edit import update_entry_inline
+from .commands.search import (
+    build_search_query,
+    load_matches,
+    print_matches,
+)
+from .commands.todo import list_todos_command
+from .formatters import format_todo_results
 from .indexing import rebuild_index_if_empty
-from .parsers import extract_tags_from_text  # noqa: F401
+from .parsers import (
+    extract_tags_from_text,  # noqa: F401
+    tokenize_query,
+)
+from .startfile import startfile
 from .sync import sync_modified_diary_files
-from .utils import DEFAULT_SETTINGS, load_config  # noqa: F401
+from .utils import (
+    DEFAULT_SETTINGS,  # noqa: F401
+    load_config,
+    migrate_storage,
+    open_file_in_editor,
+)
 
 INDEX_FILENAME = "index.db"
 
 
-def build_parser(config_path: Path, storage_path: Path) -> argparse.ArgumentParser:
+def build_parser(
+    config_path: Path, storage_path: Path
+) -> argparse.ArgumentParser:
     """Create the kaydet CLI argument parser."""
     parser = argparse.ArgumentParser(
         prog="kaydet",
@@ -51,7 +68,8 @@ def build_parser(config_path: Path, storage_path: Path) -> argparse.ArgumentPars
               Query syntax: docs/QUERY_SYNTAX.md
               Configuration: {config_path}
               Storage: {storage_path}
-              (Change via config.ini → STORAGE_DIR; Kaydet will move files for you)
+              (Change via config.ini → STORAGE_DIR;
+               Kaydet will move files for you)
             """
         ),
         formatter_class=argparse.RawTextHelpFormatter,
@@ -97,9 +115,11 @@ def build_parser(config_path: Path, storage_path: Path) -> argparse.ArgumentPars
         nargs="*",
         metavar="TEXT",
         help=(
-            "Create a new todo entry (e.g., 'kaydet --todo \"Buy groceries #home\"'). "
-            "Use without arguments to list todos, or combine with --filter to "
-            "narrow results (e.g., 'kaydet --todo --filter \"#work\"')."
+            "Create a new todo entry "
+            "(e.g., 'kaydet --todo \"Buy groceries #home\"'). "
+            "Use without arguments to list todos, or combine "
+            "with --filter to narrow results "
+            "(e.g., 'kaydet --todo --filter \"#work\"')."
         ),
     )
     todo_group.add_argument(
@@ -110,7 +130,6 @@ def build_parser(config_path: Path, storage_path: Path) -> argparse.ArgumentPars
         metavar="ID",
         help="Mark todos as done by ID (e.g., 'kaydet --done 1 2 3').",
     )
-
 
     # Query commands
     query_group = parser.add_argument_group("Query")
@@ -152,6 +171,13 @@ def build_parser(config_path: Path, storage_path: Path) -> argparse.ArgumentPars
         help="List today's entries only (shorthand for since:YYYY-MM-DD).",
     )
     query_group.add_argument(
+        "--get",
+        dest="get",
+        type=int,
+        metavar="ID",
+        help="Show a single entry by its numeric identifier.",
+    )
+    query_group.add_argument(
         "--tags", dest="list_tags", action="store_true", help="List all tags."
     )
     query_group.add_argument(
@@ -164,15 +190,20 @@ def build_parser(config_path: Path, storage_path: Path) -> argparse.ArgumentPars
     # Management
     management_group = parser.add_argument_group("Management")
     management_group.add_argument(
-        "--doctor", dest="doctor", action="store_true",
+        "--doctor",
+        dest="doctor",
+        action="store_true",
         help="Rebuild search index.",
     )
     management_group.add_argument(
         "--edit",
         dest="edit",
-        type=int,
-        metavar="ID",
-        help="Edit an entry by numeric identifier.",
+        nargs="+",
+        metavar="ARG",
+        help=(
+            "Edit an entry: --edit ID opens editor, "
+            '--edit ID "new text" updates inline.'
+        ),
     )
     management_group.add_argument(
         "--delete",
@@ -227,8 +258,6 @@ def main() -> None:
         startfile(str(storage_dir))
         return
     if args.edit_config:
-        from .utils import open_file_in_editor, migrate_storage
-
         # Save old storage path
         old_storage_dir = storage_dir
 
@@ -240,18 +269,28 @@ def main() -> None:
 
         # Check if storage path changed
         if old_storage_dir != new_storage_dir:
-            print(f"\nStorage path changed:")
+            print("\nStorage path changed:")
             print(f"  Old: {old_storage_dir}")
             print(f"  New: {new_storage_dir}")
 
             try:
-                response = input("\nMove files to new location? [y/N]: ").strip().lower()
-                if response == 'y':
+                response = (
+                    input("\nMove files to new location? [y/N]: ")
+                    .strip()
+                    .lower()
+                )
+                if response == "y":
                     migrate_storage(old_storage_dir, new_storage_dir)
                 else:
-                    print("\n⚠️  Files not moved. You may need to move them manually.")
+                    print(
+                        "\n⚠️  Files not moved. "
+                        "You may need to move them manually."
+                    )
             except (EOFError, KeyboardInterrupt):
-                print("\n\n⚠️  Files not moved. You may need to move them manually.")
+                print(
+                    "\n\n⚠️  Files not moved. "
+                    "You may need to move them manually."
+                )
         else:
             print("\n✓ Configuration saved.")
 
@@ -276,7 +315,28 @@ def main() -> None:
         tags_command(conn, args.output_format)
         return
 
-
+    if args.get is not None:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT source_file FROM entries WHERE id = ?", (args.get,)
+        )
+        result = cursor.fetchone()
+        if result is None:
+            print(f"Entry {args.get} not found.")
+            return
+        locations = [(result[0], args.get)]
+        matches = load_matches(locations, storage_dir, config)
+        if not matches:
+            print(f"Entry {args.get} not found.")
+            return
+        print_matches(
+            matches,
+            f"id:{args.get}",
+            args.output_format,
+            config,
+            console=console,
+        )
+        return
 
     # args.todo with nargs="*" returns:
     # - None if --todo flag not provided
@@ -290,9 +350,6 @@ def main() -> None:
             todo_command(args, config, config_dir, storage_dir, now, conn)
         elif args.filter:
             # Filter todos and display in todo format
-            from .commands.search import build_search_query, load_matches
-            from .parsers import tokenize_query
-
             combined_query = f"{args.filter} #todo"
             print(f"Filtering todos: {combined_query}\n")
 
@@ -325,18 +382,16 @@ def main() -> None:
             matches = load_matches(locations, storage_dir, config)
 
             # Convert search results to todo format
-            from .formatters import format_todo_results
-
             todos = []
             for match in matches:
                 status = match.metadata.get("status", "pending")
+                if status == "done":
+                    continue
                 completed_at = match.metadata.get("completed_at", "")
                 description = (
                     match.lines[0] if match.lines else "(no description)"
                 )
-                date_str = (
-                    match.day.isoformat() if match.day else "unknown"
-                )
+                date_str = match.day.isoformat() if match.day else "unknown"
 
                 todos.append(
                     {
@@ -349,13 +404,22 @@ def main() -> None:
                     }
                 )
 
+            if not todos:
+                print("No pending todos found matching the filter.")
+                return
+
             format_todo_results(
                 todos, args.output_format, config=config, console=console
             )
         else:
             # kaydet --todo (no arguments) → list all todos
-            from .commands.todo import list_todos_command
-            list_todos_command(conn, storage_dir, config, args.output_format, console)
+            list_todos_command(
+                conn,
+                storage_dir,
+                config,
+                args.output_format,
+                console,
+            )
         return
 
     if args.done is not None:
@@ -400,8 +464,12 @@ def main() -> None:
     # Handle standalone --filter (shorthand for --list --filter)
     if args.filter:
         search_command(
-            conn, storage_dir, config, args.filter, args.output_format,
-            console=console
+            conn,
+            storage_dir,
+            config,
+            args.filter,
+            args.output_format,
+            console=console,
         )
         return
 
@@ -409,7 +477,20 @@ def main() -> None:
         print("Use either --edit or --delete, not both.")
         return
     if args.edit is not None:
-        edit_entry_command(conn, storage_dir, config, args.edit, now)
+        try:
+            edit_id = int(args.edit[0])
+        except ValueError:
+            print(f"Invalid entry ID: {args.edit[0]}")
+            return
+        if len(args.edit) > 1:
+            # Inline update: --edit ID "new text"
+            inline_text = " ".join(args.edit[1:])
+            update_entry_inline(
+                conn, storage_dir, config, edit_id, text=inline_text, now=now
+            )
+        else:
+            # Editor mode: --edit ID
+            edit_entry_command(conn, storage_dir, config, edit_id, now)
         return
     if args.delete is not None:
         delete_entry_command(
@@ -422,6 +503,4 @@ def main() -> None:
         )
         return
 
-    add_entry_command(
-        args, config, config_dir, storage_dir, now, conn
-    )
+    add_entry_command(args, config, config_dir, storage_dir, now, conn)

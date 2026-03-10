@@ -22,9 +22,7 @@ def read_day_file(day_file: Path) -> Tuple[str, List[str], bool]:
     return raw_text, lines, raw_text.endswith("\n")
 
 
-def find_entry_block(
-    lines: Sequence[str], entry_id: int
-) -> Tuple[int, int]:
+def find_entry_block(lines: Sequence[str], entry_id: int) -> Tuple[int, int]:
     """Return the start (inclusive) and end (exclusive) indices."""
     entry_id_str = str(entry_id)
     start_index = None

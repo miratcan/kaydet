@@ -25,7 +25,9 @@ def stats_command(
             print("No diary entries found yet.")
         return
 
-    day_pattern = config.get("DAY_FILE_PATTERN", DEFAULT_SETTINGS["DAY_FILE_PATTERN"])
+    day_pattern = config.get(
+        "DAY_FILE_PATTERN", DEFAULT_SETTINGS["DAY_FILE_PATTERN"]
+    )
     glob_pattern = get_file_glob_from_pattern(day_pattern)
 
     if not any(log_dir.glob(glob_pattern)):

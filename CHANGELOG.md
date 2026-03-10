@@ -2,12 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [0.34.0] - 2026-03-10
+
+### Changed
+- CLI help now lists both the configuration file path and storage directory so `--help` provides full context.
+- Moved ZEN and contributing guides under `docs/` and pointed README links to their new home.
+- Relocated `logo.png` into `assets/` to keep the project root tidy.
+- Moved the Gemini agent brief into `docs/AGENTS.md` and told assistants (via README) to read it first.
+- Added an explicit "draft" warning to `docs/SYNC_AT_HOME.md` so readers know the
+  sync protocol is not implemented yet.
+- Query tokenizer now respects quoted terms via ``shlex.split``, so filters like
+  `--filter "project:'Long Term'"` keep their spaces intact.
+- Documented the default storage location in the README so first-run behavior is
+  clear even before `STORAGE_DIR` exists.
+- `kaydet --list` without filters now defaults to the current month and prints a
+  reminder about using `since:0` if you really want the entire archive.
+- Added literal `\#` escape support so notes can include hash characters
+  without creating unintended tags; documented the tip in README.
+- `kaydet --todo` now shows only pending items and prints a hint explaining how
+  to list completed todos (`kaydet --todo --filter "status:done"`).
 
 ### Fixed
 - Fixed `--todo` without arguments to list todos instead of showing help text
 - Fixed `--at` flag entry injection corruption (used wrong regex, added extra indentation)
 - Fixed `DAY_FILE_PATTERN` customization broken by hardcoded `*.txt` glob patterns
+
+### Removed
+- Dropped the outdated Turkish README (`README_tr.md`) so the English README stays the single source of truth.
+- Deleted the unused `kaydet.1` manpage and `demo.cast` Asciinema recording to keep the repository lean.
+- Removed the redundant `requirements.txt`; use `pip install -e .[dev]` (already documented) for local setup.
 
 ## [0.33.1] - 2025-11-14
 ### Added
@@ -17,9 +40,9 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 - Rewrote `docs/SYNC_AT_HOME.md` with improved structure, race condition fixes, and 3-endpoint protocol design
-- Updated ZEN.md principles for clarity and consistency (all principles now start with "kaydet")
+- Updated docs/ZEN.md principles for clarity and consistency (all principles now start with "kaydet")
 - Merged query tokenizer into parsers module for better code organization (removed separate tokenizer.py)
-- Improved breaking change policy in ZEN.md: "Breaking changes are acceptable when documented in CHANGELOG"
+- Improved breaking change policy in docs/ZEN.md: "Breaking changes are acceptable when documented in CHANGELOG"
 
 ### Fixed
 - Added missing `rich>=13.0` dependency to pyproject.toml (was imported but not declared)

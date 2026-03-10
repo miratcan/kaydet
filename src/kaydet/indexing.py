@@ -20,7 +20,9 @@ def rebuild_index_if_empty(
     current_time: datetime | None = None,
 ) -> None:
     """Trigger a doctor rebuild when the index tables are empty."""
-    day_pattern = config.get("DAY_FILE_PATTERN", DEFAULT_SETTINGS["DAY_FILE_PATTERN"])
+    day_pattern = config.get(
+        "DAY_FILE_PATTERN", DEFAULT_SETTINGS["DAY_FILE_PATTERN"]
+    )
     glob_pattern = get_file_glob_from_pattern(day_pattern)
 
     cursor = conn.cursor()

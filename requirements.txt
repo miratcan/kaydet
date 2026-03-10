@@ -1,4 +1,0 @@
-pytest
-pytest-cov
-pytest-mock
-mcp>=0.9.0

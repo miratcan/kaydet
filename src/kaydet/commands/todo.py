@@ -11,7 +11,12 @@ from rich.console import Console
 
 from ..commands.add import create_entry
 from ..formatters import format_todo_results
-from ..parsers import partition_entry_tokens
+from ..parsers import (
+    parse_day_entries,
+    parse_numeric_value,
+    partition_entry_tokens,
+    resolve_entry_date,
+)
 
 
 def todo_command(
@@ -65,10 +70,7 @@ def done_command(
     """Mark a todo entry as done by updating its status metadata."""
     # Find the entry
     cursor = conn.cursor()
-    cursor.execute(
-        "SELECT source_file FROM entries WHERE id = ?",
-        (entry_id,)
-    )
+    cursor.execute("SELECT source_file FROM entries WHERE id = ?", (entry_id,))
     result = cursor.fetchone()
 
     if not result:
@@ -78,8 +80,6 @@ def done_command(
     # Use edit_entry_command to update the entry
     # We'll need to add completed_at metadata and change status to done
     # For now, let's use a simpler approach: directly edit the file
-
-    from ..parsers import parse_day_entries, resolve_entry_date
 
     source_file = result[0]
     day_file = log_dir / source_file
@@ -164,8 +164,7 @@ def done_command(
                         )
                     else:
                         new_line = (
-                            f"{timestamp_and_text} | "
-                            f"{new_metadata_section} |"
+                            f"{timestamp_and_text} | {new_metadata_section} |"
                         )
 
                     if not new_line.endswith("\n"):
@@ -212,8 +211,6 @@ def done_command(
         )
 
     # Add completed_at metadata
-    from ..parsers import parse_numeric_value
-
     numeric_val = parse_numeric_value(completed_time)
     cursor.execute(
         "INSERT OR REPLACE INTO metadata "
@@ -236,15 +233,15 @@ def list_todos_command(
     console: Optional[Console] = None,
 ) -> None:
     """List all todos with their status."""
-    from ..parsers import parse_day_entries, resolve_entry_date
-
-    # Find all entries with #todo tag
+    # Find all pending entries with #todo tag (exclude done)
     cursor = conn.cursor()
     cursor.execute(
         "SELECT DISTINCT e.id, e.source_file "
         "FROM entries e "
         "JOIN tags t ON e.id = t.entry_id "
+        "LEFT JOIN metadata m ON e.id = m.entry_id AND m.meta_key = 'status' "
         "WHERE t.tag_name = 'todo' "
+        "AND COALESCE(m.meta_value, 'pending') != 'done' "
         "ORDER BY e.source_file, e.id"
     )
 
@@ -275,15 +272,22 @@ def list_todos_command(
                     entry.lines[0] if entry.lines else "(no description)"
                 )
 
-                todos.append({
-                    "id": entry_id,
-                    "date": entry.day.isoformat() if entry.day else "unknown",
-                    "timestamp": entry.timestamp,
-                    "status": status,
-                    "completed_at": completed_at,
-                    "description": description,
-                })
+                todos.append(
+                    {
+                        "id": entry_id,
+                        "date": entry.day.isoformat()
+                        if entry.day
+                        else "unknown",
+                        "timestamp": entry.timestamp,
+                        "status": status,
+                        "completed_at": completed_at,
+                        "description": description,
+                    }
+                )
                 break
 
-    # Use the formatter to display todos
+    if not todos:
+        print("No pending todos.")
+        return
+
     format_todo_results(todos, output_format, config=config, console=console)

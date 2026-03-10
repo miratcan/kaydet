@@ -45,9 +45,7 @@ def _normalize_edited_block(entry_id: int, lines: List[str]) -> List[str]:
     message, metadata, explicit_tags = parse_stored_entry_remainder(remainder)
     body_lines = lines[1:]
     inline_tags = set(deduplicate_tags([], [message, *body_lines]))
-    explicit_markers = [
-        tag for tag in explicit_tags if tag not in inline_tags
-    ]
+    explicit_markers = [tag for tag in explicit_tags if tag not in inline_tags]
 
     normalized_header = format_entry_header(
         timestamp,
@@ -184,16 +182,16 @@ def update_entry_inline(
 
     timestamp_value = timestamp or original_timestamp
 
-    new_text = text if text is not None else "\n".join(
-        [current_message, *existing_body_lines]
+    new_text = (
+        text
+        if text is not None
+        else "\n".join([current_message, *existing_body_lines])
     )
     entry_body = new_text.strip()
 
     metadata_map = dict(metadata or current_metadata)
     explicit_tags = (
-        list(tags)
-        if tags is not None
-        else list(current_explicit_tags)
+        list(tags) if tags is not None else list(current_explicit_tags)
     )
     unique_explicit = sorted(
         {tag.strip().lower() for tag in explicit_tags if tag}
