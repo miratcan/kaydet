@@ -1,12 +1,15 @@
 """Tests for formatters module."""
 
 from datetime import date
-from unittest.mock import Mock
 
 from rich.console import Console
 from rich.text import Text
 
-from kaydet.formatters import SearchResult, format_todo_results, format_search_results
+from kaydet.formatters import (
+    SearchResult,
+    format_search_results,
+    format_todo_results,
+)
 
 
 class MockConsole(Console):
@@ -62,12 +65,16 @@ class TestFormatTodoResults:
 
     def test_format_empty_todos_text(self, mock_console, mock_config):
         """Test formatting empty todo list in text format."""
-        format_todo_results([], "text", config=mock_config, console=mock_console)
+        format_todo_results(
+            [], "text", config=mock_config, console=mock_console
+        )
         assert "No todos found" in mock_console.printed_text[0]
 
     def test_format_empty_todos_json(self, mock_console, mock_config):
         """Test formatting empty todo list in JSON format."""
-        format_todo_results([], "json", config=mock_config, console=mock_console)
+        format_todo_results(
+            [], "json", config=mock_config, console=mock_console
+        )
         assert '"todos": []' in mock_console.printed_text[0]
 
     def test_format_pending_todos_text(self, mock_console, mock_config):
@@ -90,7 +97,9 @@ class TestFormatTodoResults:
                 "description": "Write documentation",
             },
         ]
-        format_todo_results(todos, "text", config=mock_config, console=mock_console)
+        format_todo_results(
+            todos, "text", config=mock_config, console=mock_console
+        )
 
         assert "Pending Todos" in mock_console.printed_text[0]
         assert "[ ]" in mock_console.printed_text[1]
@@ -114,11 +123,13 @@ class TestFormatTodoResults:
                 "description": "Fix bug in authentication",
             },
         ]
-        format_todo_results(todos, "text", config=mock_config, console=mock_console)
+        format_todo_results(
+            todos, "text", config=mock_config, console=mock_console
+        )
 
         # Check for color markup for pending todo ID (yellow by default)
         assert "[yellow][1][/yellow]" in mock_console.printed_text[1]
-        # Check for color markup for summary (yellow by default for pending count)
+        # Check color markup for summary (yellow for pending)
         assert "[yellow]1[/yellow] pending" in mock_console.printed_text[-1]
 
     def test_format_completed_todos_text(self, mock_console, mock_config):
@@ -133,7 +144,9 @@ class TestFormatTodoResults:
                 "description": "Implement feature X",
             },
         ]
-        format_todo_results(todos, "text", config=mock_config, console=mock_console)
+        format_todo_results(
+            todos, "text", config=mock_config, console=mock_console
+        )
 
         assert "Completed Todos" in mock_console.printed_text[0]
         assert "[3]" in mock_console.printed_text[1]
@@ -162,7 +175,9 @@ class TestFormatTodoResults:
                 "description": "Completed task",
             },
         ]
-        format_todo_results(todos, "text", config=mock_config, console=mock_console)
+        format_todo_results(
+            todos, "text", config=mock_config, console=mock_console
+        )
 
         assert "Pending Todos" in mock_console.printed_text[0]
         assert "Completed Todos" in mock_console.printed_text[3]
@@ -184,7 +199,9 @@ class TestFormatTodoResults:
                 "description": "Test todo",
             },
         ]
-        format_todo_results(todos, "json", config=mock_config, console=mock_console)
+        format_todo_results(
+            todos, "json", config=mock_config, console=mock_console
+        )
 
         assert '"todos"' in mock_console.printed_text[0]
         assert '"id": 1' in mock_console.printed_text[0]
@@ -203,7 +220,9 @@ class TestFormatTodoResults:
                 "description": "Task without completion time",
             },
         ]
-        format_todo_results(todos, "text", config=mock_config, console=mock_console)
+        format_todo_results(
+            todos, "text", config=mock_config, console=mock_console
+        )
 
         # Should not show "Completed:" line for pending tasks
         assert "Completed:" not in mock_console.printed_text[3]
@@ -215,7 +234,6 @@ class TestSearchResultFormatter:
 
     def test_format_search_results_colors(self, mock_console, mock_config):
         """Test formatting search results with colors."""
-        from kaydet.formatters import format_search_results
 
         matches = [
             SearchResult(
@@ -229,11 +247,18 @@ class TestSearchResultFormatter:
         format_search_results(matches, 80, mock_config, console=mock_console)
 
         # Check for color markup for header (bold cyan by default)
-        assert "[bold cyan]==========[/bold cyan]" in mock_console.printed_text[0]
-        assert "[bold cyan]2025-10-29[/bold cyan]" in mock_console.printed_text[1]
+        assert (
+            "[bold cyan]==========[/bold cyan]" in mock_console.printed_text[0]
+        )
+        assert (
+            "[bold cyan]2025-10-29[/bold cyan]" in mock_console.printed_text[1]
+        )
         # Check for color markup for date (green by default)
         assert "[green]14:00[/green]" in mock_console.printed_text[3]
         # Check for color markup for ID (yellow by default)
         assert "[[yellow]1[/yellow]]:" in mock_console.printed_text[3]
         # Check for color markup for tags (bold magenta by default)
-        assert "[bold magenta]#tag1[/bold magenta]" in mock_console.printed_text[4]
+        assert (
+            "[bold magenta]#tag1[/bold magenta]"
+            in mock_console.printed_text[4]
+        )

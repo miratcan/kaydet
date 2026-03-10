@@ -145,11 +145,39 @@ def test_service_todo_workflow(mcp_env):
     done_result = service.mark_todo_done(todo_id)
     assert done_result["success"] is True
 
-    # List todos again - should show as done
-    todos_after = service.list_todos()
-    assert len(todos_after["todos"]) == 1
-    assert todos_after["todos"][0]["status"] == "done"
-    assert todos_after["todos"][0]["completed_at"] != ""
+    # List pending todos - should be empty now
+    todos_pending = service.list_todos()
+    assert len(todos_pending["todos"]) == 0
+
+    # List done todos - should show the completed one
+    todos_done = service.list_todos(status="done")
+    assert len(todos_done["todos"]) == 1
+    assert todos_done["todos"][0]["status"] == "done"
+    assert todos_done["todos"][0]["completed_at"] != ""
+
+    # List all todos - should show everything
+    todos_all = service.list_todos(status=None)
+    assert len(todos_all["todos"]) == 1
+
+
+def test_service_get_entry(mcp_env):
+    """Test getting a single entry by ID."""
+    service = mcp_server.KaydetService.initialize()
+
+    result = service.add_entry(text="Retrievable note #test")
+    entry_id = result["entry_id"]
+
+    # Get by ID
+    got = service.get_entry(entry_id)
+    assert got["success"] is True
+    assert got["entry"]["id"] == str(entry_id)
+    assert "Retrievable note" in got["entry"]["text"]
+
+    # Nonexistent ID
+    missing = service.get_entry(999999)
+    assert missing["success"] is False
+
+    service.delete_entry(entry_id)
 
 
 def test_service_list_empty_todos(mcp_env):
@@ -182,7 +210,9 @@ def test_service_suggest_tags_from_file(mcp_env):
     project_dir = mcp_env["log_dir"] / "project"
     project_dir.mkdir()
     tags_file = project_dir / ".kaydet.tags"
-    tags_file.write_text("# comment line\nwork\nproject-name\n", encoding="utf-8")
+    tags_file.write_text(
+        "# comment line\nwork\nproject-name\n", encoding="utf-8"
+    )
 
     monkeypatch = mcp_env["monkeypatch"]
     monkeypatch.chdir(project_dir)
@@ -275,6 +305,7 @@ def test_serve_registers_tools(monkeypatch, mcp_env):
         "add_entry",
         "update_entry",
         "delete_entry",
+        "get_entry",
         "search_entries",
         "create_todo",
         "mark_todo_done",

@@ -39,9 +39,7 @@ def _render_entry(entry: Entry) -> List[str]:
 
     message = entry.lines[0] if entry.lines else ""
     inline_tags = set(deduplicate_tags([], entry.lines))
-    explicit_markers = [
-        tag for tag in entry.tags if tag not in inline_tags
-    ]
+    explicit_markers = [tag for tag in entry.tags if tag not in inline_tags]
     header_line = format_entry_header(
         entry.timestamp,
         message,
@@ -225,9 +223,7 @@ def sync_modified_diary_files(
     glob_pattern = get_file_glob_from_pattern(day_pattern)
 
     cursor = conn.cursor()
-    cursor.execute(
-        "SELECT source_file, last_mtime FROM synced_files"
-    )
+    cursor.execute("SELECT source_file, last_mtime FROM synced_files")
     tracked: Dict[str, float] = {
         source_file: mtime for source_file, mtime in cursor.fetchall()
     }
@@ -240,8 +236,10 @@ def sync_modified_diary_files(
         file_mtime = day_file.stat().st_mtime
         entry_date = resolve_entry_date(day_file, day_pattern)
         stored_mtime = tracked.get(day_file.name)
-        needs_sync = force or stored_mtime is None or (
-            abs(stored_mtime - file_mtime) > 1e-6
+        needs_sync = (
+            force
+            or stored_mtime is None
+            or (abs(stored_mtime - file_mtime) > 1e-6)
         )
 
         if not needs_sync:

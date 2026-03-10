@@ -1,6 +1,6 @@
 from configparser import ConfigParser, SectionProxy
-import pytest
 
+import pytest
 from rich.console import Console
 from rich.text import Text
 

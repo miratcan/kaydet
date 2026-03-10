@@ -312,9 +312,15 @@ class SearchResultFormatter:
         padding = " " * padding_width
         color_header = self.config.get("COLOR_HEADER", "bold cyan")
 
-        self.console.print(f"\n{padding}[{color_header}]{separator}[/{color_header}]")
-        self.console.print(f"{padding}[{color_header}]{day_label}[/{color_header}]")
-        self.console.print(f"{padding}[{color_header}]{separator}[/{color_header}]\n")
+        self.console.print(
+            f"\n{padding}[{color_header}]{separator}[/{color_header}]"
+        )
+        self.console.print(
+            f"{padding}[{color_header}]{day_label}[/{color_header}]"
+        )
+        self.console.print(
+            f"{padding}[{color_header}]{separator}[/{color_header}]\n"
+        )
 
     def _print_entry(
         self,

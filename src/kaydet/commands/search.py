@@ -34,8 +34,7 @@ SELECT_MATCHES_TEMPLATE = (
 )
 
 SELECT_TAG_COUNTS_SQL = (
-    "SELECT tag_name, COUNT(*) FROM tags "
-    "GROUP BY tag_name ORDER BY tag_name"
+    "SELECT tag_name, COUNT(*) FROM tags GROUP BY tag_name ORDER BY tag_name"
 )
 
 
@@ -95,21 +94,30 @@ def build_search_query(
     # Exclusion clauses
     for i, term in enumerate(exclude_text):
         where_clauses.append(
-            f"NOT EXISTS (SELECT 1 FROM words w_ex{i} WHERE w_ex{i}.entry_id = e.id AND w_ex{i}.word LIKE ?)"
+            f"NOT EXISTS (SELECT 1 FROM words w_ex{i} "
+            f"WHERE w_ex{i}.entry_id = e.id "
+            f"AND w_ex{i}.word LIKE ?)"
         )
         params.append(f"%{term}%")
     for i, tag in enumerate(exclude_tags):
         where_clauses.append(
-            f"NOT EXISTS (SELECT 1 FROM tags t_ex{i} WHERE t_ex{i}.entry_id = e.id AND t_ex{i}.tag_name = ?)"
+            f"NOT EXISTS (SELECT 1 FROM tags t_ex{i} "
+            f"WHERE t_ex{i}.entry_id = e.id "
+            f"AND t_ex{i}.tag_name = ?)"
         )
         params.append(tag)
     for i, (key, value) in enumerate(exclude_meta):
         where_clauses.append(
-            f"NOT EXISTS (SELECT 1 FROM metadata m_ex{i} WHERE m_ex{i}.entry_id = e.id AND m_ex{i}.meta_key = ? AND m_ex{i}.meta_value = ?)"
+            f"NOT EXISTS (SELECT 1 FROM metadata m_ex{i} "
+            f"WHERE m_ex{i}.entry_id = e.id "
+            f"AND m_ex{i}.meta_key = ? "
+            f"AND m_ex{i}.meta_value = ?)"
         )
         params.extend([key, value])
 
-    from_clause = " ".join(list(dict.fromkeys(from_clauses))) # Remove duplicate JOINs
+    from_clause = " ".join(
+        list(dict.fromkeys(from_clauses))
+    )  # Remove duplicate JOINs
     where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
     sql_query = SELECT_MATCHES_TEMPLATE.format(
         from_clause=from_clause,
@@ -168,6 +176,7 @@ def print_matches(
     config: SectionProxy,
     console: Optional[Console] = None,
     metadata_filters: Optional[List[Tuple[str, str]]] = None,
+    default_since_hint: Optional[str] = None,
 ) -> None:
     """Render matches either as JSON or a terminal-friendly listing."""
     if output_format == "json":
@@ -225,15 +234,14 @@ def print_matches(
     display_query = query
     if "since:" in query:
         # Remove since:VALUE from query string for cleaner display
-        display_query = re.sub(r'\bsince:\S+\s*', '', query).strip()
+        display_query = re.sub(r"\bsince:\S+\s*", "", query).strip()
     if "until:" in query:
         # Remove until:VALUE from query string for cleaner display
-        display_query = re.sub(r'\buntil:\S+\s*', '', query).strip()
+        display_query = re.sub(r"\buntil:\S+\s*", "", query).strip()
 
     if display_query:
         status_msg = (
-            f"\nListed {len(matches)} {entry_label} containing "
-            f"{display_query}"
+            f"\nListed {len(matches)} {entry_label} containing {display_query}"
         )
     else:
         status_msg = f"\nListed {len(matches)} {entry_label}"
@@ -259,6 +267,14 @@ def print_matches(
         else:
             print("Use 'since:0' to see all entries.")
 
+    if default_since_hint and not display_query:
+        print(
+            "Note: No filter provided, so showing "
+            f"entries since {default_since_hint}. "
+            "Use '--list --filter \"since:0\"' for the "
+            "full archive (this may be very verbose)."
+        )
+
 
 def search_command(
     conn: sqlite3.Connection,
@@ -268,6 +284,7 @@ def search_command(
     output_format: str = "text",
     console: Optional[Console] = None,
     allow_empty: bool = False,
+    default_since_hint: Optional[str] = None,
 ):
     """Search diary entries using the SQLite index and print any
     matches."""
@@ -301,7 +318,19 @@ def search_command(
             normalized_meta_filters.append((key, value))
     include_meta = normalized_meta_filters
 
-    if not any([include_text, exclude_text, include_meta, exclude_meta, include_tags, exclude_tags]) and not allow_empty:
+    if (
+        not any(
+            [
+                include_text,
+                exclude_text,
+                include_meta,
+                exclude_meta,
+                include_tags,
+                exclude_tags,
+            ]
+        )
+        and not allow_empty
+    ):
         print("Search query is empty.")
         return
 
@@ -323,7 +352,13 @@ def search_command(
 
     matches = load_matches(locations, log_dir, config)
     print_matches(
-        matches, query, output_format, config, console, original_metadata_filters
+        matches,
+        query,
+        output_format,
+        config,
+        console,
+        original_metadata_filters,
+        default_since_hint=default_since_hint,
     )
 
 

@@ -6,194 +6,38 @@ from kaydet.parsers import Token, tokenize
 
 
 def test_tokenize_simple_word():
-
-
     """Test that a single word is tokenized correctly."""
 
-
     tokens = tokenize("hello")
-
 
     assert tokens == [Token("WORD", "hello")]
 
 
-
-
-
 def test_tokenize_tag():
-
-
-
-
-
     """Test that a single tag is tokenized correctly."""
 
-
-
-
-
     tokens = tokenize("#work")
-
-
-
-
 
     assert tokens == [Token("TAG", "work")]
 
 
-
-
-
-
-
-
-
-
-
 def test_tokenize_metadata():
-
-
-
-
-
-
-
-
-
-
-
     """Test that a key:value pair is tokenized correctly."""
 
-
-
-
-
-
-
-
-
-
-
     tokens = tokenize("status:done")
-
-
-
-
-
-
-
-
-
-
 
     assert tokens == [Token("METADATA", ("status", "done"))]
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 def test_tokenize_complex_query():
-
-
-
-
-
-
-
-
-
-
-
     """Test that a query with multiple token types is tokenized correctly."""
-
-
-
-
-
-
-
-
-
-
 
     tokens = tokenize("search #work status:done")
 
-
-
-
-
-
-
-
-
-
-
     assert tokens == [
-
-
-
-
-
-
-
-
-
-
-
         Token("WORD", "search"),
-
-
-
-
-
-
-
-
-
-
-
         Token("TAG", "work"),
-
-
-
-
-
-
-
-
-
-
-
         Token("METADATA", ("status", "done")),
-
-
-
-
-
-
-
-
-
-
-
     ]
 
 
@@ -245,22 +89,3 @@ def test_tokenize_invalid_metadata_as_word(text):
     rules are treated as a single WORD token."""
     tokens = tokenize(text)
     assert tokens == [Token("WORD", text)]
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -1,5 +1,8 @@
 # Sync at Home Protocol
 
+> **Status:** Draft design only. This protocol is not implemented yet; treat the
+> following spec as exploratory documentation until the feature lands.
+
 ## Overview
 
 Sync at Home enables mobile devices to synchronize diary files with a desktop computer over LAN, without cloud services or encryption. Privacy is protected by physical boundaries: sync happens only when the device connects to the home Wi-Fi network.

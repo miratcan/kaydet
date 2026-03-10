@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import re
 from configparser import SectionProxy
 from datetime import datetime
 from pathlib import Path
@@ -32,15 +31,18 @@ def _parse_at_str(at_str: str, now: datetime) -> datetime:
     try:
         # Is it just time? e.g., "14:30"
         t = datetime.strptime(at_str, "%H:%M").time()
-        return now.replace(hour=t.hour, minute=t.minute, second=0, microsecond=0)
+        return now.replace(
+            hour=t.hour, minute=t.minute, second=0, microsecond=0
+        )
     except ValueError:
         # Is it a full datetime? e.g., "2025-10-28:14:30"
         try:
             return datetime.strptime(at_str, "%Y-%m-%d:%H:%M")
         except ValueError:
             raise ValueError(
-                f"Invalid --at format: '{at_str}'. Use 'HH:MM' or 'YYYY-MM-DD:HH:MM'."
-            )
+                f"Invalid --at format: '{at_str}'. "
+                "Use 'HH:MM' or 'YYYY-MM-DD:HH:MM'."
+            ) from None
 
 
 def inject_entry(
@@ -59,7 +61,8 @@ def inject_entry(
         extra_tag_markers,
         entry_id=str(entry_id),
     )
-    # Body lines written verbatim (no extra indentation, matching append_entry behavior)
+    # Body lines written verbatim (no extra indentation,
+    # matching append_entry behavior)
     new_entry_content = [header_line] + list(message_lines[1:])
 
     if not day_file.exists():
@@ -73,7 +76,8 @@ def inject_entry(
     inserted = False
 
     for line in lines:
-        # Use ENTRY_LINE_PATTERN to detect actual entry headers (not body lines starting with time)
+        # Detect actual entry headers (not body lines
+        # starting with time)
         match = ENTRY_LINE_PATTERN.match(line)
         if not inserted and match:
             line_timestamp = match.group(1)  # HH:MM from pattern
@@ -137,9 +141,7 @@ def create_entry(
     )
 
     try:
-        write_func = (
-            inject_entry if at_str else append_entry
-        )
+        write_func = inject_entry if at_str else append_entry
         write_func(
             day_file=day_file,
             entry_id=entry_id,

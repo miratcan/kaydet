@@ -9,14 +9,15 @@ Run with: kaydet-mcp
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import re
+import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
-
-import sys
 
 from . import database
 from .cli import INDEX_FILENAME
@@ -50,20 +51,24 @@ def _load_mcp_dependencies():
     """Return MCP objects or raise a helpful error if missing."""
 
     global Server, stdio_server, TextContent, Tool
-    if all(symbol is not None for symbol in (Server, stdio_server, TextContent, Tool)):
+    if all(
+        symbol is not None
+        for symbol in (Server, stdio_server, TextContent, Tool)
+    ):
         return Server, stdio_server, TextContent, Tool
 
     try:
-        from mcp.server import Server as MCPServer
-        from mcp.server.stdio import stdio_server as MCPStdio
-        from mcp.types import TextContent as MCPTextContent, Tool as MCPTool
+        from mcp.server import Server as MCPServer  # noqa: PLC0415
+        from mcp.server.stdio import stdio_server as MCPStdio  # noqa: PLC0415
+        from mcp.types import TextContent as MCPTextContent  # noqa: PLC0415
+        from mcp.types import Tool as MCPTool  # noqa: PLC0415
     except ModuleNotFoundError as error:  # pragma: no cover - import guard
         raise MissingMCPDependencyError(
             (
                 "kaydet-mcp requires the optional 'mcp' dependency. "
                 "Install it via `pip install 'kaydet[mcp]'` or the "
-                "GitHub equivalent `pip install \"git+https://github.com/"
-                "miratcan/kaydet.git#egg=kaydet[mcp]\"`."
+                'GitHub equivalent `pip install "git+https://github.com/'
+                'miratcan/kaydet.git#egg=kaydet[mcp]"`.'
             )
         ) from error
     Server = MCPServer
@@ -139,14 +144,15 @@ class KaydetService:
 
     def delete_entry(self, entry_id: int) -> dict[str, Any]:
         now = datetime.now()
-        result = delete_entry_command(
-            self.conn,
-            self.log_dir,
-            self.config,
-            entry_id,
-            assume_yes=True,
-            now=now,
-        )
+        with contextlib.redirect_stdout(io.StringIO()):
+            result = delete_entry_command(
+                self.conn,
+                self.log_dir,
+                self.config,
+                entry_id,
+                assume_yes=True,
+                now=now,
+            )
         if result is None:
             return {"success": False, "error": "Entry not deleted."}
         return {"success": True, **result}
@@ -189,7 +195,16 @@ class KaydetService:
             exclude_tags,
         ) = tokenize_query(query)
 
-        if not any([include_text, exclude_text, include_meta, exclude_meta, include_tags, exclude_tags]):
+        if not any(
+            [
+                include_text,
+                exclude_text,
+                include_meta,
+                exclude_meta,
+                include_tags,
+                exclude_tags,
+            ]
+        ):
             return {"success": False, "error": "Search query is empty."}
 
         sql_query, params = build_search_query(
@@ -225,6 +240,26 @@ class KaydetService:
             "total": len(payload),
         }
 
+    def get_entry(self, entry_id: int) -> dict[str, Any]:
+        """Return a single entry by its numeric identifier."""
+        now = datetime.now()
+        self._ensure_index(now)
+
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "SELECT source_file FROM entries WHERE id = ?", (entry_id,)
+        )
+        result = cursor.fetchone()
+        if result is None:
+            return {"success": False, "error": f"Entry {entry_id} not found."}
+
+        locations = [(result[0], entry_id)]
+        matches = load_matches(locations, self.log_dir, self.config)
+        if not matches:
+            return {"success": False, "error": f"Entry {entry_id} not found."}
+
+        return {"success": True, "entry": matches[0].to_dict()}
+
     def list_tags(self) -> dict[str, Any]:
         cursor = self.conn.cursor()
         cursor.execute(
@@ -236,10 +271,7 @@ class KaydetService:
             )
         )
         rows = cursor.fetchall()
-        tags = [
-            {"tag": name, "count": count}
-            for name, count in rows
-        ]
+        tags = [{"tag": name, "count": count} for name, count in rows]
         return {"success": True, "tags": tags}
 
     @staticmethod
@@ -248,7 +280,9 @@ class KaydetService:
         slug = re.sub(r"[^a-z0-9\-]+", "-", name.lower())
         return slug.strip("-")
 
-    def suggest_tags(self, directory: Path | str | None = None) -> dict[str, Any]:
+    def suggest_tags(
+        self, directory: Path | str | None = None
+    ) -> dict[str, Any]:
         """Suggest tags based on the active project directory."""
         inspected_dir = (
             Path(directory).expanduser()
@@ -394,13 +428,14 @@ class KaydetService:
         """Mark a todo entry as done by updating its status."""
         now = datetime.now()
         try:
-            done_command(
-                self.conn,
-                self.log_dir,
-                self.config,
-                entry_id,
-                now,
-            )
+            with contextlib.redirect_stdout(io.StringIO()):
+                done_command(
+                    self.conn,
+                    self.log_dir,
+                    self.config,
+                    entry_id,
+                    now,
+                )
             return {
                 "success": True,
                 "entry_id": entry_id,
@@ -409,26 +444,88 @@ class KaydetService:
         except Exception as error:
             return {"success": False, "error": str(error)}
 
-    def list_todos(self) -> dict[str, Any]:
-        """List all todos with their status."""
+    def list_todos(
+        self,
+        *,
+        status: str | None = "pending",
+        filter_query: str | None = None,
+    ) -> dict[str, Any]:
+        """List todos, optionally filtered by status and/or search query.
+
+        Args:
+            status: Filter by status ('pending', 'done', or None for all).
+            filter_query: Optional search query to further narrow results.
+        """
         now = datetime.now()
         self._ensure_index(now)
 
-        cursor = self.conn.cursor()
-        cursor.execute(
-            "SELECT DISTINCT e.id, e.source_file "
-            "FROM entries e "
-            "JOIN tags t ON e.id = t.entry_id "
-            "WHERE t.tag_name = 'todo' "
-            "ORDER BY e.source_file, e.id"
-        )
-        results = cursor.fetchall()
+        if filter_query:
+            combined_query = f"{filter_query} #todo"
+            (
+                include_text,
+                exclude_text,
+                include_meta,
+                exclude_meta,
+                include_tags,
+                exclude_tags,
+            ) = tokenize_query(combined_query)
+
+            sql_query, params = build_search_query(
+                include_text,
+                exclude_text,
+                include_meta,
+                exclude_meta,
+                include_tags,
+                exclude_tags,
+            )
+            cursor = self.conn.cursor()
+            cursor.execute(sql_query, params)
+            results = cursor.fetchall()
+        else:
+            cursor = self.conn.cursor()
+            if status == "pending":
+                cursor.execute(
+                    "SELECT DISTINCT e.id, e.source_file "
+                    "FROM entries e "
+                    "JOIN tags t ON e.id = t.entry_id "
+                    "LEFT JOIN metadata m ON e.id = m.entry_id "
+                    "AND m.meta_key = 'status' "
+                    "WHERE t.tag_name = 'todo' "
+                    "AND COALESCE(m.meta_value, 'pending') != 'done' "
+                    "ORDER BY e.source_file, e.id"
+                )
+            elif status == "done":
+                cursor.execute(
+                    "SELECT DISTINCT e.id, e.source_file "
+                    "FROM entries e "
+                    "JOIN tags t ON e.id = t.entry_id "
+                    "JOIN metadata m ON e.id = m.entry_id "
+                    "AND m.meta_key = 'status' "
+                    "WHERE t.tag_name = 'todo' "
+                    "AND m.meta_value = 'done' "
+                    "ORDER BY e.source_file, e.id"
+                )
+            else:
+                cursor.execute(
+                    "SELECT DISTINCT e.id, e.source_file "
+                    "FROM entries e "
+                    "JOIN tags t ON e.id = t.entry_id "
+                    "WHERE t.tag_name = 'todo' "
+                    "ORDER BY e.source_file, e.id"
+                )
+            results = cursor.fetchall()
 
         if not results:
             return {"success": True, "todos": []}
 
         todos = []
-        for entry_id, source_file in results:
+        for row in results:
+            # build_search_query returns (source_file, id),
+            # direct queries return (id, source_file)
+            if filter_query:
+                source_file, entry_id = row
+            else:
+                entry_id, source_file = row
             day_file = self.log_dir / source_file
             if not day_file.exists():
                 continue
@@ -439,7 +536,9 @@ class KaydetService:
 
             for entry in entries:
                 if entry.entry_id == str(entry_id):
-                    status = entry.metadata.get("status", "pending")
+                    entry_status = entry.metadata.get("status", "pending")
+                    if status and filter_query and entry_status != status:
+                        break
                     completed_at = entry.metadata.get("completed_at", "")
                     description = (
                         entry.lines[0] if entry.lines else "(no description)"
@@ -453,7 +552,7 @@ class KaydetService:
                             "id": entry_id,
                             "date": date_str,
                             "timestamp": entry.timestamp,
-                            "status": status,
+                            "status": entry_status,
                             "completed_at": completed_at,
                             "description": description,
                         }
@@ -535,6 +634,17 @@ async def serve() -> None:
                 },
             ),
             Tool(
+                name="get_entry",
+                description="Get a single entry by its numeric ID",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "entry_id": {"type": "integer"},
+                    },
+                    "required": ["entry_id"],
+                },
+            ),
+            Tool(
                 name="search_entries",
                 description="Search diary entries",
                 inputSchema={
@@ -577,15 +687,18 @@ async def serve() -> None:
             ),
             Tool(
                 name="suggest_kaydet_tags",
-                description="Suggest project tags based on the current directory",
+                description=(
+                    "Suggest project tags based on "
+                    "the current directory"
+                ),
                 inputSchema={
                     "type": "object",
                     "properties": {
                         "path": {
                             "type": "string",
                             "description": (
-                                "Directory to inspect. Defaults to the current "
-                                "working directory."
+                                "Directory to inspect."
+                                " Defaults to cwd."
                             ),
                         },
                     },
@@ -634,10 +747,28 @@ async def serve() -> None:
             ),
             Tool(
                 name="list_todos",
-                description="List all todos with their status",
+                description=(
+                    "List todos. By default only pending todos are shown."
+                ),
                 inputSchema={
                     "type": "object",
-                    "properties": {},
+                    "properties": {
+                        "status": {
+                            "type": "string",
+                            "enum": ["pending", "done", "all"],
+                            "description": (
+                                "Filter by status. 'pending' (default), "
+                                "'done', or 'all'."
+                            ),
+                        },
+                        "filter": {
+                            "type": "string",
+                            "description": (
+                                "Optional search query to filter todos "
+                                "(e.g., '#work' or 'groceries')."
+                            ),
+                        },
+                    },
                 },
             ),
         ]
@@ -645,13 +776,12 @@ async def serve() -> None:
     @server.call_tool()
     async def call_tool(name: str, arguments: Any) -> list[TextContent]:
         """Handle tool calls."""
+
         def error_response(message: str) -> list[TextContent]:
             return [
                 TextContent(
                     type="text",
-                    text=json.dumps(
-                        {"success": False, "error": message}
-                    ),
+                    text=json.dumps({"success": False, "error": message}),
                 )
             ]
 
@@ -685,6 +815,13 @@ async def serve() -> None:
             if entry_id is None:
                 return error_response("entry_id is required")
             result = service.delete_entry(entry_id)
+            return [TextContent(type="text", text=json.dumps(result))]
+
+        if name == "get_entry":
+            entry_id = arguments.get("entry_id")
+            if entry_id is None:
+                return error_response("entry_id is required")
+            result = service.get_entry(entry_id)
             return [TextContent(type="text", text=json.dumps(result))]
 
         if name == "search_entries":
@@ -740,7 +877,12 @@ async def serve() -> None:
             return [TextContent(type="text", text=json.dumps(result))]
 
         if name == "list_todos":
-            result = service.list_todos()
+            raw_status = arguments.get("status", "pending")
+            status_filter = None if raw_status == "all" else raw_status
+            result = service.list_todos(
+                status=status_filter,
+                filter_query=arguments.get("filter"),
+            )
             return [TextContent(type="text", text=json.dumps(result))]
 
         return error_response(f"Unknown tool: {name}")
@@ -753,7 +895,7 @@ async def serve() -> None:
 
 def main() -> None:
     """Entry point for the MCP server."""
-    import asyncio
+    import asyncio  # noqa: PLC0415
 
     try:
         asyncio.run(serve())

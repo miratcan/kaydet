@@ -68,7 +68,10 @@ target-version = "py310"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B"]
+select = ["E", "F", "I", "B", "PLC0415"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["kaydet"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "strict"

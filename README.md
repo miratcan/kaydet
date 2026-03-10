@@ -1,7 +1,7 @@
 # Kaydet — Capture • Query • Remember
 
 <div align="center">
-  <img src="logo.png" alt="Kaydet Logo" width="400">
+  <img src="assets/logo.png" alt="Kaydet Logo" width="400">
   <br><br>
 </div>
 
@@ -110,6 +110,9 @@ kaydet --folder            # Open log directory
 kaydet --doctor            # Rebuild index from text files
 ```
 
+> Need a literal `#` in your note? Escape it as `\#` (e.g.,
+> `kaydet "Budget was \#1"`).
+
 ### Entry Format
 
 Entries are stored as plain text with this format:
@@ -158,6 +161,12 @@ COLOR_TAG = bold magenta
 COLOR_DATE = green
 COLOR_ID = yellow
 ```
+
+If `STORAGE_DIR` is omitted, Kaydet picks a sensible default on first run:
+- macOS / Windows → `~/Documents/Kaydet`
+- Linux → `~/Kaydet`
+Prefer hidden/XDG dirs? Change `STORAGE_DIR` (e.g., `~/.local/share/kaydet`) in
+`config.ini` and rerun `kaydet --config`; the CLI offers to move files for you.
 
 ### Color Customization
 
@@ -309,6 +318,7 @@ Kaydet separates storage (plain text files) from index (SQLite database), making
 ## Contributing
 
 Bug reports, feature ideas, and pull requests welcome. Open an issue or submit a PR.
+See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for guidelines and the full philosophy.
 
 ## License
 
@@ -318,6 +328,7 @@ MIT License. See [LICENSE](LICENSE) for details.
 
 - [GitHub Repository](https://github.com/miratcan/kaydet)
 - [Blog: Why plain text + SQLite beat every cloud note app](https://mirat.dev/articles/nine-years-of-kaydet/)
+- [docs/AGENTS.md](docs/AGENTS.md) — agents must read this before interacting with the repo
 
 ---
 

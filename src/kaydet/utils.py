@@ -45,10 +45,10 @@ def get_file_glob_from_pattern(pattern: str) -> str:
         "%Y-%m-%d" -> "*"
     """
     # Find file extension (last dot onwards)
-    if '.' in pattern:
-        extension = pattern.rsplit('.', 1)[-1]
+    if "." in pattern:
+        extension = pattern.rsplit(".", 1)[-1]
         # Check if extension contains strftime directives
-        if '%' in extension:
+        if "%" in extension:
             # Extension is templated, can't reliably determine
             return "*"
         return f"*.{extension}"
@@ -69,9 +69,10 @@ def get_default_storage_path() -> Path:
 
 def get_default_index_path() -> Path:
     """Return the default index path (always local)."""
-    return Path(
-        env.get("XDG_DATA_HOME") or Path.home() / ".local" / "share"
-    ) / "kaydet"
+    return (
+        Path(env.get("XDG_DATA_HOME") or Path.home() / ".local" / "share")
+        / "kaydet"
+    )
 
 
 def prompt_storage_location() -> Path:
@@ -82,6 +83,7 @@ def prompt_storage_location() -> Path:
 
     default = get_default_storage_path()
     print(f"Default: {default}")
+    print("Tip: Want an XDG path? Enter something like ~/.local/share/kaydet")
 
     try:
         user_input = input("Path (or press Enter for default): ").strip()
@@ -106,7 +108,8 @@ def load_config() -> Tuple[SectionProxy, Path, Path, Path, Path]:
     """Load configuration, ensuring directories and defaults exist.
 
     Returns:
-        Tuple of (config_section, config_path, config_dir, storage_dir, index_dir)
+        Tuple of (config_section, config_path, config_dir,
+        storage_dir, index_dir)
     """
     current_home = Path.home()
     home_config_dir = current_home / ".config" / "kaydet"
@@ -172,7 +175,7 @@ def load_config() -> Tuple[SectionProxy, Path, Path, Path, Path]:
     if section.get("INDEX_DIR"):
         index_dir = Path(section["INDEX_DIR"]).expanduser()
     else:
-        # For backward compatibility: if LOG_DIR was customized, use it for index
+        # Backward compat: custom LOG_DIR → use for index
         # Otherwise, use the new default index path
         log_dir_value = section.get("LOG_DIR", "")
         default_log_dir = DEFAULT_SETTINGS["LOG_DIR"]
@@ -188,11 +191,7 @@ def load_config() -> Tuple[SectionProxy, Path, Path, Path, Path]:
     return section, config_path, config_dir, storage_dir, index_dir
 
 
-
-
-def iter_diary_entries(
-    log_dir: Path, config: SectionProxy
-) -> Iterable[Entry]:
+def iter_diary_entries(log_dir: Path, config: SectionProxy) -> Iterable[Entry]:
     """Yield entries from every diary file sorted by filename."""
     if not log_dir.exists():
         return

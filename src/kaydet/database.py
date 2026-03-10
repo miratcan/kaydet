@@ -67,8 +67,7 @@ CREATE TABLE IF NOT EXISTS synced_files (
 CREATE_INDEX_STATEMENTS = (
     "CREATE INDEX idx_tags_tag_name ON tags(tag_name)",
     "CREATE INDEX idx_words_word ON words(word)",
-    "CREATE INDEX idx_metadata_key_value "
-    "ON metadata(meta_key, meta_value)",
+    "CREATE INDEX idx_metadata_key_value ON metadata(meta_key, meta_value)",
     "CREATE INDEX idx_metadata_key_numeric "
     "ON metadata(meta_key, numeric_value)",
 )

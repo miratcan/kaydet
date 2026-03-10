@@ -3,6 +3,7 @@ dist/
 src/kaydet.egg-info/
 .pytest_cache/
 AGENTS.md
+!docs/AGENTS.md
 .coverage
 __pycache__/
 *.pyc
