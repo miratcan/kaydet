@@ -14,7 +14,6 @@ from ..parsers import (
     ENTRY_LINE_PATTERN,
     deduplicate_tags,
     extract_tags_from_text,
-    extract_words_from_text,
     format_entry_header,
     parse_numeric_value,
     partition_entry_tokens,
@@ -273,7 +272,10 @@ def add_entry_command(args, config, config_dir, log_dir, now, conn):
 
     # Prevent future entries
     if entry_now > now:
-        return {"success": False, "message": "Cannot create entries in the future."}
+        return {
+            "success": False,
+            "message": "Cannot create entries in the future.",
+        }
 
     # Resolve attachment paths early so we fail fast
     try:

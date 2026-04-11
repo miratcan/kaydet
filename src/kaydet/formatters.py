@@ -333,7 +333,8 @@ class SearchResultFormatter:
         padding = " " * indentation
         for name in attachments:
             self.console.print(
-                f"{padding}[dim]attachment:[/dim] [underline]{name}[/underline]"
+                f"{padding}[dim]attachment:[/dim] "
+                f"[underline]{name}[/underline]"
             )
 
     def _print_entry(

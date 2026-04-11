@@ -10,7 +10,6 @@ from typing import List, Optional
 from rich.console import Console
 
 from ..commands.add import create_entry
-from ..formatters import format_todo_results
 from ..parsers import (
     parse_day_entries,
     parse_numeric_value,
@@ -33,7 +32,10 @@ def todo_command(
     message_text = " ".join(message_tokens)
 
     if not message_text:
-        return {"success": False, "message": "Todo description cannot be empty."}
+        return {
+            "success": False,
+            "message": "Todo description cannot be empty.",
+        }
 
     # Add status:pending metadata
     metadata["status"] = "pending"
@@ -57,9 +59,12 @@ def todo_command(
     return {
         "success": True,
         **result,
-        "message": f"Todo created: {result['day_file']} (ID: {result['entry_id']})\n"
-        f"  [{result['entry_id']}] {message_text}\n"
-        "  Status: pending",
+        "message": (
+            f"Todo created: {result['day_file']} "
+            f"(ID: {result['entry_id']})\n"
+            f"  [{result['entry_id']}] {message_text}\n"
+            "  Status: pending"
+        ),
     }
 
 

@@ -127,7 +127,9 @@ def partition_entry_tokens(
     tags = list(extract_tags_from_text(full_text))
 
     # Remove hashtags and unescape backslashes
-    text_clean = REAL_HASHTAG_TOKEN_PATTERN.sub("", full_text).replace("\\#", "#")
+    text_clean = REAL_HASHTAG_TOKEN_PATTERN.sub(
+        "", full_text
+    ).replace("\\#", "#")
 
     metadata: Dict[str, str] = {}
     message_parts: List[str] = []
@@ -194,7 +196,12 @@ def parse_stored_entry_remainder(
 
         message_tokens.append(token)
 
-    return " ".join(message_tokens).rstrip(), metadata, explicit_tags, attachments
+    return (
+        " ".join(message_tokens).rstrip(),
+        metadata,
+        explicit_tags,
+        attachments,
+    )
 
 
 def tokenize_query(
@@ -238,7 +245,9 @@ def parse_range_expression(
     lower = parse_numeric_value(lower_raw) if lower_raw.strip() else None
     upper = parse_numeric_value(upper_raw) if upper_raw.strip() else None
 
-    if (lower_raw.strip() and lower is None) or (upper_raw.strip() and upper is None):
+    if (lower_raw.strip() and lower is None) or (
+        upper_raw.strip() and upper is None
+    ):
         return None
 
     return lower, upper
