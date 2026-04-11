@@ -212,6 +212,7 @@ def print_matches(
             lines=match.lines,
             metadata=match.metadata,
             tags=match.tags,
+            attachments=list(match.attachments),
         )
         for match in matches
     ]

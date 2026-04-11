@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.36.0] - 2026-04-11
+
+### Added
+- **File Attachments:** Attach any file to a diary entry with `--attach FILE`. Files are
+  copied into an `attachments/` directory inside your storage folder. The entry header
+  records the reference as `attachment:ID_filename.ext`.
+- **Grab Mode:** Use `--grab FILE` to attach a file and delete the original in one step —
+  useful for moving downloads, receipts, or scans straight into your diary.
+- Both flags are repeatable (`--attach a.pdf --attach b.jpg`) and can be combined
+  with each other and with entry text.
+- File-type agnostic: PDFs, images, audio, JSON — anything goes.
+- Attachments are displayed as underlined filenames in `--list` / `--filter` output.
+
+### Changed
+- `Entry` model now carries an `attachments` tuple; `to_dict()` includes it.
+- `parse_stored_entry_remainder` returns a 4-tuple (message, metadata, tags, attachments).
+- Pillow is no longer a core dependency (removed from `[project] dependencies`).
+
 ## [0.35.0] - 2026-04-10
 
 ### Added

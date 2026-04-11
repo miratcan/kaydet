@@ -42,7 +42,9 @@ def _normalize_edited_block(entry_id: int, lines: List[str]) -> List[str]:
         )
     timestamp, _, remainder = match.groups()
 
-    message, metadata, explicit_tags = parse_stored_entry_remainder(remainder)
+    message, metadata, explicit_tags, attachments = (
+        parse_stored_entry_remainder(remainder)
+    )
     body_lines = lines[1:]
     inline_tags = set(deduplicate_tags([], [message, *body_lines]))
     explicit_markers = [tag for tag in explicit_tags if tag not in inline_tags]
@@ -53,6 +55,7 @@ def _normalize_edited_block(entry_id: int, lines: List[str]) -> List[str]:
         metadata,
         explicit_markers,
         entry_id=str(entry_id),
+        attachments=attachments,
     )
     return [normalized_header, *body_lines]
 
@@ -175,7 +178,7 @@ def update_entry_inline(
         return None
 
     original_timestamp, _, remainder = match.groups()
-    current_message, current_metadata, current_explicit_tags = (
+    current_message, current_metadata, current_explicit_tags, current_attachments = (
         parse_stored_entry_remainder(remainder)
     )
     existing_body_lines = original_block[1:]
@@ -209,6 +212,7 @@ def update_entry_inline(
         metadata_map,
         extra_tag_markers,
         entry_id=str(entry_id),
+        attachments=current_attachments,
     )
 
     normalized_block = [normalized_header, *message_lines[1:]]

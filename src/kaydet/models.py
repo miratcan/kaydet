@@ -20,6 +20,7 @@ class Entry:
     metadata: Dict[str, str]
     metadata_numbers: Dict[str, float]
     source: Path
+    attachments: Tuple[str, ...] = ()
 
     @property
     def text(self) -> str:
@@ -34,5 +35,6 @@ class Entry:
             "text": self.text,
             "tags": list(self.tags),
             "metadata": self.metadata,
+            "attachments": list(self.attachments),
             "source": str(self.source),
         }

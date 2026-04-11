@@ -25,6 +25,7 @@ class SearchResult:
         lines: List[str],
         metadata: Optional[dict] = None,
         tags: Optional[List[str]] = None,
+        attachments: Optional[List[str]] = None,
     ):
         self.entry_id = entry_id
         self.day = day
@@ -32,6 +33,7 @@ class SearchResult:
         self.lines = lines
         self.metadata = metadata or {}
         self.tags = tags or []
+        self.attachments = attachments or []
 
 
 class TextUtils:
@@ -322,6 +324,18 @@ class SearchResultFormatter:
             f"{padding}[{color_header}]{separator}[/{color_header}]\n"
         )
 
+    def _print_attachments(
+        self, attachments: List[str], indentation: int
+    ) -> None:
+        """Print attachment filenames with proper indentation."""
+        if not attachments:
+            return
+        padding = " " * indentation
+        for name in attachments:
+            self.console.print(
+                f"{padding}[dim]attachment:[/dim] [underline]{name}[/underline]"
+            )
+
     def _print_entry(
         self,
         entry: SearchResult,
@@ -343,6 +357,7 @@ class SearchResultFormatter:
         self._print_wrapped_text(header, wrapped_lines, header_len)
         self._print_metadata(entry.metadata, header_len)
         self._print_tags(entry.tags, header_len)
+        self._print_attachments(entry.attachments, header_len)
 
         if not is_last:
             self.console.print()
