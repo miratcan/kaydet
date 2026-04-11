@@ -51,15 +51,28 @@ def build_search_query(
     from_clauses = ["entries e"]
     where_clauses = []
 
-    # Inclusion clauses
-    for i, term in enumerate(include_text):
-        from_clauses.append(f"JOIN words w{i} ON e.id = w{i}.entry_id")
-        where_clauses.append(f"w{i}.word LIKE ?")
-        params.append(f"%{term}%")
+    # FTS text search (Inclusion and Exclusion combined)
+    fts_query_parts = []
+    for term in include_text:
+        # Simple escaping for FTS: wrap in quotes
+        clean_term = term.replace('"', '""')
+        fts_query_parts.append(f'"{clean_term}"')
+    for term in exclude_text:
+        clean_term = term.replace('"', '""')
+        fts_query_parts.append(f'NOT "{clean_term}"')
+
+    if fts_query_parts:
+        from_clauses.append("JOIN entries_fts fts ON e.id = fts.rowid")
+        where_clauses.append("entries_fts MATCH ?")
+        params.append(" ".join(fts_query_parts))
+
+    # Tags inclusion
     for i, tag in enumerate(include_tags):
         from_clauses.append(f"JOIN tags t{i} ON e.id = t{i}.entry_id")
         where_clauses.append(f"t{i}.tag_name = ?")
         params.append(tag)
+
+    # Metadata inclusion
     for i, (key, expression) in enumerate(include_meta):
         # Special handling for date filters
         if key in ("since", "until"):
@@ -91,14 +104,7 @@ def build_search_query(
             where_clauses.append(f"m{i}.meta_value = ?")
             params.append(expression)
 
-    # Exclusion clauses
-    for i, term in enumerate(exclude_text):
-        where_clauses.append(
-            f"NOT EXISTS (SELECT 1 FROM words w_ex{i} "
-            f"WHERE w_ex{i}.entry_id = e.id "
-            f"AND w_ex{i}.word LIKE ?)"
-        )
-        params.append(f"%{term}%")
+    # Exclusion clauses for tags and metadata (FTS exclusion handled above)
     for i, tag in enumerate(exclude_tags):
         where_clauses.append(
             f"NOT EXISTS (SELECT 1 FROM tags t_ex{i} "
@@ -130,11 +136,7 @@ def fetch_entry_locations(
     conn: sqlite3.Connection, sql_query: str, params: list
 ):
     cursor = conn.cursor()
-    try:
-        cursor.execute(sql_query, params)
-    except sqlite3.OperationalError as error:
-        print(f"Database query failed: {error}")
-        return None
+    cursor.execute(sql_query, params)
     return cursor.fetchall()
 
 
@@ -281,13 +283,9 @@ def search_command(
     log_dir: Path,
     config: SectionProxy,
     query: str,
-    output_format: str = "text",
-    console: Optional[Console] = None,
     allow_empty: bool = False,
-    default_since_hint: Optional[str] = None,
-):
-    """Search diary entries using the SQLite index and print any
-    matches."""
+) -> dict:
+    """Search diary entries using the SQLite index and return matches."""
     rebuild_index_if_empty(conn, log_dir, config)
 
     # Tokenize the query into inclusion and exclusion lists
@@ -331,8 +329,7 @@ def search_command(
         )
         and not allow_empty
     ):
-        print("Search query is empty.")
-        return
+        return {"success": False, "error": "Search query is empty."}
 
     sql_query, params = build_search_query(
         include_text,
@@ -344,40 +341,20 @@ def search_command(
     )
 
     locations = fetch_entry_locations(conn, sql_query, params)
-    if locations is None:
-        return
-    if not locations:
-        print(f"No entries matched '{query}'.")
-        return
-
     matches = load_matches(locations, log_dir, config)
-    print_matches(
-        matches,
-        query,
-        output_format,
-        config,
-        console,
-        original_metadata_filters,
-        default_since_hint=default_since_hint,
-    )
+
+    return {
+        "success": True,
+        "query": query,
+        "matches": matches,
+        "metadata_filters": original_metadata_filters,
+    }
 
 
-def tags_command(conn: sqlite3.Connection, output_format: str = "text"):
-    """Print the unique set of tags recorded in the database."""
+def tags_command(conn: sqlite3.Connection) -> dict:
+    """Return the unique set of tags recorded in the database."""
     cursor = conn.cursor()
     cursor.execute(SELECT_TAG_COUNTS_SQL)
     rows = cursor.fetchall()
-    if not rows:
-        if output_format == "json":
-            print(json.dumps({"tags": []}))
-        else:
-            print("No tags have been recorded yet.")
-        return
-    if output_format == "json":
-        tags = [{"name": name, "count": count} for name, count in rows]
-        print(json.dumps({"tags": tags}, indent=2))
-    else:
-        for name, count in rows:
-            label = f"#{name}"
-            suffix = "entry" if count == 1 else "entries"
-            print(f"{label:<20} {count} {suffix}")
+    tags = [{"name": name, "count": count} for name, count in rows]
+    return {"success": True, "tags": tags}

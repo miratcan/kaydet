@@ -6,7 +6,7 @@ from typing import Iterable
 
 # Database schema version
 # Increment when we intentionally drop and recreate the schema.
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 # Legacy migrations kept a user_version pragma, but SQLite is purely an
 # index/cache for Kaydet. We can safely drop and recreate tables whenever the
@@ -16,7 +16,7 @@ PRAGMA_USER_VERSION = "PRAGMA user_version"
 DROP_TABLE_STATEMENTS = (
     "DROP TABLE IF EXISTS entries",
     "DROP TABLE IF EXISTS tags",
-    "DROP TABLE IF EXISTS words",
+    "DROP TABLE IF EXISTS entries_fts",
     "DROP TABLE IF EXISTS metadata",
     "DROP TABLE IF EXISTS synced_files",
 )
@@ -38,11 +38,10 @@ CREATE TABLE tags (
 )
 """
 
-CREATE_TABLE_WORDS = """
-CREATE TABLE words (
-    entry_id INTEGER NOT NULL,
-    word TEXT NOT NULL,
-    FOREIGN KEY (entry_id) REFERENCES entries(id) ON DELETE CASCADE
+CREATE_VIRTUAL_TABLE_FTS = """
+CREATE VIRTUAL TABLE entries_fts USING fts5(
+    body,
+
 )
 """
 
@@ -66,7 +65,6 @@ CREATE TABLE IF NOT EXISTS synced_files (
 
 CREATE_INDEX_STATEMENTS = (
     "CREATE INDEX idx_tags_tag_name ON tags(tag_name)",
-    "CREATE INDEX idx_words_word ON words(word)",
     "CREATE INDEX idx_metadata_key_value ON metadata(meta_key, meta_value)",
     "CREATE INDEX idx_metadata_key_numeric "
     "ON metadata(meta_key, numeric_value)",
@@ -82,7 +80,7 @@ UPDATE_ENTRY_SQL = (
 )
 
 INSERT_TAG_SQL = "INSERT INTO tags (entry_id, tag_name) VALUES (?, ?)"
-INSERT_WORD_SQL = "INSERT INTO words (entry_id, word) VALUES (?, ?)"
+INSERT_FTS_SQL = "INSERT INTO entries_fts (rowid, body) VALUES (?, ?)"
 INSERT_METADATA_SQL = (
     "INSERT INTO metadata (entry_id, meta_key, meta_value, numeric_value) "
     "VALUES (?, ?, ?, ?)"
@@ -105,7 +103,7 @@ def get_db_connection(db_path: Path) -> sqlite3.Connection:
 def initialize_database(conn: sqlite3.Connection):
     """
     Initializes the database with the required schema, including tables for
-    entries, tags, words, and metadata. Also sets up a versioning system.
+    entries, tags, FTS, and metadata. Also sets up a versioning system.
     """
     cursor = conn.cursor()
 
@@ -119,7 +117,7 @@ def initialize_database(conn: sqlite3.Connection):
 
         cursor.execute(CREATE_TABLE_ENTRIES)
         cursor.execute(CREATE_TABLE_TAGS)
-        cursor.execute(CREATE_TABLE_WORDS)
+        cursor.execute(CREATE_VIRTUAL_TABLE_FTS)
         cursor.execute(CREATE_TABLE_METADATA)
         cursor.execute(CREATE_TABLE_SYNCED_FILES)
         for statement in CREATE_INDEX_STATEMENTS:
@@ -167,17 +165,16 @@ def _upsert_source_records(
     cursor: sqlite3.Cursor,
     entry_id: int,
     tags: Iterable[str],
-    words: Iterable[str],
+    body: str,
     metadata: dict[str, tuple[str, float | None]],
 ) -> None:
-    """Upsert tags, words, and metadata for an entry."""
+    """Upsert tags, FTS data, and metadata for an entry."""
     if tags:
         tag_data = [(entry_id, tag) for tag in set(tags)]
         cursor.executemany(INSERT_TAG_SQL, tag_data)
 
-    if words:
-        word_data = [(entry_id, word) for word in set(words)]
-        cursor.executemany(INSERT_WORD_SQL, word_data)
+    if body:
+        cursor.execute(INSERT_FTS_SQL, (entry_id, body))
 
     if metadata:
         meta_data = [
@@ -187,33 +184,45 @@ def _upsert_source_records(
         cursor.executemany(INSERT_METADATA_SQL, meta_data)
 
 
+def _add_entry_to_cursor(
+    cursor: sqlite3.Cursor,
+    source_file: str,
+    timestamp: str,
+    tags: Iterable[str],
+    body: str,
+    metadata: dict[str, tuple[str, float | None]],
+    *,
+    entry_id: int | None = None,
+) -> int:
+    """Internal helper to add entry data to a cursor without committing."""
+    # Ensure entry exists and get its ID
+    entry_id, _ = _ensure_entry_id(cursor, source_file, timestamp, entry_id)
+
+    # Upsert source records (tags, FTS, metadata)
+    _upsert_source_records(cursor, entry_id, tags, body, metadata)
+
+    return entry_id
+
+
 def add_entry(
     conn: sqlite3.Connection,
     source_file: str,
     timestamp: str,
     tags: Iterable[str],
-    words: Iterable[str],
+    body: str,
     metadata: dict[str, tuple[str, float | None]],
     *,
     entry_id: int | None = None,
 ) -> int:
-    """Add an entry, with its tags, words, and metadata, in one transaction."""
+    """Add an entry in a single atomic database transaction."""
     cursor = conn.cursor()
-
     try:
         cursor.execute("BEGIN")
-
-        # Ensure entry exists and get its ID
-        entry_id, is_created = _ensure_entry_id(
-            cursor, source_file, timestamp, entry_id
+        eid = _add_entry_to_cursor(
+            cursor, source_file, timestamp, tags, body, metadata, entry_id=entry_id
         )
-
-        # Upsert source records (tags, words, metadata)
-        # Note: This happens for both create and update cases
-        _upsert_source_records(cursor, entry_id, tags, words, metadata)
-
         cursor.execute("COMMIT")
-        return entry_id
+        return eid
     except sqlite3.Error as e:
         cursor.execute("ROLLBACK")
         raise e

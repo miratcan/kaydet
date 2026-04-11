@@ -42,40 +42,40 @@ def delete_entry_command(
     )
     result = cursor.fetchone()
     if result is None:
-        print(f"Entry {entry_id} was not found in the index.")
-        return
+        raise ValueError(f"Entry {entry_id} was not found in the index.")
 
     (source_file,) = result
     day_file = log_dir / source_file
     if not day_file.exists():
-        print(
+        raise FileNotFoundError(
             f"Entry {entry_id} references missing file '{source_file}'. "
             "Run 'kaydet --doctor' to repair the index."
         )
-        return
 
     _, lines, had_trailing_newline = read_day_file(day_file)
     try:
         start, end = find_entry_block(lines, entry_id)
     except EntryNotFoundError:
-        print(
+        raise ValueError(
             f"Entry {entry_id} could not be located inside '{source_file}'. "
             "Run 'kaydet --doctor' to rebuild the index."
         )
-        return
 
     entry_block = lines[start:end]
     preview_lines = entry_block[:5]
     preview = "\n".join(preview_lines)
 
     if not _confirm_delete(entry_id, preview, assume_yes=assume_yes):
-        print("Deletion cancelled.")
-        return
+        return {"success": False, "message": "Deletion cancelled."}
 
     del lines[start:end]
 
     ensure_newline = had_trailing_newline
     write_day_file(day_file, lines, ensure_newline)
     sync_modified_diary_files(conn, log_dir, config, now)
-    print(f"Deleted entry {entry_id} from {source_file}.")
-    return {"entry_id": entry_id, "day_file": str(day_file)}
+    return {
+        "success": True,
+        "entry_id": entry_id,
+        "day_file": str(day_file),
+        "message": f"Deleted entry {entry_id} from {source_file}.",
+    }

@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.35.0] - 2026-04-10
+
+### Added
+- **SQLite FTS5 Integration:** Migrated the search engine to use SQLite's native Full-Text Search 5. This provides near-instant search results and advanced matching capabilities while reducing database size.
+- **Central Service Layer:** Introduced `KaydetService` as the unified core for both CLI and MCP interfaces, ensuring consistent behavior and easier testability.
+- **Atomic Transactions:** Implemented robust transaction management that synchronizes database indexing and file system writes. If a write fails (e.g., full disk), the database index is automatically rolled back to prevent corruption.
+
+### Changed
+- **Architectural Refactoring:** Decoupled Business Logic from the UI layer. Commands now return structured data, while the CLI and MCP layers handle presentation.
+- **Clean Code (Arrow Anti-Pattern Removal):** Major refactoring of `parsers.py` and `sync.py` to flatten deeply nested logic and improve maintainability through guard clauses and specialized helper functions.
+- **Improved ID Management:** Refined entry ID assignment and conflict resolution during synchronization.
+
+### Fixed
+- Fixed a bug where manual ID conflicts in diary files could cause database integrity errors.
+- Removed outdated references to the `words` table in several commands.
+- Cleaned up "hacky" stdout redirection in the MCP server now that commands are silent.
+
 ## [0.34.0] - 2026-03-10
 
 ### Changed

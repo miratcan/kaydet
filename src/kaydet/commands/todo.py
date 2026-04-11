@@ -33,8 +33,7 @@ def todo_command(
     message_text = " ".join(message_tokens)
 
     if not message_text:
-        print("Todo description cannot be empty.")
-        return
+        return {"success": False, "message": "Todo description cannot be empty."}
 
     # Add status:pending metadata
     metadata["status"] = "pending"
@@ -55,9 +54,13 @@ def todo_command(
         conn=conn,
     )
 
-    print(f"Todo created: {result['day_file']} (ID: {result['entry_id']})")
-    print(f"  [{result['entry_id']}] {message_text}")
-    print("  Status: pending")
+    return {
+        "success": True,
+        **result,
+        "message": f"Todo created: {result['day_file']} (ID: {result['entry_id']})\n"
+        f"  [{result['entry_id']}] {message_text}\n"
+        "  Status: pending",
+    }
 
 
 def done_command(
@@ -74,19 +77,13 @@ def done_command(
     result = cursor.fetchone()
 
     if not result:
-        print(f"Entry {entry_id} not found.")
-        return
-
-    # Use edit_entry_command to update the entry
-    # We'll need to add completed_at metadata and change status to done
-    # For now, let's use a simpler approach: directly edit the file
+        raise ValueError(f"Entry {entry_id} not found.")
 
     source_file = result[0]
     day_file = log_dir / source_file
 
     if not day_file.exists():
-        print(f"File {source_file} not found.")
-        return
+        raise FileNotFoundError(f"File {source_file} not found.")
 
     day_file_pattern = config.get("DAY_FILE_PATTERN", "")
     entry_date = resolve_entry_date(day_file, day_file_pattern)
@@ -100,8 +97,7 @@ def done_command(
             break
 
     if not target_entry:
-        print(f"Entry {entry_id} not found in {source_file}.")
-        return
+        raise ValueError(f"Entry {entry_id} not found in {source_file}.")
 
     # Read the entire file
     with day_file.open("r", encoding="utf-8") as f:
@@ -184,8 +180,7 @@ def done_command(
             updated_lines.append(line)
 
     if not found_entry:
-        print(f"Could not find entry {entry_id} in the file.")
-        return
+        raise ValueError(f"Could not find entry {entry_id} in the file.")
 
     # Write back to file
     with day_file.open("w", encoding="utf-8") as f:
@@ -221,8 +216,14 @@ def done_command(
 
     conn.commit()
 
-    print(f"✓ Todo {entry_id} marked as done at {completed_time}")
-    print(f"  Entry updated in {source_file}")
+    return {
+        "success": True,
+        "entry_id": entry_id,
+        "completed_at": completed_time,
+        "source_file": source_file,
+        "message": f"✓ Todo {entry_id} marked as done at {completed_time}\n"
+        f"  Entry updated in {source_file}",
+    }
 
 
 def list_todos_command(
@@ -248,8 +249,7 @@ def list_todos_command(
     results = cursor.fetchall()
 
     if not results:
-        print("No todos found.")
-        return
+        return []
 
     todos: List[dict] = []
 
@@ -287,7 +287,6 @@ def list_todos_command(
                 break
 
     if not todos:
-        print("No pending todos.")
-        return
+        return []
 
-    format_todo_results(todos, output_format, config=config, console=console)
+    return todos

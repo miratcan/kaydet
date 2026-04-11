@@ -125,22 +125,23 @@ def create_entry(
     ]
     all_tags = deduplicate_tags(unique_explicit, message_lines)
 
-    words = extract_words_from_text(entry_body)
     full_metadata = {
         key: (value, parse_numeric_value(value))
         for key, value in metadata.items()
     }
 
-    entry_id = database.add_entry(
-        conn=conn,
-        source_file=day_file.name,
-        timestamp=timestamp,
-        tags=all_tags,
-        words=words,
-        metadata=full_metadata,
-    )
-
+    cursor = conn.cursor()
+    conn.execute("BEGIN")
     try:
+        entry_id = database._add_entry_to_cursor(
+            cursor=cursor,
+            source_file=day_file.name,
+            timestamp=timestamp,
+            tags=all_tags,
+            body=entry_body,
+            metadata=full_metadata,
+        )
+
         write_func = inject_entry if at_str else append_entry
         write_func(
             day_file=day_file,
@@ -150,14 +151,9 @@ def create_entry(
             metadata=metadata,
             extra_tag_markers=extra_tag_markers,
         )
+        conn.execute("COMMIT")
     except Exception:
-        cleanup_payload = (entry_id,)
-        conn.execute("DELETE FROM tags WHERE entry_id = ?", cleanup_payload)
-        conn.execute("DELETE FROM words WHERE entry_id = ?", cleanup_payload)
-        conn.execute(
-            "DELETE FROM metadata WHERE entry_id = ?", cleanup_payload
-        )
-        conn.execute("DELETE FROM entries WHERE id = ?", cleanup_payload)
+        conn.execute("ROLLBACK")
         raise
 
     save_last_entry_timestamp(config_dir, now)
@@ -213,15 +209,13 @@ def add_entry_command(args, config, config_dir, log_dir, now, conn):
 
     # Prevent future entries
     if entry_now > now:
-        print("Cannot create entries in the future.")
-        return
+        return {"success": False, "message": "Cannot create entries in the future."}
 
     ensure_day_file(log_dir, entry_now, config)
     raw_entry, metadata, explicit_tags = get_entry(args, config)
     entry_body = raw_entry.strip()
     if not any((entry_body, metadata, explicit_tags)):
-        print("Nothing to save.")
-        return
+        return {"success": False, "message": "Nothing to save."}
 
     result = create_entry(
         raw_entry=raw_entry,
@@ -235,5 +229,8 @@ def add_entry_command(args, config, config_dir, log_dir, now, conn):
         at_str=args.at,
     )
 
-    print(f"Entry added to: {result['day_file']} (ID: {result['entry_id']})")
-    return result
+    return {
+        "success": True,
+        **result,
+        "message": f"Entry added to: {result['day_file']} (ID: {result['entry_id']})",
+    }
