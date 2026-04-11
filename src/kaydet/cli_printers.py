@@ -1,6 +1,7 @@
 import calendar
 import json
 
+
 def print_stats(result, output_format):
     if not result.get("success"):
         if output_format == "json":
@@ -14,7 +15,9 @@ def print_stats(result, output_format):
     else:
         print(result["month_name"])
         print("Mo Tu We Th Fr Sa Su")
-        month_calendar = calendar.Calendar().monthdayscalendar(result["year"], result["month"])
+        month_calendar = calendar.Calendar().monthdayscalendar(
+            result["year"], result["month"]
+        )
         counts = result["days"]
         for week in month_calendar:
             cells = []

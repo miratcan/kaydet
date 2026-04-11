@@ -219,7 +219,13 @@ def add_entry(
     try:
         cursor.execute("BEGIN")
         eid = _add_entry_to_cursor(
-            cursor, source_file, timestamp, tags, body, metadata, entry_id=entry_id
+            cursor,
+            source_file,
+            timestamp,
+            tags,
+            body,
+            metadata,
+            entry_id=entry_id,
         )
         cursor.execute("COMMIT")
         return eid

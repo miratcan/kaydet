@@ -1,7 +1,5 @@
 """Stats command."""
 
-import calendar
-import json
 from collections import defaultdict
 from configparser import SectionProxy
 from datetime import datetime

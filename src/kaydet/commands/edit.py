@@ -178,9 +178,12 @@ def update_entry_inline(
         return None
 
     original_timestamp, _, remainder = match.groups()
-    current_message, current_metadata, current_explicit_tags, current_attachments = (
-        parse_stored_entry_remainder(remainder)
-    )
+    (
+        current_message,
+        current_metadata,
+        current_explicit_tags,
+        current_attachments,
+    ) = parse_stored_entry_remainder(remainder)
     existing_body_lines = original_block[1:]
 
     timestamp_value = timestamp or original_timestamp

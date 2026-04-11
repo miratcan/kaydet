@@ -8,7 +8,7 @@ from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Dict, Iterable, List, Optional, Sequence
+from typing import Dict, Iterable, List, Sequence
 
 from . import database
 from .models import Entry
@@ -48,7 +48,9 @@ def _render_entry(entry: Entry) -> List[str]:
     return [header] + list(entry.lines[1:])
 
 
-def _write_if_changed(day_file: Path, original_text: str, lines: List[str]) -> bool:
+def _write_if_changed(
+    day_file: Path, original_text: str, lines: List[str]
+) -> bool:
     """Write the provided lines back to disk when content changes."""
     new_text = "\n".join(lines)
     if original_text.endswith("\n"):
@@ -75,25 +77,43 @@ def _upsert_entry_record(
     cursor: sqlite3.Cursor, day_file_name: str, entry: Entry
 ) -> int:
     """Ensure an entry record exists in the database and return its ID."""
-    candidate_id = int(entry.entry_id) if entry.entry_id and entry.entry_id.isdigit() else None
+    candidate_id = (
+        int(entry.entry_id)
+        if entry.entry_id and entry.entry_id.isdigit()
+        else None
+    )
 
     if candidate_id is not None:
-        cursor.execute("SELECT source_file FROM entries WHERE id = ?", (candidate_id,))
+        cursor.execute(
+            "SELECT source_file FROM entries WHERE id = ?",
+            (candidate_id,),
+        )
         if row := cursor.fetchone():
             if row[0] == day_file_name:
                 cursor.execute(
-                    "UPDATE entries SET source_file = ?, timestamp = ? WHERE id = ?",
-                    (day_file_name, entry.timestamp, candidate_id),
+                    "UPDATE entries SET source_file = ?, "
+                    "timestamp = ? WHERE id = ?",
+                    (
+                        day_file_name,
+                        entry.timestamp,
+                        candidate_id,
+                    ),
                 )
                 return candidate_id
             else:
-                # ID exists but in a different file. Ignore it to force re-assignment.
+                # ID exists but in a different file.
+                # Ignore it to force re-assignment.
                 candidate_id = None
 
     if candidate_id is not None:
         cursor.execute(
-            "INSERT INTO entries (id, source_file, timestamp) VALUES (?, ?, ?)",
-            (candidate_id, day_file_name, entry.timestamp),
+            "INSERT INTO entries (id, source_file, timestamp) "
+            "VALUES (?, ?, ?)",
+            (
+                candidate_id,
+                day_file_name,
+                entry.timestamp,
+            ),
         )
         return candidate_id
 
@@ -108,7 +128,10 @@ def _cleanup_missing_entries(
     cursor: sqlite3.Cursor, day_file_name: str, assigned_ids: List[int]
 ) -> None:
     """Remove records for entries that no longer exist in the file."""
-    cursor.execute("SELECT id FROM entries WHERE source_file = ?", (day_file_name,))
+    cursor.execute(
+        "SELECT id FROM entries WHERE source_file = ?",
+        (day_file_name,),
+    )
     existing_ids = {row[0] for row in cursor.fetchall()}
     missing = existing_ids.difference(assigned_ids)
 
@@ -141,7 +164,9 @@ def _normalize_entries(
     return normalized
 
 
-def _reindex_entries(conn: sqlite3.Connection, entries: Iterable[Entry]) -> None:
+def _reindex_entries(
+    conn: sqlite3.Connection, entries: Iterable[Entry]
+) -> None:
     """Refresh tags, FTS data, and metadata rows for the provided entries."""
     cursor = conn.cursor()
     for entry in entries:
@@ -201,7 +226,8 @@ def _sync_single_file(
         cursor = conn.cursor()
         cursor.execute(
             "INSERT INTO synced_files(source_file, last_mtime) VALUES(?, ?) "
-            "ON CONFLICT(source_file) DO UPDATE SET last_mtime = excluded.last_mtime",
+            "ON CONFLICT(source_file) DO UPDATE "
+            "SET last_mtime = excluded.last_mtime",
             (day_file.name, day_file.stat().st_mtime),
         )
         conn.execute("COMMIT")
@@ -223,7 +249,9 @@ def sync_modified_diary_files(
     if not log_dir.exists():
         return []
 
-    day_pattern = config.get("DAY_FILE_PATTERN", DEFAULT_SETTINGS["DAY_FILE_PATTERN"])
+    day_pattern = config.get(
+        "DAY_FILE_PATTERN", DEFAULT_SETTINGS["DAY_FILE_PATTERN"]
+    )
     glob_pattern = get_file_glob_from_pattern(day_pattern)
 
     cursor = conn.cursor()
@@ -237,7 +265,14 @@ def sync_modified_diary_files(
             continue
 
         stored_mtime = tracked.get(day_file.name)
-        needs_sync = force or stored_mtime is None or (abs(stored_mtime - day_file.stat().st_mtime) > 1e-6)
+        needs_sync = (
+            force
+            or stored_mtime is None
+            or (
+                abs(stored_mtime - day_file.stat().st_mtime)
+                > 1e-6
+            )
+        )
 
         if not needs_sync:
             continue
@@ -246,6 +281,9 @@ def sync_modified_diary_files(
             normalized_files.append(day_file)
 
     if normalized_files:
-        logger.info("Normalized IDs in %s", ", ".join(str(p) for p in normalized_files))
+        logger.info(
+            "Normalized IDs in %s",
+            ", ".join(str(p) for p in normalized_files),
+        )
 
     return normalized_files

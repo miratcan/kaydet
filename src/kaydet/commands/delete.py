@@ -55,11 +55,11 @@ def delete_entry_command(
     _, lines, had_trailing_newline = read_day_file(day_file)
     try:
         start, end = find_entry_block(lines, entry_id)
-    except EntryNotFoundError:
+    except EntryNotFoundError as err:
         raise ValueError(
             f"Entry {entry_id} could not be located inside '{source_file}'. "
             "Run 'kaydet --doctor' to rebuild the index."
-        )
+        ) from err
 
     entry_block = lines[start:end]
     preview_lines = entry_block[:5]
