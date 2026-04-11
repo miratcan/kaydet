@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "kaydet": {
+      "command": "/Users/mirat/Code/Permanent/kaydet/.venv/bin/kaydet-mcp",
+      "args": []
+    }
+  }
+}

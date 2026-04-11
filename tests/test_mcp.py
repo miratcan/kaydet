@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from kaydet import mcp_server
+from kaydet import service as service_module
 
 
 @pytest.fixture
@@ -41,7 +42,7 @@ def mcp_env(monkeypatch, tmp_path: Path):
             fake_index_dir,
         )
 
-    monkeypatch.setattr(mcp_server, "load_config", fake_load_config)
+    monkeypatch.setattr("kaydet.service.load_config", fake_load_config)
 
     fixed_now = datetime(2025, 10, 27, 9, 30, 0)
 
@@ -50,7 +51,7 @@ def mcp_env(monkeypatch, tmp_path: Path):
         def now(cls):  # type: ignore[override]
             return fixed_now
 
-    monkeypatch.setattr(mcp_server, "datetime", MockDateTime)
+    monkeypatch.setattr("kaydet.service.datetime", MockDateTime)
 
     return {
         "config_dir": fake_config_dir,
@@ -61,7 +62,7 @@ def mcp_env(monkeypatch, tmp_path: Path):
 
 
 def test_service_add_search_and_delete(mcp_env):
-    service = mcp_server.KaydetService.initialize()
+    service = service_module.KaydetService.initialize()
 
     result = service.add_entry(
         text="First note #work",
@@ -85,7 +86,7 @@ def test_service_add_search_and_delete(mcp_env):
 
 
 def test_service_update_and_recent(mcp_env):
-    service = mcp_server.KaydetService.initialize()
+    service = service_module.KaydetService.initialize()
 
     service.add_entry(text="Morning run #fitness", metadata={"time": "1h"})
     b = service.add_entry(
@@ -112,7 +113,7 @@ def test_service_update_and_recent(mcp_env):
 
 
 def test_service_get_stats(mcp_env):
-    service = mcp_server.KaydetService.initialize()
+    service = service_module.KaydetService.initialize()
 
     service.add_entry(text="Note one")
     service.add_entry(text="Note two")
@@ -124,7 +125,7 @@ def test_service_get_stats(mcp_env):
 
 def test_service_todo_workflow(mcp_env):
     """Test creating, listing, and marking todos as done."""
-    service = mcp_server.KaydetService.initialize()
+    service = service_module.KaydetService.initialize()
 
     # Create a todo
     result = service.create_todo(
@@ -162,7 +163,7 @@ def test_service_todo_workflow(mcp_env):
 
 def test_service_get_entry(mcp_env):
     """Test getting a single entry by ID."""
-    service = mcp_server.KaydetService.initialize()
+    service = service_module.KaydetService.initialize()
 
     result = service.add_entry(text="Retrievable note #test")
     entry_id = result["entry_id"]
@@ -182,7 +183,7 @@ def test_service_get_entry(mcp_env):
 
 def test_service_list_empty_todos(mcp_env):
     """Test listing todos when there are none."""
-    service = mcp_server.KaydetService.initialize()
+    service = service_module.KaydetService.initialize()
 
     todos = service.list_todos()
     assert todos["success"] is True
@@ -191,7 +192,7 @@ def test_service_list_empty_todos(mcp_env):
 
 def test_service_create_todo_with_metadata(mcp_env):
     """Test creating a todo with custom metadata."""
-    service = mcp_server.KaydetService.initialize()
+    service = service_module.KaydetService.initialize()
 
     result = service.create_todo(
         description="Deploy to production",
@@ -206,7 +207,7 @@ def test_service_create_todo_with_metadata(mcp_env):
 
 
 def test_service_suggest_tags_from_file(mcp_env):
-    service = mcp_server.KaydetService.initialize()
+    service = service_module.KaydetService.initialize()
     project_dir = mcp_env["log_dir"] / "project"
     project_dir.mkdir()
     tags_file = project_dir / ".kaydet.tags"
@@ -225,7 +226,7 @@ def test_service_suggest_tags_from_file(mcp_env):
 
 
 def test_service_suggest_tags_from_directory_name(mcp_env):
-    service = mcp_server.KaydetService.initialize()
+    service = service_module.KaydetService.initialize()
     project_dir = mcp_env["log_dir"] / "Feature Space"
     project_dir.mkdir()
 

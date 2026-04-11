@@ -301,18 +301,22 @@ def main() -> None:
     database.initialize_database(conn)
 
     if args.doctor:
-        doctor_command(conn, storage_dir, config, now)
+        print("Rebuilding search index from diary files... This may take a moment.")
+        from kaydet.cli_printers import print_doctor
+        print_doctor(doctor_command(conn, storage_dir, config, now))
         return
 
     sync_modified_diary_files(conn, storage_dir, config, now)
     rebuild_index_if_empty(conn, storage_dir, config, now)
 
     if args.stats:
-        stats_command(storage_dir, config, now, args.output_format)
+        from kaydet.cli_printers import print_stats
+        print_stats(stats_command(storage_dir, config, now), args.output_format)
         return
 
     if args.list_tags:
-        tags_command(conn, args.output_format)
+        from kaydet.cli_printers import print_tags
+        print_tags(tags_command(conn), args.output_format)
         return
 
     if args.get is not None:
@@ -347,7 +351,8 @@ def main() -> None:
         has_todo_text = bool(args.todo)
 
         if has_todo_text:
-            todo_command(args, config, config_dir, storage_dir, now, conn)
+            res = todo_command(args, config, config_dir, storage_dir, now, conn)
+            if "message" in res: print(res["message"])
         elif args.filter:
             # Filter todos and display in todo format
             combined_query = f"{args.filter} #todo"
@@ -413,18 +418,15 @@ def main() -> None:
             )
         else:
             # kaydet --todo (no arguments) → list all todos
-            list_todos_command(
-                conn,
-                storage_dir,
-                config,
-                args.output_format,
-                console,
-            )
+            todos = list_todos_command(conn, storage_dir, config)
+            if not todos: print("No pending todos.")
+            else: format_todo_results(todos, args.output_format, config=config, console=console)
         return
 
     if args.done is not None:
         for entry_id in args.done:
-            done_command(conn, storage_dir, config, entry_id, now)
+            res = done_command(conn, storage_dir, config, entry_id, now)
+            if "message" in res: print(res["message"])
         return
 
     # Handle --today: add today's date as a since: filter
@@ -449,28 +451,25 @@ def main() -> None:
 
         # allow_empty=True lets --list show all entries when no filter
         # is provided
-        search_command(
-            conn,
-            storage_dir,
-            config,
-            query,
-            args.output_format,
-            console=console,
-            allow_empty=True,
-            default_since_hint=default_since_hint,
-        )
+        res = search_command(conn, storage_dir, config, query, allow_empty=True)
+        if res.get('success', False):
+            if not res['matches'] and not query: pass
+            elif not res['matches']: print(f"No entries matched '{query}'.")
+            else: print_matches(res['matches'], query, args.output_format, config, console=console, default_since_hint=default_since_hint, metadata_filters=res.get('metadata_filters'))
+        else:
+            if 'error' in res:
+                print(res['error'])
         return
 
     # Handle standalone --filter (shorthand for --list --filter)
     if args.filter:
-        search_command(
-            conn,
-            storage_dir,
-            config,
-            args.filter,
-            args.output_format,
-            console=console,
-        )
+        res = search_command(conn, storage_dir, config, args.filter)
+        if res.get('success', False):
+            if not res['matches']: print(f"No entries matched '{args.filter}'.")
+            else: print_matches(res['matches'], args.filter, args.output_format, config, console=console, metadata_filters=res.get('metadata_filters'))
+        else:
+            if 'error' in res:
+                print(res['error'])
         return
 
     if args.edit is not None and args.delete is not None:
@@ -493,14 +492,9 @@ def main() -> None:
             edit_entry_command(conn, storage_dir, config, edit_id, now)
         return
     if args.delete is not None:
-        delete_entry_command(
-            conn,
-            storage_dir,
-            config,
-            args.delete,
-            assume_yes=args.assume_yes,
-            now=now,
-        )
+        res = delete_entry_command(conn, storage_dir, config, args.delete, assume_yes=args.assume_yes, now=now)
+        if res and "message" in res: print(res["message"])
         return
 
-    add_entry_command(args, config, config_dir, storage_dir, now, conn)
+    res = add_entry_command(args, config, config_dir, storage_dir, now, conn)
+    if res and "message" in res: print(res["message"])

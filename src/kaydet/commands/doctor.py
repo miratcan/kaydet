@@ -9,7 +9,7 @@ from pathlib import Path
 from ..parsers import TAG_PATTERN
 from ..sync import sync_modified_diary_files
 
-DELETE_INDEX_TABLES = ("tags", "words", "metadata")
+DELETE_INDEX_TABLES = ("tags", "entries_fts", "metadata")
 DELETE_TABLE_TEMPLATE = "DELETE FROM {table}"
 DELETE_ENTRIES_SQL = "DELETE FROM entries"
 DELETE_SYNCED_FILES_SQL = "DELETE FROM synced_files"
@@ -27,11 +27,9 @@ def doctor_command(
     log_dir: Path,
     config: SectionProxy,
     now: datetime,
-):
+) -> dict:
     """Rebuild the SQLite index while normalizing diary entry IDs."""
-    print(
-        "Rebuilding search index from diary files... This may take a moment."
-    )
+    results = []
 
     for table in DELETE_INDEX_TABLES:
         conn.execute(DELETE_TABLE_TEMPLATE.format(table=table))
@@ -47,7 +45,7 @@ def doctor_command(
         force=True,
     )
     for changed in normalized:
-        print(f"Normalized IDs in {changed}")
+        results.append(f"Normalized IDs in {changed}")
 
     cursor = conn.cursor()
     cursor.execute(SELECT_ENTRY_COUNT_SQL)
@@ -58,11 +56,14 @@ def doctor_command(
             if child.is_dir() and TAG_PATTERN.fullmatch(child.name):
                 shutil.rmtree(child)
 
-    entry_label = "entry" if total_entries == 1 else "entries"
-    print(f"Rebuilt search index for {total_entries} {entry_label}.")
-
     cursor.execute(SELECT_TAG_STATS_SQL)
     tag_stats = cursor.fetchall()
-    if tag_stats:
-        tag_list = ", ".join(f"#{tag}: {count}" for tag, count in tag_stats)
-        print(f"Tags: {tag_list}")
+    tags = [{"tag": tag, "count": count} for tag, count in tag_stats]
+
+    return {
+        "success": True,
+        "total_entries": total_entries,
+        "normalized_files": normalized,
+        "tag_stats": tags,
+        "messages": results,
+    }
