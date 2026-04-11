@@ -43,6 +43,7 @@ def _render_entry(entry: Entry) -> List[str]:
         entry.metadata,
         explicit_markers,
         entry_id=entry.entry_id,
+        attachments=entry.attachments,
     )
     return [header] + list(entry.lines[1:])
 

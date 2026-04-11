@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import argparse
+import shutil
 from configparser import SectionProxy
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Iterable, Tuple
+from typing import Dict, Iterable, List, Tuple
 
 from .. import database
 from ..parsers import (
@@ -23,6 +24,32 @@ from ..utils import ensure_day_file, open_editor, save_last_entry_timestamp
 
 class EmptyEntryError(ValueError):
     """Raised when an entry save attempt lacks content, metadata, and tags."""
+
+
+def _ensure_attachments_dir(log_dir: Path) -> Path:
+    """Create and return the attachments directory inside the log dir."""
+    attachments_dir = log_dir / "attachments"
+    attachments_dir.mkdir(exist_ok=True)
+    return attachments_dir
+
+
+def store_attachment(
+    source_path: Path, entry_id: int, log_dir: Path, *, move: bool = False,
+) -> str:
+    """Copy or move a file into the attachments directory.
+
+    Returns the attachment filename (e.g. ``42_photo.jpg``).
+    """
+    attachments_dir = _ensure_attachments_dir(log_dir)
+    dest_name = f"{entry_id}_{source_path.name}"
+    dest_path = attachments_dir / dest_name
+
+    if move:
+        shutil.move(str(source_path), str(dest_path))
+    else:
+        shutil.copy2(str(source_path), str(dest_path))
+
+    return dest_name
 
 
 def _parse_at_str(at_str: str, now: datetime) -> datetime:
@@ -52,6 +79,7 @@ def inject_entry(
     message_lines: Tuple[str, ...],
     metadata: Dict[str, str],
     extra_tag_markers: Iterable[str],
+    attachments: Iterable[str] = (),
 ) -> None:
     """Insert an entry into a day file, maintaining chronological order."""
     header_line = format_entry_header(
@@ -60,6 +88,7 @@ def inject_entry(
         metadata,
         extra_tag_markers,
         entry_id=str(entry_id),
+        attachments=attachments,
     )
     # Body lines written verbatim (no extra indentation,
     # matching append_entry behavior)
@@ -105,6 +134,8 @@ def create_entry(
     now: datetime,
     conn,
     at_str: str | None = None,
+    attachment_paths: List[Path] | None = None,
+    grab_paths: List[Path] | None = None,
 ) -> Dict[str, str]:
     """Persist an entry using shared logic for CLI and programmatic callers."""
 
@@ -112,8 +143,11 @@ def create_entry(
     unique_explicit = sorted(
         {tag.strip().lower() for tag in explicit_tags if tag}
     )
-    if not any((entry_body, metadata, unique_explicit)):
-        raise EmptyEntryError("An entry must include text, metadata, or tags.")
+    has_attachments = bool(attachment_paths or grab_paths)
+    if not any((entry_body, metadata, unique_explicit, has_attachments)):
+        raise EmptyEntryError(
+            "An entry must include text, metadata, tags, or an attachment."
+        )
 
     day_file = ensure_day_file(log_dir, now, config)
     timestamp = now.strftime("%H:%M")
@@ -142,6 +176,15 @@ def create_entry(
             metadata=full_metadata,
         )
 
+        # Store attachments
+        attachment_names: List[str] = []
+        for path in (attachment_paths or []):
+            name = store_attachment(path, entry_id, log_dir)
+            attachment_names.append(name)
+        for path in (grab_paths or []):
+            name = store_attachment(path, entry_id, log_dir, move=True)
+            attachment_names.append(name)
+
         write_func = inject_entry if at_str else append_entry
         write_func(
             day_file=day_file,
@@ -150,6 +193,7 @@ def create_entry(
             message_lines=message_lines,
             metadata=metadata,
             extra_tag_markers=extra_tag_markers,
+            attachments=attachment_names,
         )
         conn.execute("COMMIT")
     except Exception:
@@ -161,6 +205,7 @@ def create_entry(
         "entry_id": entry_id,
         "day_file": str(day_file),
         "timestamp": timestamp,
+        "attachments": attachment_names,
     }
 
 
@@ -186,6 +231,7 @@ def append_entry(
     message_lines: Tuple[str, ...],
     metadata: Dict[str, str],
     extra_tag_markers: Iterable[str],
+    attachments: Iterable[str] = (),
 ) -> None:
     """Append a timestamped entry with its numeric identifier."""
     first_line = message_lines[0] if message_lines else ""
@@ -195,12 +241,30 @@ def append_entry(
         metadata,
         extra_tag_markers,
         entry_id=str(entry_id),
+        attachments=attachments,
     )
 
     with day_file.open("a", encoding="utf-8") as handle:
         handle.write(f"{header_line}\n")
         for line in message_lines[1:]:
             handle.write(f"{line}\n")
+
+
+def _resolve_attachment_paths(
+    raw_paths: List[str] | None,
+) -> List[Path]:
+    """Validate and resolve attachment file paths."""
+    if not raw_paths:
+        return []
+    resolved = []
+    for raw in raw_paths:
+        p = Path(raw).expanduser().resolve()
+        if not p.exists():
+            raise FileNotFoundError(f"Attachment not found: {raw}")
+        if not p.is_file():
+            raise ValueError(f"Not a file: {raw}")
+        resolved.append(p)
+    return resolved
 
 
 def add_entry_command(args, config, config_dir, log_dir, now, conn):
@@ -211,10 +275,18 @@ def add_entry_command(args, config, config_dir, log_dir, now, conn):
     if entry_now > now:
         return {"success": False, "message": "Cannot create entries in the future."}
 
+    # Resolve attachment paths early so we fail fast
+    try:
+        attach_paths = _resolve_attachment_paths(getattr(args, "attach", None))
+        grab_paths = _resolve_attachment_paths(getattr(args, "grab", None))
+    except (FileNotFoundError, ValueError) as exc:
+        return {"success": False, "message": str(exc)}
+
     ensure_day_file(log_dir, entry_now, config)
     raw_entry, metadata, explicit_tags = get_entry(args, config)
     entry_body = raw_entry.strip()
-    if not any((entry_body, metadata, explicit_tags)):
+    has_attachments = bool(attach_paths or grab_paths)
+    if not any((entry_body, metadata, explicit_tags, has_attachments)):
         return {"success": False, "message": "Nothing to save."}
 
     result = create_entry(
@@ -227,10 +299,16 @@ def add_entry_command(args, config, config_dir, log_dir, now, conn):
         now=entry_now,
         conn=conn,
         at_str=args.at,
+        attachment_paths=attach_paths,
+        grab_paths=grab_paths,
     )
 
-    return {
-        "success": True,
-        **result,
-        "message": f"Entry added to: {result['day_file']} (ID: {result['entry_id']})",
-    }
+    msg = f"Entry added to: {result['day_file']} (ID: {result['entry_id']})"
+    if result.get("attachments"):
+        names = ", ".join(result["attachments"])
+        msg += f"\nAttachments: {names}"
+    if grab_paths:
+        originals = ", ".join(str(p) for p in grab_paths)
+        msg += f"\nOriginals removed: {originals}"
+
+    return {"success": True, **result, "message": msg}

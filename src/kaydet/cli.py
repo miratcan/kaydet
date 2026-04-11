@@ -106,6 +106,20 @@ def build_parser(
         type=str,
         help="Set a custom timestamp (YYYY-MM-DD:HH:MM or HH:MM).",
     )
+    basic_group.add_argument(
+        "--attach",
+        dest="attach",
+        action="append",
+        metavar="FILE",
+        help="Attach file(s) to the entry (repeatable).",
+    )
+    basic_group.add_argument(
+        "--grab",
+        dest="grab",
+        action="append",
+        metavar="FILE",
+        help="Attach file(s) and remove the originals (repeatable).",
+    )
 
     # Todo Management
     todo_group = parser.add_argument_group("Todo Management")

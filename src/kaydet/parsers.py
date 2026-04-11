@@ -150,6 +150,7 @@ def format_entry_header(
     extra_tag_markers: Iterable[str],
     *,
     entry_id: str | None = None,
+    attachments: Iterable[str] = (),
 ) -> str:
     """Format the first line of a diary entry for storage."""
     time_block = f"{timestamp} [{entry_id}]" if entry_id else timestamp
@@ -158,6 +159,8 @@ def format_entry_header(
     parts = [header.rstrip()]
     if metadata:
         parts.append(" ".join(f"{k}:{v}" for k, v in metadata.items()))
+    if attachments:
+        parts.append(" ".join(f"attachment:{a}" for a in attachments if a))
     if extra_tag_markers:
         parts.append(" ".join(f"#{t}" for t in extra_tag_markers if t))
 
@@ -166,10 +169,11 @@ def format_entry_header(
 
 def parse_stored_entry_remainder(
     remainder: str,
-) -> Tuple[str, Dict[str, str], List[str]]:
-    """Parse the message, metadata, and explicit tags from a stored line."""
+) -> Tuple[str, Dict[str, str], List[str], List[str]]:
+    """Parse the message, metadata, explicit tags, and attachments."""
     metadata: Dict[str, str] = {}
     explicit_tags: List[str] = []
+    attachments: List[str] = []
     message_tokens: List[str] = []
 
     for token in remainder.split():
@@ -179,6 +183,10 @@ def parse_stored_entry_remainder(
             message_tokens.append(token)
             continue
 
+        if token.startswith("attachment:"):
+            attachments.append(token.split(":", 1)[1])
+            continue
+
         if parsed := parse_metadata_token(token):
             key, value = parsed
             metadata[key] = value
@@ -186,7 +194,7 @@ def parse_stored_entry_remainder(
 
         message_tokens.append(token)
 
-    return " ".join(message_tokens).rstrip(), metadata, explicit_tags
+    return " ".join(message_tokens).rstrip(), metadata, explicit_tags, attachments
 
 
 def tokenize_query(
@@ -275,12 +283,14 @@ class _ParserState:
     legacy_tags: List[str] = None
     metadata: Dict[str, str] = None
     explicit_tags: List[str] = None
+    attachments: List[str] = None
 
     def __post_init__(self):
         self.lines = []
         self.legacy_tags = []
         self.metadata = {}
         self.explicit_tags = []
+        self.attachments = []
 
     def finalize(self, entries: List[Entry]):
         if self.time is None:
@@ -297,10 +307,12 @@ class _ParserState:
                 metadata=dict(self.metadata),
                 metadata_numbers=build_numeric_metadata(self.metadata),
                 source=self.source,
+                attachments=tuple(self.attachments),
             )
         )
         self.entry_id = None
         self.time = None
+        self.attachments = []
 
 
 def parse_day_entries(day_file: Path, day: Optional[date]) -> List[Entry]:
@@ -328,10 +340,13 @@ def parse_day_entries(day_file: Path, day: Optional[date]) -> List[Entry]:
         else:
             state.legacy_tags = []
 
-        msg, meta, tags = parse_stored_entry_remainder(remainder.lstrip())
+        msg, meta, tags, attachments = parse_stored_entry_remainder(
+            remainder.lstrip()
+        )
         state.lines = [msg]
         state.metadata = meta
         state.explicit_tags = tags
+        state.attachments = attachments
 
     state.finalize(entries)
     return entries
