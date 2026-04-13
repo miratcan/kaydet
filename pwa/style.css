@@ -205,10 +205,74 @@ button.primary:disabled {
     border-left: 3px solid var(--accent);
 }
 
-#offline-list:empty::after {
-    content: "Tüm kayıtlar senkronize.";
+#pending-section[hidden] {
+    display: none;
+}
+
+/* Entries list */
+#entries-section {
+    margin-top: 1.5rem;
+}
+
+#entries-section h2 {
+    font-size: 0.8rem;
     color: var(--secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 0 0 0.5rem;
+}
+
+#entries-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+#entries-list li {
+    background: var(--surface);
+    padding: 0.6rem 0.75rem;
+    margin-bottom: 0.5rem;
+    border-radius: 6px;
     font-size: 0.85rem;
+}
+
+#entries-list li.empty {
+    color: var(--secondary);
+    border-left: none;
+}
+
+.entry-header {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 0.25rem;
+}
+
+.entry-date {
+    color: var(--success);
+    font-size: 0.75rem;
+}
+
+.entry-time {
+    color: var(--primary);
+    font-weight: bold;
+    font-size: 0.75rem;
+}
+
+.entry-text {
+    color: var(--fg);
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.entry-tags {
+    margin-top: 0.25rem;
+}
+
+.tag {
+    color: var(--accent);
+    font-size: 0.75rem;
 }
 
 /* Footer */

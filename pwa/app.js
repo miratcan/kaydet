@@ -44,6 +44,7 @@ function bindUI() {
     ui.input = document.getElementById('entry-input');
     ui.saveBtn = document.getElementById('save-btn');
     ui.offlineList = document.getElementById('offline-list');
+    ui.entriesList = document.getElementById('entries-list');
     ui.statusDot = document.getElementById('status-dot');
     ui.syncBtn = document.getElementById('sync-now');
     ui.lastSync = document.getElementById('last-sync');
@@ -55,6 +56,7 @@ function bindUI() {
     ui.apiKeyInput = document.getElementById('api-key');
     ui.saveSettingsBtn = document.getElementById('save-settings');
     ui.pendingCount = document.getElementById('pending-count');
+    ui.pendingSection = document.getElementById('pending-section');
 }
 
 function updateStatus() {
@@ -81,9 +83,9 @@ async function renderOfflineEntries() {
         )
         .join('');
 
-    ui.pendingCount.textContent = entries.length
-        ? `(${entries.length})`
-        : '';
+    const count = entries.length;
+    ui.pendingCount.textContent = count ? `(${count})` : '';
+    ui.pendingSection.hidden = count === 0;
 }
 
 // Save entry to IndexedDB
@@ -119,80 +121,164 @@ async function saveEntry() {
     }
 }
 
-// Sync with server
-async function attemptSync() {
+// Send a protocol message to the server
+async function sendMessage(method, body) {
     const cfg = state.config;
-    if (!state.isOnline || !cfg.serverUrl || !cfg.apiKey) {
-        return;
-    }
-
-    const tx = state.db.transaction(STORE_NAME, 'readonly');
-    const store = tx.objectStore(STORE_NAME);
-    const pending = await new Promise((resolve) => {
-        const req = store.getAll();
-        req.onsuccess = () => resolve(req.result);
+    const response = await fetch(`${cfg.serverUrl}/sync`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${cfg.apiKey}`,
+        },
+        body: JSON.stringify({ method, body }),
     });
 
-    if (pending.length === 0) {
-        ui.lastSync.textContent = 'Gönderilecek kayıt yok';
-        return;
+    if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`${response.status}: ${errText}`);
     }
 
-    ui.syncBtn.disabled = true;
-    ui.lastSync.textContent = `${pending.length} kayıt gönderiliyor...`;
+    return await response.json();
+}
 
-    // Build push entries
-    const pushEntries = pending.map((e) => ({
-        entry_id: 0,
-        source_file: e.source_file,
-        timestamp: e.timestamp,
-        text: e.text,
-        tags: e.tags || [],
-        metadata: e.metadata || {},
-        attachments: e.attachment ? [e.attachment.name] : [],
-        encrypted_secret: null,
-        updated_at: e.updated_at,
-    }));
+// Fetch recent entries from server
+async function fetchRecentEntries() {
+    const cfg = state.config;
+    if (!cfg.serverUrl || !cfg.apiKey) return;
 
     try {
-        const response = await fetch(`${cfg.serverUrl}/sync`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${cfg.apiKey}`,
-            },
-            body: JSON.stringify({
-                method: 'push',
-                body: {
-                    entries: pushEntries,
-                    device_id: cfg.deviceId,
-                },
-            }),
-        });
+        // Get latest changes
+        const changesResult = await sendMessage('changes', { since: 0 });
+        const changes = changesResult.body?.changes || [];
 
-        if (!response.ok) {
-            const errText = await response.text();
-            throw new Error(`${response.status}: ${errText}`);
+        if (changes.length === 0) {
+            ui.entriesList.innerHTML =
+                '<li class="empty">Sunucuda kayit yok.</li>';
+            return;
         }
 
-        const result = await response.json();
-
-        // Upload attachments
-        for (const entry of pending) {
-            if (entry.attachment) {
-                await uploadAttachment(entry.attachment);
+        // Get the last 20 unique entry IDs (most recent)
+        const seen = new Set();
+        const entryIds = [];
+        for (let i = changes.length - 1; i >= 0; i--) {
+            const c = changes[i];
+            if (c.action !== 'deleted' && !seen.has(c.entry_id)) {
+                seen.add(c.entry_id);
+                entryIds.push(c.entry_id);
+                if (entryIds.length >= 20) break;
             }
         }
 
-        // Clear pending entries
-        const clearTx = state.db.transaction(STORE_NAME, 'readwrite');
-        clearTx.objectStore(STORE_NAME).clear();
-        await renderOfflineEntries();
+        if (entryIds.length === 0) {
+            ui.entriesList.innerHTML =
+                '<li class="empty">Kayit bulunamadi.</li>';
+            return;
+        }
 
-        const accepted = result.body?.accepted || 0;
+        // Fetch full entries
+        const entriesResult = await sendMessage('entries', {
+            entry_ids: entryIds,
+        });
+        const entries = entriesResult.body?.entries || [];
+
+        // Sort by source_file + timestamp descending
+        entries.sort((a, b) => {
+            const dateCompare = b.source_file.localeCompare(a.source_file);
+            if (dateCompare !== 0) return dateCompare;
+            return b.timestamp.localeCompare(a.timestamp);
+        });
+
+        ui.entriesList.innerHTML = entries
+            .map((e) => {
+                const date = e.source_file.replace('.txt', '');
+                const tags = (e.tags || [])
+                    .map((t) => `<span class="tag">#${t}</span>`)
+                    .join(' ');
+                const attachIcon =
+                    e.attachments && e.attachments.length > 0
+                        ? ' 📎'
+                        : '';
+                return `
+                <li>
+                    <div class="entry-header">
+                        <span class="entry-date">${date}</span>
+                        <span class="entry-time">${e.timestamp}</span>
+                        ${attachIcon}
+                    </div>
+                    <div class="entry-text">${escapeHtml(e.text)}</div>
+                    ${tags ? `<div class="entry-tags">${tags}</div>` : ''}
+                </li>`;
+            })
+            .join('');
+    } catch (err) {
+        console.error('Fetch entries failed:', err);
+        ui.entriesList.innerHTML = `<li class="empty">Hata: ${err.message}</li>`;
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Sync: push pending then fetch entries
+async function attemptSync() {
+    const cfg = state.config;
+    if (!state.isOnline || !cfg.serverUrl || !cfg.apiKey) return;
+
+    ui.syncBtn.disabled = true;
+
+    try {
+        // Push pending entries
+        const tx = state.db.transaction(STORE_NAME, 'readonly');
+        const store = tx.objectStore(STORE_NAME);
+        const pending = await new Promise((resolve) => {
+            const req = store.getAll();
+            req.onsuccess = () => resolve(req.result);
+        });
+
+        if (pending.length > 0) {
+            ui.lastSync.textContent = `${pending.length} kayit gonderiliyor...`;
+
+            const pushEntries = pending.map((e) => ({
+                entry_id: 0,
+                source_file: e.source_file,
+                timestamp: e.timestamp,
+                text: e.text,
+                tags: e.tags || [],
+                metadata: e.metadata || {},
+                attachments: e.attachment ? [e.attachment.name] : [],
+                encrypted_secret: null,
+                updated_at: e.updated_at,
+            }));
+
+            await sendMessage('push', {
+                entries: pushEntries,
+                device_id: cfg.deviceId,
+            });
+
+            // Upload attachments
+            for (const entry of pending) {
+                if (entry.attachment) {
+                    await sendMessage('attachment_put', {
+                        filename: entry.attachment.name,
+                        data: entry.attachment.data,
+                    });
+                }
+            }
+
+            // Clear pending
+            const clearTx = state.db.transaction(STORE_NAME, 'readwrite');
+            clearTx.objectStore(STORE_NAME).clear();
+            await renderOfflineEntries();
+        }
+
+        // Fetch recent entries from server
+        await fetchRecentEntries();
+
         const time = new Date().toLocaleTimeString('tr-TR');
-        ui.lastSync.textContent =
-            `${accepted} kayıt gönderildi (${time})`;
+        ui.lastSync.textContent = `Son sync: ${time}`;
     } catch (err) {
         console.error('Sync failed:', err);
         ui.lastSync.textContent = `Hata: ${err.message}`;
@@ -202,21 +288,10 @@ async function attemptSync() {
 }
 
 async function uploadAttachment(attachment) {
-    const cfg = state.config;
     try {
-        await fetch(`${cfg.serverUrl}/sync`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${cfg.apiKey}`,
-            },
-            body: JSON.stringify({
-                method: 'attachment_put',
-                body: {
-                    filename: attachment.name,
-                    data: attachment.data,
-                },
-            }),
+        await sendMessage('attachment_put', {
+            filename: attachment.name,
+            data: attachment.data,
         });
     } catch (err) {
         console.error('Attachment upload failed:', err);
@@ -241,6 +316,8 @@ function saveSettings() {
     localStorage.setItem('sync_api_key', key);
     ui.settingsPanel.hidden = true;
     ui.lastSync.textContent = 'Ayarlar kaydedildi';
+    // Fetch entries after saving settings
+    fetchRecentEntries();
 }
 
 // File attachment
@@ -278,6 +355,9 @@ async function init() {
     // Show settings if not configured
     if (!state.config.serverUrl || !state.config.apiKey) {
         toggleSettings();
+    } else {
+        // Auto-fetch entries on load
+        fetchRecentEntries();
     }
 
     // Event listeners
