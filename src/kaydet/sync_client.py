@@ -139,9 +139,33 @@ class SyncClient:
 
         return {"pulled": pulled, "new_token": new_token}
 
+    def _seed_sync_log(self) -> int:
+        """Seed sync_log with all existing entries on first push.
+
+        Returns the number of entries seeded.
+        """
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM sync_log")
+        if cursor.fetchone()[0] > 0:
+            return 0  # already has log entries
+
+        cursor.execute("SELECT id FROM entries ORDER BY id")
+        entry_ids = [r[0] for r in cursor.fetchall()]
+        if not entry_ids:
+            return 0
+
+        from .database import LOG_SYNC_ACTION_SQL
+
+        for eid in entry_ids:
+            cursor.execute(
+                LOG_SYNC_ACTION_SQL, (eid, "created", None)
+            )
+        return len(entry_ids)
+
     def push(self) -> Dict[str, Any]:
         """Push local changes to the server."""
         self.service._ensure_index(datetime.now())
+        self._seed_sync_log()
 
         # Get local changes since last push
         cursor = self.conn.cursor()
