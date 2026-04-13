@@ -22,7 +22,7 @@ def todo_command(
     args,
     config: SectionProxy,
     config_dir: Path,
-    log_dir: Path,
+    storage_dir: Path,
     now: datetime,
     conn,
 ) -> None:
@@ -51,7 +51,7 @@ def todo_command(
         explicit_tags=explicit_tags,
         config=config,
         config_dir=config_dir,
-        log_dir=log_dir,
+        storage_dir=storage_dir,
         now=now,
         conn=conn,
     )
@@ -70,7 +70,7 @@ def todo_command(
 
 def done_command(
     conn,
-    log_dir: Path,
+    storage_dir: Path,
     config: SectionProxy,
     entry_id: int,
     now: datetime,
@@ -85,7 +85,7 @@ def done_command(
         raise ValueError(f"Entry {entry_id} not found.")
 
     source_file = result[0]
-    day_file = log_dir / source_file
+    day_file = storage_dir / source_file
 
     if not day_file.exists():
         raise FileNotFoundError(f"File {source_file} not found.")
@@ -233,7 +233,7 @@ def done_command(
 
 def list_todos_command(
     conn,
-    log_dir: Path,
+    storage_dir: Path,
     config: SectionProxy,
     output_format: str = "text",
     console: Optional[Console] = None,
@@ -259,7 +259,7 @@ def list_todos_command(
     todos: List[dict] = []
 
     for entry_id, source_file in results:
-        day_file = log_dir / source_file
+        day_file = storage_dir / source_file
         if not day_file.exists():
             continue
 

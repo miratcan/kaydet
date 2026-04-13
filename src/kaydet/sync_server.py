@@ -42,8 +42,8 @@ class SyncServer:
         return self.service.conn
 
     @property
-    def log_dir(self):
-        return self.service.log_dir
+    def storage_dir(self):
+        return self.service.storage_dir
 
     @classmethod
     def initialize(cls) -> SyncServer:
@@ -185,7 +185,7 @@ class SyncServer:
         self, req: AttachmentGetRequest
     ) -> AttachmentGetResponse:
         """Serve an attachment file."""
-        attachments_dir = self.log_dir / "attachments"
+        attachments_dir = self.storage_dir / "attachments"
         filepath = attachments_dir / req.filename
         if not filepath.exists() or not filepath.is_file():
             return AttachmentGetResponse(
@@ -202,7 +202,7 @@ class SyncServer:
         self, req: AttachmentPutRequest
     ) -> AttachmentPutResponse:
         """Store an uploaded attachment file."""
-        attachments_dir = self.log_dir / "attachments"
+        attachments_dir = self.storage_dir / "attachments"
         attachments_dir.mkdir(exist_ok=True)
         filepath = attachments_dir / req.filename
         filepath.write_bytes(base64.b64decode(req.data))

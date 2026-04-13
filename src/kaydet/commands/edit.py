@@ -63,7 +63,7 @@ def _normalize_edited_block(entry_id: int, lines: List[str]) -> List[str]:
 
 def edit_entry_command(
     conn: sqlite3.Connection,
-    log_dir: Path,
+    storage_dir: Path,
     config: SectionProxy,
     entry_id: int,
     now: datetime,
@@ -80,7 +80,7 @@ def edit_entry_command(
         return
 
     (source_file,) = result
-    day_file = log_dir / source_file
+    day_file = storage_dir / source_file
     if not day_file.exists():
         print(
             f"Entry {entry_id} references missing file '{source_file}'. "
@@ -121,13 +121,13 @@ def edit_entry_command(
     ensure_newline = had_trailing_newline or edited_text.endswith("\n")
     write_day_file(day_file, lines, ensure_newline)
     log_sync_action(conn, entry_id, "updated")
-    sync_modified_diary_files(conn, log_dir, config, now)
+    sync_modified_diary_files(conn, storage_dir, config, now)
     print(f"Updated entry {entry_id} in {source_file}.")
 
 
 def update_entry_inline(
     conn: sqlite3.Connection,
-    log_dir: Path,
+    storage_dir: Path,
     config: SectionProxy,
     entry_id: int,
     *,
@@ -150,7 +150,7 @@ def update_entry_inline(
         return None
 
     (source_file,) = result
-    day_file = log_dir / source_file
+    day_file = storage_dir / source_file
     if not day_file.exists():
         print(
             f"Entry {entry_id} references missing file '{source_file}'. "
@@ -227,7 +227,7 @@ def update_entry_inline(
     )
     write_day_file(day_file, lines, ensure_newline)
     log_sync_action(conn, entry_id, "updated")
-    sync_modified_diary_files(conn, log_dir, config, now)
+    sync_modified_diary_files(conn, storage_dir, config, now)
     print(f"Updated entry {entry_id} in {source_file}.")
     return {
         "entry_id": entry_id,

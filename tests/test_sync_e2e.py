@@ -51,7 +51,7 @@ def _make_instance(tmp_path, name):
     service = KaydetService(
         config=cp["SETTINGS"],
         config_dir=config_dir,
-        log_dir=storage,
+        storage_dir=storage,
         conn=conn,
     )
     return service

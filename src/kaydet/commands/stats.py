@@ -10,12 +10,12 @@ from ..utils import DEFAULT_SETTINGS, get_file_glob_from_pattern
 
 
 def stats_command(
-    log_dir: Path,
+    storage_dir: Path,
     config: SectionProxy,
     now: datetime,
 ) -> dict:
     """Return calendar stats for the current month."""
-    if not log_dir.exists():
+    if not storage_dir.exists():
         return {"success": False, "error": "No diary entries found yet."}
 
     day_pattern = config.get(
@@ -23,13 +23,13 @@ def stats_command(
     )
     glob_pattern = get_file_glob_from_pattern(day_pattern)
 
-    if not any(log_dir.glob(glob_pattern)):
+    if not any(storage_dir.glob(glob_pattern)):
         return {"success": False, "error": "No diary entries found yet."}
 
     year = now.year
     month = now.month
 
-    counts = collect_month_counts(log_dir, config, year, month)
+    counts = collect_month_counts(storage_dir, config, year, month)
 
     return {
         "success": True,
@@ -42,7 +42,7 @@ def stats_command(
 
 
 def collect_month_counts(
-    log_dir: Path, config: SectionProxy, year: int, month: int
+    storage_dir: Path, config: SectionProxy, year: int, month: int
 ):
     """Return a mapping of day number to entry count for the given month."""
     counts = defaultdict(int)
@@ -50,7 +50,7 @@ def collect_month_counts(
         "DAY_FILE_PATTERN", DEFAULT_SETTINGS["DAY_FILE_PATTERN"]
     )
 
-    for candidate in sorted(log_dir.iterdir()):
+    for candidate in sorted(storage_dir.iterdir()):
         if not candidate.is_file():
             continue
 

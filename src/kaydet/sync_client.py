@@ -41,8 +41,8 @@ class SyncClient:
         return self.service.config
 
     @property
-    def log_dir(self):
-        return self.service.log_dir
+    def storage_dir(self):
+        return self.service.storage_dir
 
     @classmethod
     def initialize(cls) -> SyncClient:
@@ -270,7 +270,7 @@ class SyncClient:
 
     def _pull_attachment(self, filename: str) -> None:
         """Download an attachment if not present locally."""
-        attachments_dir = self.log_dir / "attachments"
+        attachments_dir = self.storage_dir / "attachments"
         local_path = attachments_dir / filename
         if local_path.exists():
             return
@@ -291,7 +291,7 @@ class SyncClient:
 
     def _push_attachment(self, filename: str) -> None:
         """Upload an attachment to the server."""
-        attachments_dir = self.log_dir / "attachments"
+        attachments_dir = self.storage_dir / "attachments"
         local_path = attachments_dir / filename
         if not local_path.exists():
             return

@@ -24,7 +24,7 @@ ORDER BY tag_name
 
 def doctor_command(
     conn: sqlite3.Connection,
-    log_dir: Path,
+    storage_dir: Path,
     config: SectionProxy,
     now: datetime,
 ) -> dict:
@@ -39,7 +39,7 @@ def doctor_command(
 
     normalized = sync_modified_diary_files(
         conn,
-        log_dir,
+        storage_dir,
         config,
         now,
         force=True,
@@ -51,8 +51,8 @@ def doctor_command(
     cursor.execute(SELECT_ENTRY_COUNT_SQL)
     total_entries = cursor.fetchone()[0]
 
-    if log_dir.exists():
-        for child in log_dir.iterdir():
+    if storage_dir.exists():
+        for child in storage_dir.iterdir():
             if child.is_dir() and TAG_PATTERN.fullmatch(child.name):
                 shutil.rmtree(child)
 
