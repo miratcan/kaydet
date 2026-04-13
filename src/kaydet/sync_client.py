@@ -61,10 +61,20 @@ class SyncClient:
         """
         push_result = self.push()
         pull_result = self.pull()
+        self._sync_all_attachments()
         return {
             "pull": pull_result,
             "push": push_result,
         }
+
+    def _sync_all_attachments(self) -> None:
+        """Push any local attachments not yet on the server."""
+        attachments_dir = self.storage_dir / "attachments"
+        if not attachments_dir.exists():
+            return
+        for path in attachments_dir.iterdir():
+            if path.is_file():
+                self._push_attachment(path.name)
 
     def pull(self) -> Dict[str, Any]:
         """Pull changes from the server."""
@@ -314,10 +324,22 @@ class SyncClient:
             )
 
     def _push_attachment(self, filename: str) -> None:
-        """Upload an attachment to the server."""
+        """Upload an attachment to the server if not already there."""
         attachments_dir = self.storage_dir / "attachments"
         local_path = attachments_dir / filename
         if not local_path.exists():
+            return
+
+        # Check if server already has it
+        check_req = ProtocolMessage(
+            method="attachment_get",
+            body={"filename": filename},
+        )
+        check_resp = self.transport.send(check_req)
+        check = parse_response(
+            "attachment_get", check_resp.body
+        )
+        if check.found:
             return
 
         data = base64.b64encode(
