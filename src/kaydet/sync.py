@@ -74,7 +74,10 @@ def _write_if_changed(
 
 
 def _upsert_entry_record(
-    cursor: sqlite3.Cursor, day_file_name: str, entry: Entry
+    cursor: sqlite3.Cursor,
+    day_file_name: str,
+    entry: Entry,
+    updated_at: str | None = None,
 ) -> int:
     """Ensure an entry record exists in the database and return its ID."""
     candidate_id = (
@@ -90,15 +93,23 @@ def _upsert_entry_record(
         )
         if row := cursor.fetchone():
             if row[0] == day_file_name:
-                cursor.execute(
+                sql = (
                     "UPDATE entries SET source_file = ?, "
-                    "timestamp = ? WHERE id = ?",
-                    (
+                    "timestamp = ? WHERE id = ?"
+                )
+                params = [day_file_name, entry.timestamp, candidate_id]
+                if updated_at:
+                    sql = (
+                        "UPDATE entries SET source_file = ?, "
+                        "timestamp = ?, updated_at = ? WHERE id = ?"
+                    )
+                    params = [
                         day_file_name,
                         entry.timestamp,
+                        updated_at,
                         candidate_id,
-                    ),
-                )
+                    ]
+                cursor.execute(sql, params)
                 return candidate_id
             else:
                 # ID exists but in a different file.
@@ -106,21 +117,29 @@ def _upsert_entry_record(
                 candidate_id = None
 
     if candidate_id is not None:
-        cursor.execute(
+        sql = (
             "INSERT INTO entries (id, source_file, timestamp) "
-            "VALUES (?, ?, ?)",
-            (
-                candidate_id,
-                day_file_name,
-                entry.timestamp,
-            ),
+            "VALUES (?, ?, ?)"
         )
+        params = [candidate_id, day_file_name, entry.timestamp]
+        if updated_at:
+            sql = (
+                "INSERT INTO entries (id, source_file, timestamp, updated_at) "
+                "VALUES (?, ?, ?, ?)"
+            )
+            params.append(updated_at)
+        cursor.execute(sql, params)
         return candidate_id
 
-    cursor.execute(
-        "INSERT INTO entries (source_file, timestamp) VALUES (?, ?)",
-        (day_file_name, entry.timestamp),
-    )
+    sql = "INSERT INTO entries (source_file, timestamp) VALUES (?, ?)"
+    params = [day_file_name, entry.timestamp]
+    if updated_at:
+        sql = (
+            "INSERT INTO entries (source_file, timestamp, updated_at) "
+            "VALUES (?, ?, ?)"
+        )
+        params.append(updated_at)
+    cursor.execute(sql, params)
     return cursor.lastrowid
 
 
@@ -149,6 +168,7 @@ def _normalize_entries(
     conn: sqlite3.Connection,
     day_file: Path,
     entries: List[Entry],
+    updated_at: str | None = None,
 ) -> List[Entry]:
     """Assign IDs to entries and clean up the database."""
     cursor = conn.cursor()
@@ -156,7 +176,9 @@ def _normalize_entries(
     normalized: List[Entry] = []
 
     for entry in entries:
-        eid = _upsert_entry_record(cursor, day_file.name, entry)
+        eid = _upsert_entry_record(
+            cursor, day_file.name, entry, updated_at=updated_at
+        )
         assigned_ids.append(eid)
         normalized.append(replace(entry, entry_id=str(eid)))
 
@@ -212,9 +234,15 @@ def _sync_single_file(
     entries = parse_day_entries(day_file, entry_date)
     header_lines = _split_header(raw_text.splitlines())
 
+    # Use file mtime as the updated_at timestamp for entries
+    mtime = day_file.stat().st_mtime
+    updated_at = datetime.fromtimestamp(mtime).isoformat()
+
     conn.execute("BEGIN")
     try:
-        normalized = _normalize_entries(conn, day_file, entries)
+        normalized = _normalize_entries(
+            conn, day_file, entries, updated_at=updated_at
+        )
         _reindex_entries(conn, normalized)
 
         rendered = list(header_lines)
@@ -228,7 +256,7 @@ def _sync_single_file(
             "INSERT INTO synced_files(source_file, last_mtime) VALUES(?, ?) "
             "ON CONFLICT(source_file) DO UPDATE "
             "SET last_mtime = excluded.last_mtime",
-            (day_file.name, day_file.stat().st_mtime),
+            (day_file.name, mtime),
         )
         conn.execute("COMMIT")
         return changed

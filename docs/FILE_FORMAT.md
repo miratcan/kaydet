@@ -1,10 +1,10 @@
-# Kaydet Diary File Format Specification
+# Kaydet File Format Specification
 
-`kaydet` stores your diary entries in plain text files, making them easily readable and portable. Each file typically represents a single day's entries, and each entry within a file follows a consistent, human-readable format.
+`kaydet` stores entries in plain text day files, making them easily readable and portable. Each day file represents a single day's entries, and each entry within a file follows a consistent, human-readable format.
 
 ## File Naming Convention
 
-Diary files are named according to the date they represent. The default format is `YYYY-MM-DD.txt`.
+Day files are named according to the date they represent. The default format is `YYYY-MM-DD.txt`.
 
 **Example:**
 - `2025-10-30.txt` for entries made on October 30, 2025.
@@ -26,7 +26,7 @@ HH:MM [ID]: Message with #tags and metadata:value
 -   **`HH:MM` (Required Timestamp):** Represents the hour and minute the entry was created (e.g., `09:30`, `14:05`).
 -   **`[ID]` (Optional Entry ID):** A unique numeric identifier for the entry, enclosed in square brackets (e.g., `[123]`). This ID is automatically assigned by `kaydet` but can be manually specified for advanced use cases.
 -   **`: ` (Separator):** A colon followed by a space separates the timestamp/ID from the message.
--   **`Message`:** The first line of your diary entry's content. This is written naturally and can include:
+-   **`Message`:** The first line of your entry's content. This is written naturally and can include:
     -   **Inline hashtags:** Tags embedded directly in your text (e.g., `Working on #project-x today` or `#meeting notes`)
     -   **Metadata key-value pairs:** Structured information embedded in the text (e.g., `status:done`, `time:2h`, `priority:high`)
 -   **`#tags` (Hashtags):** Categorical labels for your entry, written naturally within the message.
@@ -81,6 +81,60 @@ Remember to check the wishlist.
 insanin karsisina. #blog yazim fikrini not aldim.
 ```
 
+## Attachments
+
+Entries can have file attachments (photos, documents, etc.).
+
+### Storage
+
+Attachments live in an `attachments/` directory inside STORAGE_DIR:
+
+```
+storage/
+├── 2026-04-13.txt
+├── 2026-04-12.txt
+└── attachments/
+    ├── 42_photo.jpg
+    ├── 42_receipt.pdf
+    └── 51_screenshot.png
+```
+
+### Naming Convention
+
+Attachment filenames are prefixed with the entry ID they belong to:
+
+```
+{entry_id}_{original_filename}
+```
+
+Examples:
+- `42_photo.jpg` — attached to entry 42
+- `51_screenshot.png` — attached to entry 51
+
+This links attachments to their entries without modifying the day file
+format. Multiple attachments per entry are supported.
+
+### Entry Reference
+
+Attachments are referenced in the entry header as `attachment:filename`:
+
+```
+14:30 [42]: Park photos #personal attachment:42_photo.jpg attachment:42_receipt.pdf
+```
+
+### CLI Usage
+
+```bash
+# Copy file into attachments
+kaydet "Park photos" --attach ~/photo.jpg
+
+# Move file into attachments (removes original)
+kaydet "Receipt" --grab ~/receipt.pdf
+
+# Multiple attachments
+kaydet "Meeting notes" --attach slide1.pdf --attach slide2.pdf
+```
+
 ## Parsing Logic
 
 The parsing of these files is handled by the `src/kaydet/parsers.py` module. Key points:
@@ -90,7 +144,7 @@ The parsing of these files is handled by the `src/kaydet/parsers.py` module. Key
 -   **Metadata Extraction:** `KEY_VALUE_PATTERN` identifies `key:value` pairs in the header line and extracts them.
 -   **Natural Flow:** Tags remain in the message text for human readability, while metadata is extracted and removed from display.
 
-This natural, flexible format ensures that your diary entries are:
+This natural, flexible format ensures that your entries are:
 -   **Human-readable:** Write naturally without artificial separators
 -   **Machine-parsable:** Tags and metadata are automatically extracted
 -   **Search-friendly:** All text, tags, and metadata are indexed for powerful search capabilities

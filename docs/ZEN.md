@@ -17,6 +17,7 @@
 ## Tools
 
 * **[ZEN-STANDALONE]:** `kaydet` is batteries-included and works out of the box.
+* **[ZEN-AGNOSTIC]:** `kaydet` is platform-agnostic. We don't build code, we build protocols. Code dies, protocols don't.
 
 ## Evolution
 
