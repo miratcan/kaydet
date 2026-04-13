@@ -79,7 +79,8 @@ Built-in MCP server exposes your archive to Claude Desktop. Ask your AI about yo
 - **SQLite indexing**: Fast search across thousands of entries
 - **Git-friendly**: Version your diary, sync across devices
 - **MCP integration**: Connect to Claude Desktop and other AI tools with todo support
-- **Sync at Home**: Offline-first phone workflow that syncs over your home LAN via the fingerprint protocol.
+- **Built-in sync**: Push/pull sync between devices via HTTP or stdin, with encrypted secrets and attachment sync
+- **File attachments**: Attach files to entries with `--attach` and `--grab`
 
 ## Usage
 
@@ -216,9 +217,6 @@ Your AI assistant with perfect memory of your own data.
   the current project or falling back to the directory name when no override is
   defined.
 
-- [`Sync at Home` protocol](docs/SYNC_AT_HOME.md) documents how the phone ↔
-  desktop LAN sync will work (SSID algılama, hash takası, append-both merge).
-
 ## Use Cases
 
 **Work Logging**
@@ -260,60 +258,55 @@ pytest
 ruff check src
 ```
 
-## Cloud Sync & Mobile
+## Sync
 
-Kaydet separates storage (plain text files) from index (SQLite database), making cloud sync simple and safe.
+Kaydet has built-in sync — no third-party cloud services needed.
+
+### Setup
+
+**On your server:**
+```bash
+kaydet server generate-key --name "my-laptop"
+# → kyd_a1b2c3d4e5f6...
+
+kaydet server start --transport http --host 0.0.0.0
+# → Sync server listening on 0.0.0.0:8484
+```
+
+**On your client:**
+```bash
+kaydet sync setup
+# Choose: http
+# Server URL: https://my-server.example.com:8484
+# API key: kyd_a1b2c3d4e5f6...
+
+kaydet sync
+# → Pushed 3 entries, Pulled 1 entry
+```
 
 ### How it works
 
-```
-~/Documents/Kaydet/        → Synced (Google Drive, iCloud, Dropbox)
-  ├── 2025-01-15.txt
-  ├── 2025-01-16.txt
-  └── ...
+- Server is a full kaydet instance with its own storage
+- Every device keeps a complete local copy
+- Changes are tracked via an append-only log (`sync_log`)
+- Conflicts resolved automatically (last-writer-wins)
+- Encrypted secrets sync as opaque blobs — server can't read them
+- Attachments sync separately via base64 transport
 
-~/.local/share/kaydet/     → Local only (not synced)
+### Alternative: folder sync
+
+If you prefer not to run a server, you can still sync the plain text
+files via any folder sync tool (Syncthing, Resilio, etc.). Each device
+builds its own search index locally.
+
+```
+~/Documents/Kaydet/        → Synced folder
+  ├── 2025-01-15.txt
+  └── 2025-01-16.txt
+
+~/.local/share/kaydet/     → Local only
   └── index.db
 ```
-
-**Why this works:**
-- Plain text files are the single source of truth
-- Each device builds its own search index
-- No conflicts, no corruption
-- Zero infrastructure cost
-
-### Setup for cloud sync
-
-1. **First run** — Kaydet will ask where to store entries:
-   ```bash
-   kaydet "First entry"
-
-   # Choose your cloud folder:
-   Path: ~/Google Drive/Kaydet
-   ```
-
-2. **Change location later** — Edit config and migrate:
-   ```bash
-   kaydet --config
-
-   # Edit storage_dir in your editor
-   # Kaydet will offer to move files automatically
-   ```
-
-3. **On other devices** — Install Kaydet, set same folder:
-   ```bash
-   kaydet "First entry on phone"
-   Path: ~/Google Drive/Kaydet  # Same path
-   ```
-
-### Supported cloud providers
-
-- **Google Drive** (recommended for Android)
-- **iCloud Drive** (recommended for iOS/macOS)
-- **Dropbox** (cross-platform)
-- **Any folder sync** (Syncthing, Resilio, etc.)
-
-**Note:** Index is always local. Each device maintains its own `index.db` for fast search.
 
 ## Contributing
 
@@ -328,6 +321,7 @@ MIT License. See [LICENSE](LICENSE) for details.
 
 - [GitHub Repository](https://github.com/miratcan/kaydet)
 - [Blog: Why plain text + SQLite beat every cloud note app](https://mirat.dev/articles/nine-years-of-kaydet/)
+- [Sync Protocol](docs/SYNC_PROTOCOL.md) — sync protocol specification
 - [docs/AGENTS.md](docs/AGENTS.md) — agents must read this before interacting with the repo
 
 ---
