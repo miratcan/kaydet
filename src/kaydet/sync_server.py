@@ -262,9 +262,16 @@ class SyncServer:
         device_id: str,
     ) -> None:
         """Update an existing server entry with pushed data."""
+        text = entry_data.text
+        if entry_data.attachments:
+            att_refs = " ".join(
+                f"attachment:{a}" for a in entry_data.attachments
+            )
+            text = f"{text} {att_refs}"
+
         self.service.update_entry(
             existing_id,
-            text=entry_data.text,
+            text=text,
             metadata=entry_data.metadata or None,
             tags=entry_data.tags or None,
         )
@@ -302,8 +309,17 @@ class SyncServer:
         except (ValueError, AttributeError):
             pass
 
+        # Append attachment references to text so they
+        # get written into the day file header
+        text = entry_data.text
+        if entry_data.attachments:
+            att_refs = " ".join(
+                f"attachment:{a}" for a in entry_data.attachments
+            )
+            text = f"{text} {att_refs}"
+
         result = self.service.add_entry(
-            text=entry_data.text,
+            text=text,
             metadata=entry_data.metadata or None,
             tags=entry_data.tags or None,
             at=entry_at,
