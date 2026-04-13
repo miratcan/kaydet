@@ -305,7 +305,6 @@ def _build_server_parser() -> argparse.ArgumentParser:
         default=8484,
         help="HTTP port (default: 8484).",
     )
-
     genkey_p = sub.add_parser(
         "generate-key", help="Generate an API key."
     )
@@ -861,9 +860,28 @@ def _start_http_server(
     server_inst = SyncServer(svc)
 
     class SyncHandler(BaseHTTPRequestHandler):
+        def _cors_headers(self):
+            self.send_header(
+                "Access-Control-Allow-Origin", "*"
+            )
+            self.send_header(
+                "Access-Control-Allow-Methods",
+                "GET, POST, OPTIONS",
+            )
+            self.send_header(
+                "Access-Control-Allow-Headers",
+                "Content-Type, Authorization",
+            )
+
+        def do_OPTIONS(self):
+            self.send_response(204)
+            self._cors_headers()
+            self.end_headers()
+
         def do_POST(self):
             if self.path != "/sync":
                 self.send_response(404)
+                self._cors_headers()
                 self.end_headers()
                 self.wfile.write(b"Not found")
                 return
@@ -872,6 +890,7 @@ def _start_http_server(
             auth = self.headers.get("Authorization", "")
             if not auth.startswith("Bearer "):
                 self.send_response(401)
+                self._cors_headers()
                 self.end_headers()
                 self.wfile.write(b"Missing API key")
                 return
@@ -879,6 +898,7 @@ def _start_http_server(
             api_key = auth[7:]
             if not validate_api_key(conn, api_key):
                 self.send_response(401)
+                self._cors_headers()
                 self.end_headers()
                 self.wfile.write(b"Invalid API key")
                 return
@@ -899,10 +919,12 @@ def _start_http_server(
                 self.send_header(
                     "Content-Type", "application/json"
                 )
+                self._cors_headers()
                 self.end_headers()
                 self.wfile.write(resp_json)
             except Exception as e:
                 self.send_response(500)
+                self._cors_headers()
                 self.end_headers()
                 self.wfile.write(str(e).encode("utf-8"))
 

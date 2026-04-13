@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Kaydet</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#212121">
+    <link rel="stylesheet" href="style.css">
+    <link rel="apple-touch-icon" href="assets/logo.png">
+</head>
+<body>
+    <div id="app">
+        <header>
+            <h1>Kaydet</h1>
+            <div class="header-right">
+                <div id="status-dot" class="offline"></div>
+                <button id="settings-btn" title="Ayarlar">⚙</button>
+            </div>
+        </header>
+
+        <div id="settings-panel" hidden>
+            <label>
+                Sunucu URL
+                <input type="url" id="server-url" placeholder="https://server:8484">
+            </label>
+            <label>
+                API Key
+                <input type="password" id="api-key" placeholder="kyd_...">
+            </label>
+            <button id="save-settings" class="primary">Kaydet</button>
+        </div>
+
+        <main>
+            <section id="capture">
+                <textarea id="entry-input" placeholder="Neler oluyor? #tag key:value" autofocus></textarea>
+                <div class="actions">
+                    <button id="save-btn" class="primary">Kaydet</button>
+                    <label for="attach-file" class="secondary-btn">
+                        📷
+                        <input type="file" id="attach-file" accept="image/*" capture="camera" hidden>
+                    </label>
+                </div>
+                <div id="attachment-preview" hidden></div>
+            </section>
+
+            <section id="recent-syncs">
+                <h2>Bekleyenler <span id="pending-count"></span></h2>
+                <ul id="offline-list"></ul>
+            </section>
+        </main>
+
+        <footer>
+            <button id="sync-now" title="Senkronize Et">🔄</button>
+            <span id="last-sync">Henüz senkronize edilmedi</span>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+                .then(reg => console.log('SW registered'))
+                .catch(err => console.error('SW failed', err));
+        }
+    </script>
+</body>
+</html>
