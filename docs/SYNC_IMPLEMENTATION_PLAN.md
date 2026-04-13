@@ -1,6 +1,7 @@
 # Sync Implementation Plan
 
 > Internal planning document. See SYNC_PROTOCOL.md for the protocol spec.
+> **Status:** Phases 1-5 implemented on `feat/sync` branch (April 2026).
 
 ## Architecture
 
@@ -207,45 +208,48 @@ unique within a kaydet instance.
 
 ## Implementation Order
 
-### Phase 1: Secrets
+### Phase 1: Secrets — Done
 
-1. `secrets.py` — encrypt/decrypt + SQLite storage
-2. `--secret` flag in CLI
-3. `kaydet get <id>` shows decrypted secret
-4. `secrets` table in database schema
-5. Tests: secret CRUD, encryption round-trip
+1. [x] `secrets.py` — encrypt/decrypt + SQLite storage
+2. [x] `--secret` flag in CLI
+3. [x] `kaydet get <id>` shows decrypted secret
+4. [x] `secrets` table in database schema
+5. [x] Tests: secret CRUD, encryption round-trip
 
-### Phase 2: Protocol + Local Sync
+### Phase 2: Protocol + Local Sync — Done
 
-6. `sync_protocol.py` — message dataclasses, JSON serialization
-7. Add `sync_log` table to database schema
-8. Hook sync_log writes into existing add/edit/delete
-9. `sync_server.py` — stdin transport only
-10. `sync_client.py` — stdin transport only
-11. `kaydet sync setup` — configure server
-12. `kaydet sync` command (local stdin mode)
-13. Tests: full round-trip sync between two local instances
+6. [x] `sync_protocol.py` — message dataclasses, JSON serialization
+7. [x] Add `sync_log` table to database schema
+8. [x] Hook sync_log writes into existing add/edit/delete
+9. [x] `sync_server.py` — stdin transport only
+10. [x] `sync_client.py` — stdin transport only
+11. [x] `kaydet sync setup` — configure server
+12. [x] `kaydet sync` command (local stdin mode)
+13. [x] Tests: full round-trip sync between two local instances (6 e2e tests)
 
-### Phase 3: Remote
+### Phase 3: Remote — Done
 
-14. `sync_transport.py` — HTTP transport
-15. `kaydet server start --transport http`
-16. API key auth: generate, validate, revoke
-17. `kaydet sync` with HTTP config
-18. Tests: HTTP transport
+14. [x] `sync_transport.py` — HTTP transport
+15. [x] `kaydet server start --transport http`
+16. [x] API key auth: generate, validate, revoke
+17. [x] `kaydet sync` with HTTP config
+18. [x] HTTP error handling (401, 5xx, unreachable)
 
-### Phase 4: Attachments
+### Phase 4: Attachments — Done
 
-19. Attachment upload/download endpoints
-20. Client attachment pull/push logic
-21. Tests: attachment sync
+19. [x] Attachment upload/download via `attachment_get`/`attachment_put`
+20. [x] Client attachment pull/push logic
+21. [x] Tests: attachment sync
 
-### Phase 5: Polish
+### Phase 5: Polish — Done
 
-22. `kaydet sync status`
-23. `kaydet sync devices`
-24. `kaydet server list-keys`
-25. Error handling hardening
+22. [x] `kaydet sync status`
+23. [ ] `kaydet sync devices` (stub only)
+24. [x] `kaydet server list-keys`
+25. [x] Error handling hardening
+26. [x] Conflict resolution with `updated_at` (last-writer-wins)
+27. [x] Sync loop prevention (`__pull__` marker)
+28. [x] SoC refactoring (server/client use KaydetService)
 
 ## What Doesn't Change
 
