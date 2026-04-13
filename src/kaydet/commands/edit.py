@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
+from ..database import log_sync_action
 from ..parsers import (
     ENTRY_LINE_PATTERN,
     deduplicate_tags,
@@ -119,6 +120,7 @@ def edit_entry_command(
     lines[start:end] = normalized_block
     ensure_newline = had_trailing_newline or edited_text.endswith("\n")
     write_day_file(day_file, lines, ensure_newline)
+    log_sync_action(conn, entry_id, "updated")
     sync_modified_diary_files(conn, log_dir, config, now)
     print(f"Updated entry {entry_id} in {source_file}.")
 
@@ -224,6 +226,7 @@ def update_entry_inline(
         text is not None and text.endswith("\n")
     )
     write_day_file(day_file, lines, ensure_newline)
+    log_sync_action(conn, entry_id, "updated")
     sync_modified_diary_files(conn, log_dir, config, now)
     print(f"Updated entry {entry_id} in {source_file}.")
     return {

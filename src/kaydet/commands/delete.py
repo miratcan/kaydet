@@ -7,6 +7,7 @@ from configparser import SectionProxy
 from datetime import datetime
 from pathlib import Path
 
+from ..database import log_sync_action
 from ..sync import sync_modified_diary_files
 from .entry_ops import (
     EntryNotFoundError,
@@ -69,6 +70,8 @@ def delete_entry_command(
         return {"success": False, "message": "Deletion cancelled."}
 
     del lines[start:end]
+
+    log_sync_action(conn, entry_id, "deleted")
 
     ensure_newline = had_trailing_newline
     write_day_file(day_file, lines, ensure_newline)

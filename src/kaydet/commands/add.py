@@ -18,7 +18,13 @@ from ..parsers import (
     parse_numeric_value,
     partition_entry_tokens,
 )
-from ..utils import ensure_day_file, open_editor, save_last_entry_timestamp
+from ..secrets import encrypt_secret, store_secret
+from ..utils import (
+    ensure_day_file,
+    open_editor,
+    prompt_secret_password,
+    save_last_entry_timestamp,
+)
 
 
 class EmptyEntryError(ValueError):
@@ -135,6 +141,8 @@ def create_entry(
     at_str: str | None = None,
     attachment_paths: List[Path] | None = None,
     grab_paths: List[Path] | None = None,
+    secret_text: str | None = None,
+    secret_password: str | None = None,
 ) -> Dict[str, str]:
     """Persist an entry using shared logic for CLI and programmatic callers."""
 
@@ -183,6 +191,17 @@ def create_entry(
         for path in (grab_paths or []):
             name = store_attachment(path, entry_id, log_dir, move=True)
             attachment_names.append(name)
+
+        # Store encrypted secret if provided
+        if secret_text and secret_password:
+            encrypted = encrypt_secret(secret_text, secret_password)
+            store_secret(conn, entry_id, encrypted)
+
+        # Log to sync_log for sync
+        cursor.execute(
+            database.LOG_SYNC_ACTION_SQL,
+            (entry_id, "created", None),
+        )
 
         write_func = inject_entry if at_str else append_entry
         write_func(
@@ -284,6 +303,12 @@ def add_entry_command(args, config, config_dir, log_dir, now, conn):
     except (FileNotFoundError, ValueError) as exc:
         return {"success": False, "message": str(exc)}
 
+    # Handle --secret: prompt for password if needed
+    secret_text = getattr(args, "secret", None)
+    secret_password = None
+    if secret_text:
+        secret_password = prompt_secret_password(config_dir)
+
     ensure_day_file(log_dir, entry_now, config)
     raw_entry, metadata, explicit_tags = get_entry(args, config)
     entry_body = raw_entry.strip()
@@ -303,6 +328,8 @@ def add_entry_command(args, config, config_dir, log_dir, now, conn):
         at_str=args.at,
         attachment_paths=attach_paths,
         grab_paths=grab_paths,
+        secret_text=secret_text,
+        secret_password=secret_password,
     )
 
     msg = f"Entry added to: {result['day_file']} (ID: {result['entry_id']})"

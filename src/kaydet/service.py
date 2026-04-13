@@ -65,15 +65,33 @@ class KaydetService:
         metadata: dict[str, str] | None = None,
         tags: Iterable[str] | None = None,
         timestamp: str | None = None,
+        secret: str | None = None,
+        at: datetime | None = None,
     ) -> dict[str, Any]:
-        now = datetime.now()
+        now = at or datetime.now()
         metadata = metadata or {}
         tags = list(tags or [])
-        if timestamp:
+        if timestamp and not at:
             now = now.replace(
                 hour=int(timestamp[:2]),
                 minute=int(timestamp[3:]),
             )
+
+        # Resolve secret password if a secret is provided
+        secret_password = None
+        if secret:
+            from .utils import get_secret_password
+
+            secret_password = get_secret_password(self.config_dir)
+            if not secret_password:
+                return {
+                    "success": False,
+                    "error": (
+                        "No secret password configured. "
+                        "Run 'kaydet sync setup' or use --secret "
+                        "from the CLI first."
+                    ),
+                }
 
         try:
             result = create_entry(
@@ -85,6 +103,8 @@ class KaydetService:
                 log_dir=self.log_dir,
                 now=now,
                 conn=self.conn,
+                secret_text=secret,
+                secret_password=secret_password,
             )
         except EmptyEntryError as error:
             return {"success": False, "error": str(error)}
@@ -205,7 +225,25 @@ class KaydetService:
         if not matches:
             return {"success": False, "error": f"Entry {entry_id} not found."}
 
-        return {"success": True, "entry": matches[0].to_dict()}
+        entry_dict = matches[0].to_dict()
+
+        # Include decrypted secret if available
+        from .secrets import decrypt_secret, get_secret
+        from .utils import get_secret_password
+
+        encrypted = get_secret(self.conn, entry_id)
+        if encrypted:
+            password = get_secret_password(self.config_dir)
+            if password:
+                try:
+                    entry_dict["secret"] = decrypt_secret(
+                        encrypted, password
+                    )
+                except Exception:
+                    entry_dict["secret"] = None
+                    entry_dict["secret_error"] = "Decryption failed"
+
+        return {"success": True, "entry": entry_dict}
 
     def list_tags(self) -> dict[str, Any]:
         cursor = self.conn.cursor()

@@ -120,6 +120,13 @@ def build_parser(
         metavar="FILE",
         help="Attach file(s) and remove the originals (repeatable).",
     )
+    basic_group.add_argument(
+        "--secret",
+        dest="secret",
+        type=str,
+        metavar="TEXT",
+        help="Attach an encrypted secret to the entry.",
+    )
 
     # Todo Management
     todo_group = parser.add_argument_group("Todo Management")
@@ -253,12 +260,95 @@ def build_parser(
         version=f"%(prog)s {__version__}",
         help="Show version.",
     )
+
+    return parser
+
+
+def _build_sync_parser() -> argparse.ArgumentParser:
+    """Build parser for 'kaydet sync' subcommands."""
+    parser = argparse.ArgumentParser(
+        prog="kaydet sync",
+        description="Sync entries with a remote server.",
+    )
+    sub = parser.add_subparsers(dest="sync_action")
+    sub.add_parser("setup", help="Configure sync settings.")
+    sub.add_parser("status", help="Show sync status.")
+    sub.add_parser("devices", help="List registered devices.")
+    return parser
+
+
+def _build_server_parser() -> argparse.ArgumentParser:
+    """Build parser for 'kaydet server' subcommands."""
+    parser = argparse.ArgumentParser(
+        prog="kaydet server",
+        description="Server management commands.",
+    )
+    sub = parser.add_subparsers(dest="server_action")
+
+    start_p = sub.add_parser(
+        "start", help="Start the sync server."
+    )
+    start_p.add_argument(
+        "--transport",
+        choices=["stdin", "http"],
+        default="stdin",
+        help="Transport mode (default: stdin).",
+    )
+    start_p.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="HTTP host to bind (default: 127.0.0.1).",
+    )
+    start_p.add_argument(
+        "--port",
+        type=int,
+        default=8484,
+        help="HTTP port (default: 8484).",
+    )
+
+    genkey_p = sub.add_parser(
+        "generate-key", help="Generate an API key."
+    )
+    genkey_p.add_argument(
+        "--name", required=True, help="Key name."
+    )
+    sub.add_parser(
+        "list-keys", help="List all API keys."
+    )
+    revoke_p = sub.add_parser(
+        "revoke-key", help="Revoke an API key."
+    )
+    revoke_p.add_argument(
+        "name", help="Key name to revoke."
+    )
     return parser
 
 
 def main() -> None:
     """Application entry point for the kaydet CLI."""
+    import sys as _sys
+
     config, config_path, config_dir, storage_dir, index_dir = load_config()
+
+    # Intercept sync/server subcommands before main parser
+    argv = _sys.argv[1:]
+    if argv and argv[0] == "sync":
+        args = _build_sync_parser().parse_args(argv[1:])
+        console = Console()
+        _handle_sync_command(
+            args, config, config_dir, storage_dir, index_dir,
+            console,
+        )
+        return
+    if argv and argv[0] == "server":
+        args = _build_server_parser().parse_args(argv[1:])
+        console = Console()
+        _handle_server_command(
+            args, config, config_dir, storage_dir, index_dir,
+            console,
+        )
+        return
+
     parser = build_parser(config_path, storage_dir)
     args = parser.parse_args()
 
@@ -362,6 +452,29 @@ def main() -> None:
             config,
             console=console,
         )
+        # Show decrypted secret if one exists
+        from .secrets import decrypt_secret, get_secret
+        from .utils import get_secret_password
+
+        encrypted = get_secret(conn, args.get)
+        if encrypted:
+            password = get_secret_password(config_dir)
+            if password:
+                try:
+                    plaintext = decrypt_secret(encrypted, password)
+                    console.print(
+                        f"\n[bold]Secret:[/bold] {plaintext}"
+                    )
+                except Exception:
+                    console.print(
+                        "\n[red]Failed to decrypt secret."
+                        " Wrong password?[/red]"
+                    )
+            else:
+                console.print(
+                    "\n[yellow]Entry has a secret but no password"
+                    " is configured.[/yellow]"
+                )
         return
 
     # args.todo with nargs="*" returns:
@@ -574,3 +687,232 @@ def main() -> None:
     )
     if res and "message" in res:
         print(res["message"])
+
+
+def _handle_sync_command(
+    args, config, config_dir, storage_dir, index_dir, console
+):
+    """Handle kaydet sync subcommands."""
+
+    action = getattr(args, "sync_action", None)
+
+    if action == "setup":
+        _sync_setup(config, config_dir)
+        return
+
+    if action == "status":
+        from .sync_client import SyncClient
+
+        client = SyncClient.initialize()
+        status = client.get_status()
+        print(f"Transport: {status['transport']}")
+        print(f"Server: {status['server'] or '(local)'}")
+        print(f"Sync token: {status['sync_token']}")
+        return
+
+    if action == "devices":
+        print("Device listing requires server connection.")
+        return
+
+    # Default: run sync
+    from .sync_client import SyncClient
+
+    client = SyncClient.initialize()
+    print("Syncing...")
+    result = client.sync()
+
+    pull = result["pull"]
+    push = result["push"]
+    print(
+        f"Pulled {pull['pulled']} entries "
+        f"(token: {pull['new_token']})"
+    )
+    print(f"Pushed {push['pushed']} entries")
+    if push.get("errors"):
+        for err in push["errors"]:
+            print(f"  Error: {err}")
+
+
+def _sync_setup(config, config_dir):
+    """Interactive sync setup."""
+    from configparser import ConfigParser
+
+    print("\nSync Setup")
+    print("=" * 40)
+
+    print("\nTransport options:")
+    print("  1. stdin  (local server, same machine)")
+    print("  2. http   (remote server)")
+
+    choice = input("\nChoose transport [1]: ").strip()
+    transport = "http" if choice == "2" else "stdin"
+
+    config_path = config_dir / "config.ini"
+    parser = ConfigParser(interpolation=None)
+    if config_path.exists():
+        parser.read(config_path, encoding="utf-8")
+    section = "SETTINGS"
+    if section not in parser:
+        parser[section] = {}
+
+    parser[section]["sync_transport"] = transport
+
+    if transport == "http":
+        server = input("Server URL: ").strip()
+        api_key = input("API key: ").strip()
+        parser[section]["sync_server"] = server
+        parser[section]["sync_api_key"] = api_key
+    else:
+        path = input(
+            "Server binary path [kaydet]: "
+        ).strip()
+        parser[section]["sync_server_path"] = path or "kaydet"
+
+    with config_path.open("w", encoding="utf-8") as f:
+        parser.write(f)
+
+    print("\nSync configured.")
+
+
+def _handle_server_command(
+    args, config, config_dir, storage_dir, index_dir, console
+):
+    """Handle kaydet server subcommands."""
+    from . import database
+
+    db_path = Path(index_dir) / INDEX_FILENAME
+    conn = database.get_db_connection(db_path)
+    database.initialize_database(conn)
+
+    action = getattr(args, "server_action", None)
+
+    if action == "start":
+        if args.transport == "http":
+            _start_http_server(
+                conn,
+                storage_dir,
+                config,
+                config_dir,
+                args.host,
+                args.port,
+            )
+        else:
+            from .sync_server import run_stdin_server
+
+            run_stdin_server()
+        return
+
+    if action == "generate-key":
+        from .sync_server import generate_api_key
+
+        key = generate_api_key(conn, args.name)
+        print(f"API key generated: {key}")
+        print(f"Name: {args.name}")
+        print("\nStore this key securely. "
+              "It won't be shown again.")
+        return
+
+    if action == "list-keys":
+        from .sync_server import list_api_keys
+
+        keys = list_api_keys(conn)
+        if not keys:
+            print("No API keys.")
+            return
+        for k in keys:
+            used = k["last_used_at"] or "never"
+            print(
+                f"  {k['name']}: {k['key_prefix']} "
+                f"(created: {k['created_at']}, "
+                f"last used: {used})"
+            )
+        return
+
+    if action == "revoke-key":
+        from .sync_server import revoke_api_key
+
+        if revoke_api_key(conn, args.name):
+            print(f"Key '{args.name}' revoked.")
+        else:
+            print(f"Key '{args.name}' not found.")
+        return
+
+    print("Usage: kaydet server <start|generate-key"
+          "|list-keys|revoke-key>")
+
+
+def _start_http_server(
+    conn, storage_dir, config, config_dir, host, port
+):
+    """Start the HTTP sync server."""
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    from .service import KaydetService
+    from .sync_protocol import (
+        deserialize_message,
+        serialize_message,
+    )
+    from .sync_server import SyncServer, validate_api_key
+
+    svc = KaydetService(
+        config=config, config_dir=config_dir,
+        log_dir=storage_dir, conn=conn,
+    )
+    server_inst = SyncServer(svc)
+
+    class SyncHandler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            if self.path != "/sync":
+                self.send_response(404)
+                self.end_headers()
+                self.wfile.write(b"Not found")
+                return
+
+            # Auth check
+            auth = self.headers.get("Authorization", "")
+            if not auth.startswith("Bearer "):
+                self.send_response(401)
+                self.end_headers()
+                self.wfile.write(b"Missing API key")
+                return
+
+            api_key = auth[7:]
+            if not validate_api_key(conn, api_key):
+                self.send_response(401)
+                self.end_headers()
+                self.wfile.write(b"Invalid API key")
+                return
+
+            length = int(
+                self.headers.get("Content-Length", 0)
+            )
+            body = self.rfile.read(length).decode("utf-8")
+
+            try:
+                msg = deserialize_message(body)
+                response = server_inst.handle_message(msg)
+                resp_json = serialize_message(
+                    response
+                ).encode("utf-8")
+
+                self.send_response(200)
+                self.send_header(
+                    "Content-Type", "application/json"
+                )
+                self.end_headers()
+                self.wfile.write(resp_json)
+            except Exception as e:
+                self.send_response(500)
+                self.end_headers()
+                self.wfile.write(str(e).encode("utf-8"))
+
+        def log_message(self, format, *a):
+            print(f"[sync] {self.address_string()} "
+                  f"{format % a}")
+
+    httpd = HTTPServer((host, port), SyncHandler)
+    print(f"Sync server listening on {host}:{port}")
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\nServer stopped.")

@@ -6,7 +6,7 @@ from typing import Iterable
 
 # Database schema version
 # Increment when we intentionally drop and recreate the schema.
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 # Legacy migrations kept a user_version pragma, but SQLite is purely an
 # index/cache for Kaydet. We can safely drop and recreate tables whenever the
@@ -25,7 +25,8 @@ CREATE_TABLE_ENTRIES = """
 CREATE TABLE entries (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     source_file TEXT NOT NULL,
-    timestamp TEXT NOT NULL
+    timestamp TEXT NOT NULL,
+    updated_at TEXT
 )
 """
 
@@ -63,6 +64,38 @@ CREATE TABLE IF NOT EXISTS synced_files (
 )
 """
 
+CREATE_TABLE_SECRETS = """
+CREATE TABLE IF NOT EXISTS secrets (
+    entry_id INTEGER PRIMARY KEY,
+    encrypted_data BLOB NOT NULL,
+    FOREIGN KEY (entry_id) REFERENCES entries(id) ON DELETE CASCADE
+)
+"""
+
+CREATE_TABLE_SYNC_LOG = """
+CREATE TABLE IF NOT EXISTS sync_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    entry_id INTEGER NOT NULL,
+    action TEXT NOT NULL,
+    device_id TEXT,
+    created_at TEXT NOT NULL
+)
+"""
+
+CREATE_TABLE_SYNC_KEYS = """
+CREATE TABLE IF NOT EXISTS sync_keys (
+    key TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL,
+    last_used_at TEXT
+)
+"""
+
+LOG_SYNC_ACTION_SQL = (
+    "INSERT INTO sync_log (entry_id, action, device_id, created_at) "
+    "VALUES (?, ?, ?, datetime('now'))"
+)
+
 CREATE_INDEX_STATEMENTS = (
     "CREATE INDEX idx_tags_tag_name ON tags(tag_name)",
     "CREATE INDEX idx_metadata_key_value ON metadata(meta_key, meta_value)",
@@ -70,13 +103,18 @@ CREATE_INDEX_STATEMENTS = (
     "ON metadata(meta_key, numeric_value)",
 )
 
-INSERT_ENTRY_SQL = "INSERT INTO entries (source_file, timestamp) VALUES (?, ?)"
+INSERT_ENTRY_SQL = (
+    "INSERT INTO entries (source_file, timestamp, updated_at) "
+    "VALUES (?, ?, datetime('now'))"
+)
 INSERT_ENTRY_WITH_ID_SQL = (
-    "INSERT INTO entries (id, source_file, timestamp) VALUES (?, ?, ?)"
+    "INSERT INTO entries (id, source_file, timestamp, updated_at) "
+    "VALUES (?, ?, ?, datetime('now'))"
 )
 SELECT_ENTRY_BY_ID_SQL = "SELECT source_file FROM entries WHERE id = ?"
 UPDATE_ENTRY_SQL = (
-    "UPDATE entries SET source_file = ?, timestamp = ? WHERE id = ?"
+    "UPDATE entries SET source_file = ?, timestamp = ?, "
+    "updated_at = datetime('now') WHERE id = ?"
 )
 
 INSERT_TAG_SQL = "INSERT INTO tags (entry_id, tag_name) VALUES (?, ?)"
@@ -91,6 +129,16 @@ UPSERT_SYNCED_FILE_SQL = (
     "ON CONFLICT(source_file) DO UPDATE SET last_mtime = excluded.last_mtime"
 )
 SELECT_SYNCED_FILES_SQL = "SELECT source_file, last_mtime FROM synced_files"
+
+
+def log_sync_action(
+    conn: sqlite3.Connection,
+    entry_id: int,
+    action: str,
+    device_id: str | None = None,
+) -> None:
+    """Record a mutation in the sync log."""
+    conn.execute(LOG_SYNC_ACTION_SQL, (entry_id, action, device_id))
 
 
 def get_db_connection(db_path: Path) -> sqlite3.Connection:
@@ -120,6 +168,10 @@ def initialize_database(conn: sqlite3.Connection):
         cursor.execute(CREATE_VIRTUAL_TABLE_FTS)
         cursor.execute(CREATE_TABLE_METADATA)
         cursor.execute(CREATE_TABLE_SYNCED_FILES)
+        cursor.execute(CREATE_TABLE_SECRETS)
+        cursor.execute(CREATE_TABLE_SYNC_LOG)
+        cursor.execute(CREATE_TABLE_SYNC_KEYS)
+
         for statement in CREATE_INDEX_STATEMENTS:
             cursor.execute(statement)
 
@@ -128,6 +180,9 @@ def initialize_database(conn: sqlite3.Connection):
         return
 
     cursor.execute(CREATE_TABLE_SYNCED_FILES)
+    cursor.execute(CREATE_TABLE_SECRETS)
+    cursor.execute(CREATE_TABLE_SYNC_LOG)
+    cursor.execute(CREATE_TABLE_SYNC_KEYS)
 
 
 def _ensure_entry_id(
@@ -226,6 +281,9 @@ def add_entry(
             body,
             metadata,
             entry_id=entry_id,
+        )
+        cursor.execute(
+            LOG_SYNC_ACTION_SQL, (eid, "created", None)
         )
         cursor.execute("COMMIT")
         return eid

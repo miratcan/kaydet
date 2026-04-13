@@ -273,6 +273,48 @@ def open_file_in_editor(file_path: Path, editor_command: str) -> None:
     subprocess.call(shlex.split(editor_command) + [str(file_path)])
 
 
+def get_secret_password(config_dir: Path) -> Optional[str]:
+    """Read the secret password from the config directory."""
+    pw_file = config_dir / "secret_password"
+    if pw_file.exists():
+        return pw_file.read_text(encoding="utf-8").strip()
+    return None
+
+
+def set_secret_password(config_dir: Path, password: str) -> None:
+    """Store the secret password in the config directory."""
+    pw_file = config_dir / "secret_password"
+    pw_file.write_text(password, encoding="utf-8")
+    # Restrict permissions (owner-only read/write)
+    pw_file.chmod(0o600)
+
+
+def prompt_secret_password(config_dir: Path) -> str:
+    """Prompt the user to create or enter their secret password."""
+    import getpass
+
+    existing = get_secret_password(config_dir)
+    if existing:
+        return existing
+
+    print("\nFirst time using --secret. Set up your encryption password.")
+    print("This password encrypts your secrets locally.")
+    print("Use the same password on all devices.\n")
+
+    while True:
+        pw1 = getpass.getpass("Secret password: ")
+        if not pw1:
+            print("Password cannot be empty.")
+            continue
+        pw2 = getpass.getpass("Confirm password: ")
+        if pw1 != pw2:
+            print("Passwords don't match. Try again.")
+            continue
+        set_secret_password(config_dir, pw1)
+        print("Secret password saved.\n")
+        return pw1
+
+
 def migrate_storage(old_path: Path, new_path: Path) -> None:
     """Move all .txt files from old storage path to new storage path."""
     if not old_path.exists():
