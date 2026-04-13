@@ -267,14 +267,14 @@ def _sync_single_file(
 
 def sync_modified_diary_files(
     conn: sqlite3.Connection,
-    log_dir: Path,
+    storage_dir: Path,
     config: Dict[str, str],
     now: datetime,
     *,
     force: bool = False,
 ) -> List[Path]:
     """Incrementally synchronize modified diary files with the SQLite index."""
-    if not log_dir.exists():
+    if not storage_dir.exists():
         return []
 
     day_pattern = config.get(
@@ -288,7 +288,7 @@ def sync_modified_diary_files(
 
     normalized_files: List[Path] = []
 
-    for day_file in sorted(log_dir.glob(glob_pattern)):
+    for day_file in sorted(storage_dir.glob(glob_pattern)):
         if not day_file.is_file():
             continue
 

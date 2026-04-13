@@ -856,7 +856,7 @@ def _start_http_server(
 
     svc = KaydetService(
         config=config, config_dir=config_dir,
-        log_dir=storage_dir, conn=conn,
+        storage_dir=storage_dir, conn=conn,
     )
     server_inst = SyncServer(svc)
 

@@ -142,7 +142,7 @@ def fetch_entry_locations(
 
 def load_matches(
     locations,
-    log_dir: Path,
+    storage_dir: Path,
     config: SectionProxy,
 ):
     """Resolve stored entry identifiers into diary entries."""
@@ -153,7 +153,7 @@ def load_matches(
     matches = []
     day_file_pattern = config.get("DAY_FILE_PATTERN", "")
     for source_file, entry_ids in file_map.items():
-        full_path = log_dir / source_file
+        full_path = storage_dir / source_file
         if not full_path.exists():
             continue
         entry_date = resolve_entry_date(full_path, day_file_pattern)
@@ -281,13 +281,13 @@ def print_matches(
 
 def search_command(
     conn: sqlite3.Connection,
-    log_dir: Path,
+    storage_dir: Path,
     config: SectionProxy,
     query: str,
     allow_empty: bool = False,
 ) -> dict:
     """Search diary entries using the SQLite index and return matches."""
-    rebuild_index_if_empty(conn, log_dir, config)
+    rebuild_index_if_empty(conn, storage_dir, config)
 
     # Tokenize the query into inclusion and exclusion lists
     (
@@ -342,7 +342,7 @@ def search_command(
     )
 
     locations = fetch_entry_locations(conn, sql_query, params)
-    matches = load_matches(locations, log_dir, config)
+    matches = load_matches(locations, storage_dir, config)
 
     return {
         "success": True,

@@ -32,7 +32,7 @@ class KaydetService:
 
     config: Any
     config_dir: Path
-    log_dir: Path
+    storage_dir: Path
     conn: Any
 
     @classmethod
@@ -50,13 +50,17 @@ class KaydetService:
         return cls(
             config=config,
             config_dir=config_dir,
-            log_dir=storage_dir,
+            storage_dir=storage_dir,
             conn=conn,
         )
 
     def _ensure_index(self, now: datetime) -> None:
-        sync_modified_diary_files(self.conn, self.log_dir, self.config, now)
-        rebuild_index_if_empty(self.conn, self.log_dir, self.config, now)
+        sync_modified_diary_files(
+            self.conn, self.storage_dir, self.config, now
+        )
+        rebuild_index_if_empty(
+            self.conn, self.storage_dir, self.config, now
+        )
 
     def add_entry(
         self,
@@ -100,7 +104,7 @@ class KaydetService:
                 explicit_tags=tags,
                 config=self.config,
                 config_dir=self.config_dir,
-                log_dir=self.log_dir,
+                storage_dir=self.storage_dir,
                 now=now,
                 conn=self.conn,
                 secret_text=secret,
@@ -114,7 +118,7 @@ class KaydetService:
         now = datetime.now()
         result = delete_entry_command(
             self.conn,
-            self.log_dir,
+            self.storage_dir,
             self.config,
             entry_id,
             assume_yes=True,
@@ -136,7 +140,7 @@ class KaydetService:
         now = datetime.now()
         result = update_entry_inline(
             self.conn,
-            self.log_dir,
+            self.storage_dir,
             self.config,
             entry_id,
             text=text,
@@ -194,7 +198,7 @@ class KaydetService:
         if not locations:
             return {"success": True, "query": query, "matches": [], "total": 0}
 
-        matches = load_matches(locations, self.log_dir, self.config)
+        matches = load_matches(locations, self.storage_dir, self.config)
         matches.sort(
             key=lambda entry: int(entry.entry_id or 0),
             reverse=True,
@@ -221,7 +225,7 @@ class KaydetService:
             return {"success": False, "error": f"Entry {entry_id} not found."}
 
         locations = [(result[0], entry_id)]
-        matches = load_matches(locations, self.log_dir, self.config)
+        matches = load_matches(locations, self.storage_dir, self.config)
         if not matches:
             return {"success": False, "error": f"Entry {entry_id} not found."}
 
@@ -331,7 +335,7 @@ class KaydetService:
         target_year = year or now.year
         target_month = month or now.month
         counts = collect_month_counts(
-            self.log_dir,
+            self.storage_dir,
             self.config,
             target_year,
             target_month,
@@ -356,7 +360,7 @@ class KaydetService:
         locations = cursor.fetchall()
         if not locations:
             return {"success": True, "entries": []}
-        matches = load_matches(locations, self.log_dir, self.config)
+        matches = load_matches(locations, self.storage_dir, self.config)
         matches.sort(
             key=lambda entry: int(entry.entry_id or 0),
             reverse=True,
@@ -382,7 +386,7 @@ class KaydetService:
         locations = cursor.fetchall()
         if not locations:
             return {"success": True, "entries": []}
-        matches = load_matches(locations, self.log_dir, self.config)
+        matches = load_matches(locations, self.storage_dir, self.config)
         payload = [match.to_dict() for match in matches]
         return {"success": True, "entries": payload}
 
@@ -401,7 +405,7 @@ class KaydetService:
                 explicit_tags=["todo"],
                 config=self.config,
                 config_dir=self.config_dir,
-                log_dir=self.log_dir,
+                storage_dir=self.storage_dir,
                 now=now,
                 conn=self.conn,
             )
@@ -415,7 +419,7 @@ class KaydetService:
         try:
             done_command(
                 self.conn,
-                self.log_dir,
+                self.storage_dir,
                 self.config,
                 entry_id,
                 now,
@@ -510,7 +514,7 @@ class KaydetService:
                 source_file, entry_id = row
             else:
                 entry_id, source_file = row
-            day_file = self.log_dir / source_file
+            day_file = self.storage_dir / source_file
             if not day_file.exists():
                 continue
 

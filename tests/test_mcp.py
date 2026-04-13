@@ -19,15 +19,15 @@ def mcp_env(monkeypatch, tmp_path: Path):
     fake_config_dir = fake_home / ".config" / "kaydet"
     fake_config_dir.mkdir(parents=True)
     fake_config_path = fake_config_dir / "config.ini"
-    fake_log_dir = fake_home / ".kaydet"
-    fake_log_dir.mkdir(parents=True, exist_ok=True)
+    fake_storage_dir = fake_home / ".kaydet"
+    fake_storage_dir.mkdir(parents=True, exist_ok=True)
     fake_index_dir = fake_home / ".kaydet_index"
     fake_index_dir.mkdir(parents=True, exist_ok=True)
 
     config = ConfigParser(interpolation=None)
     config.add_section("SETTINGS")
-    config["SETTINGS"]["LOG_DIR"] = str(fake_log_dir)
-    config["SETTINGS"]["STORAGE_DIR"] = str(fake_log_dir)
+    config["SETTINGS"]["LOG_DIR"] = str(fake_storage_dir)
+    config["SETTINGS"]["STORAGE_DIR"] = str(fake_storage_dir)
     config["SETTINGS"]["INDEX_DIR"] = str(fake_index_dir)
     config["SETTINGS"]["DAY_FILE_PATTERN"] = "%Y-%m-%d.txt"
     config["SETTINGS"]["DAY_TITLE_PATTERN"] = "%Y/%m/%d/ - %A"
@@ -38,7 +38,7 @@ def mcp_env(monkeypatch, tmp_path: Path):
             config["SETTINGS"],
             fake_config_path,
             fake_config_dir,
-            fake_log_dir,
+            fake_storage_dir,
             fake_index_dir,
         )
 
@@ -55,7 +55,7 @@ def mcp_env(monkeypatch, tmp_path: Path):
 
     return {
         "config_dir": fake_config_dir,
-        "log_dir": fake_log_dir,
+        "storage_dir": fake_storage_dir,
         "config": config,
         "monkeypatch": monkeypatch,
     }
@@ -208,7 +208,7 @@ def test_service_create_todo_with_metadata(mcp_env):
 
 def test_service_suggest_tags_from_file(mcp_env):
     service = service_module.KaydetService.initialize()
-    project_dir = mcp_env["log_dir"] / "project"
+    project_dir = mcp_env["storage_dir"] / "project"
     project_dir.mkdir()
     tags_file = project_dir / ".kaydet.tags"
     tags_file.write_text(
@@ -227,7 +227,7 @@ def test_service_suggest_tags_from_file(mcp_env):
 
 def test_service_suggest_tags_from_directory_name(mcp_env):
     service = service_module.KaydetService.initialize()
-    project_dir = mcp_env["log_dir"] / "Feature Space"
+    project_dir = mcp_env["storage_dir"] / "Feature Space"
     project_dir.mkdir()
 
     monkeypatch = mcp_env["monkeypatch"]
@@ -323,7 +323,7 @@ def test_serve_registers_tools(monkeypatch, mcp_env):
     suggestion_response = asyncio.run(
         recorded["call_tool"](
             "suggest_kaydet_tags",
-            {"path": str(mcp_env["log_dir"])},
+            {"path": str(mcp_env["storage_dir"])},
         )
     )
     assert isinstance(suggestion_response[0], FakeTextContent)

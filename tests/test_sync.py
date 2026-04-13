@@ -46,7 +46,7 @@ def sync_env(tmp_path):
     service = KaydetService(
         config=config,
         config_dir=config_dir,
-        log_dir=storage_dir,
+        storage_dir=storage_dir,
         conn=conn,
     )
 

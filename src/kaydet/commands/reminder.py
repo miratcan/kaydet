@@ -6,9 +6,9 @@ from pathlib import Path
 from ..utils import REMINDER_THRESHOLD, load_last_entry_timestamp
 
 
-def reminder_command(config_dir: Path, log_dir: Path, now: datetime):
+def reminder_command(config_dir: Path, storage_dir: Path, now: datetime):
     """Show reminder if no entry has been written recently."""
-    last_entry = load_last_entry_timestamp(config_dir, log_dir)
+    last_entry = load_last_entry_timestamp(config_dir, storage_dir)
     if last_entry is None:
         print(
             "You haven't written any Kaydet entries yet. "

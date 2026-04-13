@@ -15,7 +15,7 @@ SELECT_ENTRY_COUNT_SQL = "SELECT COUNT(*) FROM entries"
 
 def rebuild_index_if_empty(
     conn: sqlite3.Connection,
-    log_dir: Path,
+    storage_dir: Path,
     config: SectionProxy,
     current_time: datetime | None = None,
 ) -> None:
@@ -28,12 +28,12 @@ def rebuild_index_if_empty(
     cursor = conn.cursor()
     cursor.execute(SELECT_ENTRY_COUNT_SQL)
     entry_count = cursor.fetchone()[0]
-    if entry_count != 0 or not log_dir.exists():
+    if entry_count != 0 or not storage_dir.exists():
         return
-    if not any(log_dir.glob(glob_pattern)):
+    if not any(storage_dir.glob(glob_pattern)):
         return
 
     print("Search index is empty. Rebuilding from existing files...")
     timestamp = current_time or datetime.now()
-    doctor_command(conn, log_dir, config, timestamp)
+    doctor_command(conn, storage_dir, config, timestamp)
     print()

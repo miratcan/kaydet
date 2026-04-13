@@ -191,15 +191,17 @@ def load_config() -> Tuple[SectionProxy, Path, Path, Path, Path]:
     return section, config_path, config_dir, storage_dir, index_dir
 
 
-def iter_diary_entries(log_dir: Path, config: SectionProxy) -> Iterable[Entry]:
+def iter_diary_entries(
+    storage_dir: Path, config: SectionProxy
+) -> Iterable[Entry]:
     """Yield entries from every diary file sorted by filename."""
-    if not log_dir.exists():
+    if not storage_dir.exists():
         return
     day_file_pattern = config.get(
         "DAY_FILE_PATTERN", DEFAULT_SETTINGS["DAY_FILE_PATTERN"]
     )
     glob_pattern = get_file_glob_from_pattern(day_file_pattern)
-    for candidate in sorted(log_dir.glob(glob_pattern)):
+    for candidate in sorted(storage_dir.glob(glob_pattern)):
         if not candidate.is_file():
             continue
         entry_date = resolve_entry_date(candidate, day_file_pattern)
@@ -214,7 +216,7 @@ def save_last_entry_timestamp(config_dir: Path, moment: datetime) -> None:
 
 
 def load_last_entry_timestamp(
-    config_dir: Path, log_dir: Path
+    config_dir: Path, storage_dir: Path
 ) -> Optional[datetime]:
     """Return the timestamp of the most recent saved entry, if any."""
     record_path = config_dir / LAST_ENTRY_FILENAME
@@ -226,8 +228,8 @@ def load_last_entry_timestamp(
         pass
 
     latest_mtime: Optional[float] = None
-    if log_dir.exists():
-        for candidate in log_dir.iterdir():
+    if storage_dir.exists():
+        for candidate in storage_dir.iterdir():
             if candidate.is_file() and candidate.suffix == ".txt":
                 mtime = candidate.stat().st_mtime
                 if latest_mtime is None or mtime > latest_mtime:
@@ -238,12 +240,12 @@ def load_last_entry_timestamp(
 
 
 def ensure_day_file(
-    log_dir: Path, now: datetime, config: SectionProxy
+    storage_dir: Path, now: datetime, config: SectionProxy
 ) -> Path:
     """Ensure the daily file exists and return its path."""
-    log_dir.mkdir(parents=True, exist_ok=True)
+    storage_dir.mkdir(parents=True, exist_ok=True)
     file_name = now.strftime(config["DAY_FILE_PATTERN"])
-    day_file = log_dir / file_name
+    day_file = storage_dir / file_name
     if not day_file.exists():
         title = now.strftime(config["DAY_TITLE_PATTERN"])
         with day_file.open("w", encoding="utf-8") as handle:

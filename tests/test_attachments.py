@@ -16,13 +16,13 @@ def test_store_attachment_copies_file(tmp_path):
     """--attach should copy the file into attachments/."""
     source = tmp_path / "photo.jpg"
     source.write_bytes(b"fake-jpeg-data")
-    log_dir = tmp_path / "logs"
-    log_dir.mkdir()
+    storage_dir = tmp_path / "logs"
+    storage_dir.mkdir()
 
-    name = store_attachment(source, 42, log_dir)
+    name = store_attachment(source, 42, storage_dir)
 
     assert name == "42_photo.jpg"
-    dest = log_dir / "attachments" / "42_photo.jpg"
+    dest = storage_dir / "attachments" / "42_photo.jpg"
     assert dest.exists()
     assert dest.read_bytes() == b"fake-jpeg-data"
     # Original must still exist
@@ -33,13 +33,13 @@ def test_store_attachment_grab_removes_original(tmp_path):
     """--grab should move the file (original deleted)."""
     source = tmp_path / "report.pdf"
     source.write_bytes(b"fake-pdf-data")
-    log_dir = tmp_path / "logs"
-    log_dir.mkdir()
+    storage_dir = tmp_path / "logs"
+    storage_dir.mkdir()
 
-    name = store_attachment(source, 7, log_dir, move=True)
+    name = store_attachment(source, 7, storage_dir, move=True)
 
     assert name == "7_report.pdf"
-    dest = log_dir / "attachments" / "7_report.pdf"
+    dest = storage_dir / "attachments" / "7_report.pdf"
     assert dest.exists()
     assert dest.read_bytes() == b"fake-pdf-data"
     # Original must be gone
@@ -47,10 +47,10 @@ def test_store_attachment_grab_removes_original(tmp_path):
 
 
 def test_ensure_attachments_dir_creates_once(tmp_path):
-    log_dir = tmp_path / "logs"
-    log_dir.mkdir()
-    d1 = _ensure_attachments_dir(log_dir)
-    d2 = _ensure_attachments_dir(log_dir)
+    storage_dir = tmp_path / "logs"
+    storage_dir.mkdir()
+    d1 = _ensure_attachments_dir(storage_dir)
+    d2 = _ensure_attachments_dir(storage_dir)
     assert d1 == d2
     assert d1.is_dir()
 

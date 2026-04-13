@@ -28,7 +28,7 @@ def _confirm_delete(entry_id: int, preview: str, *, assume_yes: bool) -> bool:
 
 def delete_entry_command(
     conn: sqlite3.Connection,
-    log_dir: Path,
+    storage_dir: Path,
     config: SectionProxy,
     entry_id: int,
     *,
@@ -46,7 +46,7 @@ def delete_entry_command(
         raise ValueError(f"Entry {entry_id} was not found in the index.")
 
     (source_file,) = result
-    day_file = log_dir / source_file
+    day_file = storage_dir / source_file
     if not day_file.exists():
         raise FileNotFoundError(
             f"Entry {entry_id} references missing file '{source_file}'. "
@@ -75,7 +75,7 @@ def delete_entry_command(
 
     ensure_newline = had_trailing_newline
     write_day_file(day_file, lines, ensure_newline)
-    sync_modified_diary_files(conn, log_dir, config, now)
+    sync_modified_diary_files(conn, storage_dir, config, now)
     return {
         "success": True,
         "entry_id": entry_id,

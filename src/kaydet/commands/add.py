@@ -31,21 +31,21 @@ class EmptyEntryError(ValueError):
     """Raised when an entry save attempt lacks content, metadata, and tags."""
 
 
-def _ensure_attachments_dir(log_dir: Path) -> Path:
+def _ensure_attachments_dir(storage_dir: Path) -> Path:
     """Create and return the attachments directory inside the log dir."""
-    attachments_dir = log_dir / "attachments"
+    attachments_dir = storage_dir / "attachments"
     attachments_dir.mkdir(exist_ok=True)
     return attachments_dir
 
 
 def store_attachment(
-    source_path: Path, entry_id: int, log_dir: Path, *, move: bool = False,
+    source_path: Path, entry_id: int, storage_dir: Path, *, move: bool = False,
 ) -> str:
     """Copy or move a file into the attachments directory.
 
     Returns the attachment filename (e.g. ``42_photo.jpg``).
     """
-    attachments_dir = _ensure_attachments_dir(log_dir)
+    attachments_dir = _ensure_attachments_dir(storage_dir)
     dest_name = f"{entry_id}_{source_path.name}"
     dest_path = attachments_dir / dest_name
 
@@ -135,7 +135,7 @@ def create_entry(
     metadata: Dict[str, str],
     explicit_tags: Iterable[str],
     config_dir: Path,
-    log_dir: Path,
+    storage_dir: Path,
     now: datetime,
     conn,
     at_str: str | None = None,
@@ -156,7 +156,7 @@ def create_entry(
             "An entry must include text, metadata, tags, or an attachment."
         )
 
-    day_file = ensure_day_file(log_dir, now, config)
+    day_file = ensure_day_file(storage_dir, now, config)
     timestamp = now.strftime("%H:%M")
 
     message_lines = tuple(entry_body.splitlines() or [entry_body])
@@ -186,10 +186,10 @@ def create_entry(
         # Store attachments
         attachment_names: List[str] = []
         for path in (attachment_paths or []):
-            name = store_attachment(path, entry_id, log_dir)
+            name = store_attachment(path, entry_id, storage_dir)
             attachment_names.append(name)
         for path in (grab_paths or []):
-            name = store_attachment(path, entry_id, log_dir, move=True)
+            name = store_attachment(path, entry_id, storage_dir, move=True)
             attachment_names.append(name)
 
         # Store encrypted secret if provided
@@ -285,7 +285,7 @@ def _resolve_attachment_paths(
     return resolved
 
 
-def add_entry_command(args, config, config_dir, log_dir, now, conn):
+def add_entry_command(args, config, config_dir, storage_dir, now, conn):
     """Handle the add entry command."""
     entry_now = _parse_at_str(args.at, now) if args.at else now
 
@@ -309,7 +309,7 @@ def add_entry_command(args, config, config_dir, log_dir, now, conn):
     if secret_text:
         secret_password = prompt_secret_password(config_dir)
 
-    ensure_day_file(log_dir, entry_now, config)
+    ensure_day_file(storage_dir, entry_now, config)
     raw_entry, metadata, explicit_tags = get_entry(args, config)
     entry_body = raw_entry.strip()
     has_attachments = bool(attach_paths or grab_paths)
@@ -322,7 +322,7 @@ def add_entry_command(args, config, config_dir, log_dir, now, conn):
         explicit_tags=explicit_tags,
         config=config,
         config_dir=config_dir,
-        log_dir=log_dir,
+        storage_dir=storage_dir,
         now=entry_now,
         conn=conn,
         at_str=args.at,

@@ -21,13 +21,13 @@ def setup_kaydet(monkeypatch, tmp_path: Path) -> dict:
     fake_config_dir = fake_home / ".config" / "kaydet"
     fake_config_dir.mkdir(parents=True)
     fake_config_path = fake_config_dir / "config.ini"
-    fake_log_dir = fake_home / ".kaydet"
-    fake_log_dir.mkdir(parents=True, exist_ok=True)
+    fake_storage_dir = fake_home / ".kaydet"
+    fake_storage_dir.mkdir(parents=True, exist_ok=True)
 
     config = ConfigParser(interpolation=None)
     config.add_section("SETTINGS")
-    config["SETTINGS"]["LOG_DIR"] = str(fake_log_dir)
-    config["SETTINGS"]["STORAGE_DIR"] = str(fake_log_dir)
+    config["SETTINGS"]["LOG_DIR"] = str(fake_storage_dir)
+    config["SETTINGS"]["STORAGE_DIR"] = str(fake_storage_dir)
     config["SETTINGS"]["DAY_FILE_PATTERN"] = "%Y-%m-%d.txt"
     config["SETTINGS"]["DAY_TITLE_PATTERN"] = "%Y/%m/%d/ - %A"
     config["SETTINGS"]["EDITOR"] = "vim"
@@ -41,7 +41,7 @@ def setup_kaydet(monkeypatch, tmp_path: Path) -> dict:
             config["SETTINGS"],
             fake_config_path,
             fake_config_dir,
-            fake_log_dir,  # storage_dir
+            fake_storage_dir,  # storage_dir
             fake_index_dir,  # index_dir
         )
 
@@ -49,7 +49,7 @@ def setup_kaydet(monkeypatch, tmp_path: Path) -> dict:
 
     return {
         "monkeypatch": monkeypatch,
-        "fake_log_dir": fake_log_dir,
+        "fake_storage_dir": fake_storage_dir,
         "fake_config_dir": fake_config_dir,
         "fake_index_dir": fake_index_dir,
     }
@@ -75,7 +75,7 @@ def mock_datetime_factory(monkeypatch):
 
 def test_add_simple_entry(setup_kaydet, mock_datetime_factory):
     """Test that a simple entry can be added via a CLI argument."""
-    fake_log_dir = setup_kaydet["fake_log_dir"]
+    fake_storage_dir = setup_kaydet["fake_storage_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
     mock_datetime_factory(datetime(2025, 9, 30, 10, 30, 0))
 
@@ -84,7 +84,7 @@ def test_add_simple_entry(setup_kaydet, mock_datetime_factory):
 
     cli.main()
 
-    log_file = fake_log_dir / "2025-09-30.txt"
+    log_file = fake_storage_dir / "2025-09-30.txt"
     assert log_file.exists()
     content = log_file.read_text()
     assert "2025/09/30/ - Tuesday" in content
@@ -98,7 +98,7 @@ def test_add_simple_entry(setup_kaydet, mock_datetime_factory):
 
 def test_add_entry_with_tags(setup_kaydet, mock_datetime_factory):
     """Test that an entry with hashtags is captured in the new SQLite index."""
-    fake_log_dir = setup_kaydet["fake_log_dir"]
+    fake_storage_dir = setup_kaydet["fake_storage_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
     mock_datetime_factory(datetime(2025, 9, 30, 11, 0, 0))
 
@@ -108,7 +108,7 @@ def test_add_entry_with_tags(setup_kaydet, mock_datetime_factory):
     cli.main()
 
     # 1. Check the text file for the new format
-    main_log_file = fake_log_dir / "2025-09-30.txt"
+    main_log_file = fake_storage_dir / "2025-09-30.txt"
     assert main_log_file.exists()
     content = main_log_file.read_text()
 
@@ -149,7 +149,7 @@ def test_add_entry_with_tags(setup_kaydet, mock_datetime_factory):
 def test_add_entry_with_metadata_tokens(setup_kaydet, mock_datetime_factory):
     """Entries with metadata tokens persist them in SQLite."""
 
-    fake_log_dir = setup_kaydet["fake_log_dir"]
+    fake_storage_dir = setup_kaydet["fake_storage_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
     mock_datetime_factory(datetime(2025, 9, 30, 13, 30, 0))
 
@@ -170,7 +170,7 @@ def test_add_entry_with_metadata_tokens(setup_kaydet, mock_datetime_factory):
 
     cli.main()
 
-    day_file = fake_log_dir / "2025-09-30.txt"
+    day_file = fake_storage_dir / "2025-09-30.txt"
     assert day_file.exists()
     content = day_file.read_text()
     assert re.search(
@@ -229,7 +229,7 @@ def test_add_entry_prints_id(setup_kaydet, mock_datetime_factory, capsys):
 
 def test_editor_usage(setup_kaydet, mock_datetime_factory):
     """Test that the editor is used when no entry is provided."""
-    fake_log_dir = setup_kaydet["fake_log_dir"]
+    fake_storage_dir = setup_kaydet["fake_storage_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
     mock_datetime_factory(datetime(2025, 9, 30, 12, 0, 0))
 
@@ -242,7 +242,7 @@ def test_editor_usage(setup_kaydet, mock_datetime_factory):
 
     cli.main()
 
-    log_file = fake_log_dir / "2025-09-30.txt"
+    log_file = fake_storage_dir / "2025-09-30.txt"
     assert log_file.exists()
     content = log_file.read_text()
     assert re.search(
@@ -254,11 +254,11 @@ def test_editor_usage(setup_kaydet, mock_datetime_factory):
 
 def test_stats_command(setup_kaydet, capsys, mock_datetime_factory):
     """Test the --stats command output."""
-    fake_log_dir = setup_kaydet["fake_log_dir"]
+    fake_storage_dir = setup_kaydet["fake_storage_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
-    fake_log_dir.mkdir(exist_ok=True)
+    fake_storage_dir.mkdir(exist_ok=True)
 
-    (fake_log_dir / "2025-09-01.txt").write_text(
+    (fake_storage_dir / "2025-09-01.txt").write_text(
         "\n".join(
             [
                 "09:00: entry 1",
@@ -267,7 +267,7 @@ def test_stats_command(setup_kaydet, capsys, mock_datetime_factory):
             ]
         )
     )
-    (fake_log_dir / "2025-09-15.txt").write_text(
+    (fake_storage_dir / "2025-09-15.txt").write_text(
         "\n".join(
             [
                 "12:00: entry 1",
@@ -278,7 +278,7 @@ def test_stats_command(setup_kaydet, capsys, mock_datetime_factory):
             ]
         )
     )
-    (fake_log_dir / "2025-08-20.txt").write_text(
+    (fake_storage_dir / "2025-08-20.txt").write_text(
         "08:00: entry from another month"
     )
 
@@ -312,22 +312,22 @@ def test_version_flag(setup_kaydet, capsys):
 
 def test_search_command(setup_kaydet, capsys):
     """Test the --search command output."""
-    fake_log_dir = setup_kaydet["fake_log_dir"]
+    fake_storage_dir = setup_kaydet["fake_storage_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
-    fake_log_dir.mkdir(exist_ok=True)
+    fake_storage_dir.mkdir(exist_ok=True)
 
-    (fake_log_dir / "2025-10-01.txt").write_text(
+    (fake_storage_dir / "2025-10-01.txt").write_text(
         "2025/10/01/ - Wednesday\n"
         "-----------------------\n"
         "10:00 [1]: An entry about a secret project.\n"
         "11:00 [2]: Another line that should not match.\n"
     )
-    (fake_log_dir / "2025-10-02.txt").write_text(
+    (fake_storage_dir / "2025-10-02.txt").write_text(
         "2025/10/02/ - Thursday\n"
         "----------------------\n"
         "14:00 [3]: Planning the #secret-meeting.\n"
     )
-    (fake_log_dir / "2025-10-03.txt").write_text(
+    (fake_storage_dir / "2025-10-03.txt").write_text(
         "2025/10/03/ - Friday\n"
         "--------------------\n"
         "16:00 [4]: This is a completely unrelated note.\n"
@@ -353,9 +353,9 @@ def test_search_with_metadata_filters(
 ):
     """Search queries should understand metadata, ranges, and wildcards."""
 
-    fake_log_dir = setup_kaydet["fake_log_dir"]
+    fake_storage_dir = setup_kaydet["fake_storage_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
-    fake_log_dir.mkdir(exist_ok=True)
+    fake_storage_dir.mkdir(exist_ok=True)
 
     mock_datetime_factory(datetime(2025, 10, 5, 9, 0, 0))
     monkeypatch.setattr(
@@ -456,12 +456,12 @@ def test_tags_command(setup_kaydet, capsys, mock_datetime_factory):
 
 def test_doctor_command(setup_kaydet, capsys):
     """Ensure --doctor rebuilds the index from legacy files."""
-    fake_log_dir = setup_kaydet["fake_log_dir"]
+    fake_storage_dir = setup_kaydet["fake_storage_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
-    fake_log_dir.mkdir(exist_ok=True)
+    fake_storage_dir.mkdir(exist_ok=True)
 
     # Create a legacy file without UUIDs
-    (fake_log_dir / "2025-10-10.txt").write_text(
+    (fake_storage_dir / "2025-10-10.txt").write_text(
         "10:00: A task for #work.\n"
         "11:00: A personal note for #home.\n"
         "12:00: Another #work thing to do.\n"
@@ -477,7 +477,7 @@ def test_doctor_command(setup_kaydet, capsys):
     assert "Normalized IDs in" in output
     assert "Rebuilt search index for 3 entries." in output
 
-    legacy_content = (fake_log_dir / "2025-10-10.txt").read_text()
+    legacy_content = (fake_storage_dir / "2025-10-10.txt").read_text()
     assert re.search(r"10:00 \[\d+\]: A task for #work\.\n", legacy_content)
     assert re.search(
         r"11:00 \[\d+\]: A personal note for #home.\n",
@@ -512,7 +512,7 @@ def test_manual_edit_sync_before_search(
 ):
     """Manual edits should be detected and synchronized before searching."""
 
-    fake_log_dir = setup_kaydet["fake_log_dir"]
+    fake_storage_dir = setup_kaydet["fake_storage_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
 
     mock_datetime_factory(datetime(2025, 9, 30, 9, 0, 0))
@@ -520,7 +520,7 @@ def test_manual_edit_sync_before_search(
     cli.main()
     capsys.readouterr()
 
-    day_file = fake_log_dir / "2025-09-30.txt"
+    day_file = fake_storage_dir / "2025-09-30.txt"
     content = day_file.read_text()
     # Tags are now written naturally without pipe separator
     day_file.write_text(
@@ -542,7 +542,7 @@ def test_edit_command_updates_entry(
 ):
     """Editing by ID should update the diary file and reindex metadata."""
 
-    fake_log_dir = setup_kaydet["fake_log_dir"]
+    fake_storage_dir = setup_kaydet["fake_storage_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
 
     mock_datetime_factory(datetime(2025, 9, 30, 9, 0, 0))
@@ -584,7 +584,7 @@ def test_edit_command_updates_entry(
     output = capsys.readouterr().out
     assert f"Updated entry {entry_id}" in output
 
-    day_file = fake_log_dir / "2025-09-30.txt"
+    day_file = fake_storage_dir / "2025-09-30.txt"
     content = day_file.read_text()
     assert "Updated body" in content
     assert "Follow-up detail" in content
@@ -615,7 +615,7 @@ def test_delete_command_removes_entry(
 ):
     """Deleting by ID should remove the entry from disk and index."""
 
-    fake_log_dir = setup_kaydet["fake_log_dir"]
+    fake_storage_dir = setup_kaydet["fake_storage_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
 
     mock_datetime_factory(datetime(2025, 9, 30, 9, 0, 0))
@@ -658,7 +658,7 @@ def test_delete_command_removes_entry(
     assert prompted
     assert "First entry to delete" in prompted[0]
 
-    day_file = fake_log_dir / "2025-09-30.txt"
+    day_file = fake_storage_dir / "2025-09-30.txt"
     content = day_file.read_text()
     assert "First entry to delete" not in content
     assert "Second entry stays" in content
@@ -677,7 +677,7 @@ def test_conflicting_numeric_id_preserves_original_entry(
 ):
     """A conflicting manual ID should not overwrite an existing entry."""
 
-    fake_log_dir = setup_kaydet["fake_log_dir"]
+    fake_storage_dir = setup_kaydet["fake_storage_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
 
     mock_datetime_factory(datetime(2025, 9, 29, 8, 0, 0))
@@ -685,7 +685,7 @@ def test_conflicting_numeric_id_preserves_original_entry(
     cli.main()
     capsys.readouterr()
 
-    conflicting_file = fake_log_dir / "2025-09-30.txt"
+    conflicting_file = fake_storage_dir / "2025-09-30.txt"
     conflicting_file.write_text(
         "10:00 [1]: Conflicting entry\n",
         encoding="utf-8",
@@ -727,11 +727,11 @@ def test_today_file_waits_until_midnight(
 ):
     """Today's diary file should defer ID rewrites until the next day."""
 
-    fake_log_dir = setup_kaydet["fake_log_dir"]
+    fake_storage_dir = setup_kaydet["fake_storage_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
-    fake_log_dir.mkdir(exist_ok=True)
+    fake_storage_dir.mkdir(exist_ok=True)
 
-    todays_file = fake_log_dir / "2025-09-30.txt"
+    todays_file = fake_storage_dir / "2025-09-30.txt"
     todays_file.write_text("21:00: Manual entry\n", encoding="utf-8")
 
     first_run = datetime(2025, 9, 30, 21, 0, 0)
@@ -811,7 +811,7 @@ def test_reminder_old_entry(setup_kaydet, capsys):
 
 def test_folder_command_opens_main_log_dir(setup_kaydet, mocker):
     """Test that `kaydet --folder` opens the main log directory."""
-    fake_log_dir = setup_kaydet["fake_log_dir"]
+    fake_storage_dir = setup_kaydet["fake_storage_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
     mock_startfile = mocker.patch("kaydet.cli.startfile")
 
@@ -819,21 +819,21 @@ def test_folder_command_opens_main_log_dir(setup_kaydet, mocker):
 
     cli.main()
 
-    mock_startfile.assert_called_once_with(str(fake_log_dir))
+    mock_startfile.assert_called_once_with(str(fake_storage_dir))
 
 
 def test_read_diary_with_bad_encoding(
     setup_kaydet, capsys, mock_datetime_factory
 ):
     """Test that a file with invalid UTF-8 is read gracefully."""
-    fake_log_dir = setup_kaydet["fake_log_dir"]
+    fake_storage_dir = setup_kaydet["fake_storage_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
-    fake_log_dir.mkdir(exist_ok=True)
+    fake_storage_dir.mkdir(exist_ok=True)
 
     file_content_bytes = (
         b"10:00: Valid entry.\n11:00: Invalid byte here \xff.\n"
     )
-    (fake_log_dir / "2025-09-25.txt").write_bytes(file_content_bytes)
+    (fake_storage_dir / "2025-09-25.txt").write_bytes(file_content_bytes)
 
     mock_datetime_factory(datetime(2025, 9, 25, 12, 0, 0))
     monkeypatch.setattr(sys, "argv", ["kaydet", "--stats"])
@@ -849,16 +849,16 @@ def test_reminder_fallback_to_mtime(
     setup_kaydet, capsys, mock_datetime_factory
 ):
     """Test the reminder fallback logic to check file modification times."""
-    fake_log_dir = setup_kaydet["fake_log_dir"]
+    fake_storage_dir = setup_kaydet["fake_storage_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
-    fake_log_dir.mkdir(exist_ok=True)
+    fake_storage_dir.mkdir(exist_ok=True)
 
     now = datetime.now()
     three_hours_ago = now - timedelta(hours=3)
     five_hours_ago = now - timedelta(hours=5)
 
-    file1 = fake_log_dir / "file1.txt"
-    file2 = fake_log_dir / "file2.txt"
+    file1 = fake_storage_dir / "file1.txt"
+    file2 = fake_storage_dir / "file2.txt"
     file1.touch()
     file2.touch()
 
@@ -892,12 +892,12 @@ def test_stats_no_log_dir(setup_kaydet, capsys, mock_datetime_factory):
 
 def test_stats_over_99_entries(setup_kaydet, capsys, mock_datetime_factory):
     """Test --stats command for a day with 100+ entries."""
-    fake_log_dir = setup_kaydet["fake_log_dir"]
+    fake_storage_dir = setup_kaydet["fake_storage_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
-    fake_log_dir.mkdir(exist_ok=True)
+    fake_storage_dir.mkdir(exist_ok=True)
 
     entry_lines = [f"{i:02d}:{i:02d}: entry" for i in range(100)]
-    (fake_log_dir / "2025-09-05.txt").write_text("\n".join(entry_lines))
+    (fake_storage_dir / "2025-09-05.txt").write_text("\n".join(entry_lines))
 
     mock_datetime_factory(datetime(2025, 9, 25, 10, 0, 0))
     monkeypatch.setattr(sys, "argv", ["kaydet", "--stats"])
@@ -913,7 +913,7 @@ def test_stats_over_99_entries(setup_kaydet, capsys, mock_datetime_factory):
 
 def test_open_editor_flow(setup_kaydet, mock_datetime_factory, mocker):
     """Test the full flow of opening an editor and saving the content."""
-    fake_log_dir = setup_kaydet["fake_log_dir"]
+    fake_storage_dir = setup_kaydet["fake_storage_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
     mock_datetime_factory(datetime(2025, 10, 1, 15, 0, 0))
 
@@ -932,18 +932,18 @@ def test_open_editor_flow(setup_kaydet, mock_datetime_factory, mocker):
     cli.main()
 
     mock_call.assert_called_once()
-    log_file = fake_log_dir / "2025-10-01.txt"
+    log_file = fake_storage_dir / "2025-10-01.txt"
     assert log_file.exists()
     assert editor_content in log_file.read_text()
 
 
 def test_legacy_tag_parsing(setup_kaydet, capsys):
     """Test that legacy [tag] format is parsed correctly."""
-    fake_log_dir = setup_kaydet["fake_log_dir"]
+    fake_storage_dir = setup_kaydet["fake_storage_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
-    fake_log_dir.mkdir(exist_ok=True)
+    fake_storage_dir.mkdir(exist_ok=True)
 
-    (fake_log_dir / "2025-10-20.txt").write_text(
+    (fake_storage_dir / "2025-10-20.txt").write_text(
         "10:00: [work,project] A legacy entry.\n"
     )
 
@@ -960,11 +960,11 @@ def test_legacy_tag_parsing(setup_kaydet, capsys):
 
 def test_search_no_results(setup_kaydet, capsys):
     """Test the --search command when no entries match."""
-    fake_log_dir = setup_kaydet["fake_log_dir"]
+    fake_storage_dir = setup_kaydet["fake_storage_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
-    fake_log_dir.mkdir(exist_ok=True)
+    fake_storage_dir.mkdir(exist_ok=True)
 
-    (fake_log_dir / "2025-10-01.txt").write_text(
+    (fake_storage_dir / "2025-10-01.txt").write_text(
         "10:00: Some unrelated content.\n"
     )
 
@@ -978,9 +978,9 @@ def test_search_no_results(setup_kaydet, capsys):
 
 def test_tags_no_tags(setup_kaydet, capsys):
     """Test the --tags command when no tag directories exist."""
-    fake_log_dir = setup_kaydet["fake_log_dir"]
+    fake_storage_dir = setup_kaydet["fake_storage_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
-    fake_log_dir.mkdir(exist_ok=True)
+    fake_storage_dir.mkdir(exist_ok=True)
 
     monkeypatch.setattr(sys, "argv", ["kaydet", "--tags"])
 
@@ -992,7 +992,7 @@ def test_tags_no_tags(setup_kaydet, capsys):
 
 def test_empty_entry_from_editor(setup_kaydet, capsys, mock_datetime_factory):
     """Test that saving an empty entry from the editor does nothing."""
-    fake_log_dir = setup_kaydet["fake_log_dir"]
+    fake_storage_dir = setup_kaydet["fake_storage_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
     mock_datetime_factory(datetime(2025, 9, 30, 12, 0, 0))
 
@@ -1007,7 +1007,7 @@ def test_empty_entry_from_editor(setup_kaydet, capsys, mock_datetime_factory):
     captured = capsys.readouterr()
     assert "Nothing to save." in captured.out
 
-    log_file = fake_log_dir / "2025-09-30.txt"
+    log_file = fake_storage_dir / "2025-09-30.txt"
     assert log_file.exists()
     content = log_file.read_text()
     assert "12:00:" not in content
@@ -1053,10 +1053,10 @@ def test_load_config_existing_partial(monkeypatch, tmp_path):
     config_path = config_dir / "config.ini"
 
     custom_storage = tmp_path / "custom" / "storage"
-    log_dir = tmp_path / ".kaydet"
+    storage_dir = tmp_path / ".kaydet"
     config_content = (
         f"[SETTINGS]\nstorage_dir = {custom_storage}\n"
-        f"log_dir = {log_dir}\n"
+        f"log_dir = {storage_dir}\n"
     )
     config_path.write_text(config_content)
 
@@ -1098,11 +1098,11 @@ def test_load_config_xdg_home(monkeypatch, tmp_path):
 
 def test_search_multiline_result(setup_kaydet, capsys):
     """Test that multiline search results are printed correctly."""
-    fake_log_dir = setup_kaydet["fake_log_dir"]
+    fake_storage_dir = setup_kaydet["fake_storage_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
-    fake_log_dir.mkdir(exist_ok=True)
+    fake_storage_dir.mkdir(exist_ok=True)
 
-    (fake_log_dir / "2025-11-01.txt").write_text(
+    (fake_storage_dir / "2025-11-01.txt").write_text(
         "\n".join(
             [
                 "10:00: The first line of a multiline note.",
@@ -1125,11 +1125,11 @@ def test_search_multiline_result(setup_kaydet, capsys):
 
 def test_doctor_with_untagged_entries(setup_kaydet, capsys):
     """Test that the doctor command handles entries with no tags."""
-    fake_log_dir = setup_kaydet["fake_log_dir"]
+    fake_storage_dir = setup_kaydet["fake_storage_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
-    fake_log_dir.mkdir(exist_ok=True)
+    fake_storage_dir.mkdir(exist_ok=True)
 
-    (fake_log_dir / "2025-11-02.txt").write_text(
+    (fake_storage_dir / "2025-11-02.txt").write_text(
         "\n".join(
             [
                 "10:00: An entry with #work.",
@@ -1152,12 +1152,12 @@ def test_stats_ignores_directories(
     setup_kaydet, capsys, mock_datetime_factory
 ):
     """Test that the stats command ignores subdirectories in the log folder."""
-    fake_log_dir = setup_kaydet["fake_log_dir"]
+    fake_storage_dir = setup_kaydet["fake_storage_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
-    fake_log_dir.mkdir(exist_ok=True)
+    fake_storage_dir.mkdir(exist_ok=True)
 
-    (fake_log_dir / "2025-09-10.txt").write_text("10:00: entry 1\n")
-    (fake_log_dir / "a_subdirectory").mkdir()
+    (fake_storage_dir / "2025-09-10.txt").write_text("10:00: entry 1\n")
+    (fake_storage_dir / "a_subdirectory").mkdir()
 
     mock_datetime_factory(datetime(2025, 9, 25, 10, 0, 0))
     monkeypatch.setattr(sys, "argv", ["kaydet", "--stats"])
@@ -1178,9 +1178,9 @@ def test_search_with_colon_containing_text(
     setup_kaydet, capsys, mock_datetime_factory
 ):
     """Test that URLs and times with colons are searchable as plain text."""
-    fake_log_dir = setup_kaydet["fake_log_dir"]
+    fake_storage_dir = setup_kaydet["fake_storage_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
-    fake_log_dir.mkdir(exist_ok=True)
+    fake_storage_dir.mkdir(exist_ok=True)
 
     # Create entries with URLs and times
     mock_datetime_factory(datetime(2025, 10, 24, 9, 0, 0))
@@ -1235,7 +1235,7 @@ def test_search_with_colon_containing_text(
 
 def test_add_entry_with_at_flag(setup_kaydet, mock_datetime_factory, capsys):
     """Test adding entries with the --at flag for custom timestamps."""
-    fake_log_dir = setup_kaydet["fake_log_dir"]
+    fake_storage_dir = setup_kaydet["fake_storage_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
 
     # 1. Setup initial entries for chronological test
@@ -1257,7 +1257,7 @@ def test_add_entry_with_at_flag(setup_kaydet, mock_datetime_factory, capsys):
     )
     cli.main()
 
-    day_file = fake_log_dir / "2025-10-25.txt"
+    day_file = fake_storage_dir / "2025-10-25.txt"
     content = day_file.read_text()
     assert "Entry added" in capsys.readouterr().out
     # Check chronological order
@@ -1275,7 +1275,7 @@ def test_add_entry_with_at_flag(setup_kaydet, mock_datetime_factory, capsys):
     )
     cli.main()
 
-    past_day_file = fake_log_dir / "2025-10-24.txt"
+    past_day_file = fake_storage_dir / "2025-10-24.txt"
     assert past_day_file.exists()
     past_content = past_day_file.read_text()
     assert "15:00" in past_content
