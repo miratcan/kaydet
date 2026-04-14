@@ -123,6 +123,25 @@ class AttachmentPutResponse:
     stored: bool = False
 
 
+# -- Search --
+
+
+@dataclass
+class SearchRequest:
+    """Search entries by query string."""
+
+    query: str = ""
+    limit: int = 50
+
+
+@dataclass
+class SearchResponse:
+    """Search results."""
+
+    entries: List[EntryData] = field(default_factory=list)
+    total: int = 0
+
+
 # -- Delete / Update --
 
 
@@ -184,6 +203,7 @@ _REQUEST_TYPES = {
     "attachment_put": AttachmentPutRequest,
     "delete": DeleteEntryRequest,
     "update": UpdateEntryRequest,
+    "search": SearchRequest,
 }
 
 _RESPONSE_TYPES = {
@@ -194,6 +214,7 @@ _RESPONSE_TYPES = {
     "attachment_put": AttachmentPutResponse,
     "delete": DeleteEntryResponse,
     "update": UpdateEntryResponse,
+    "search": SearchResponse,
 }
 
 
@@ -248,6 +269,13 @@ def _from_dict(cls: type, data: dict) -> Any:
             EntryData(**e) for e in data.get("entries", [])
         ]
         return SyncEntriesResponse(entries=entries)
+    if cls == SearchResponse:
+        entries = [
+            EntryData(**e) for e in data.get("entries", [])
+        ]
+        return SearchResponse(
+            entries=entries, total=data.get("total", 0)
+        )
     if cls == PushEntriesRequest:
         entries = [
             EntryData(**e) for e in data.get("entries", [])

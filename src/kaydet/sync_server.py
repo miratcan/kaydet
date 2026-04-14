@@ -20,6 +20,8 @@ from .sync_protocol import (
     ProtocolMessage,
     PushEntriesRequest,
     PushEntriesResponse,
+    SearchRequest,
+    SearchResponse,
     SyncChange,
     SyncChangesRequest,
     SyncChangesResponse,
@@ -74,6 +76,9 @@ class SyncServer:
         elif msg.method == "attachment_put":
             req = parse_request(msg)
             resp = self._handle_attachment_put(req)
+        elif msg.method == "search":
+            req = parse_request(msg)
+            resp = self._handle_search(req)
         elif msg.method == "delete":
             req = parse_request(msg)
             resp = self._handle_delete(req)
@@ -218,6 +223,25 @@ class SyncServer:
         filepath.write_bytes(base64.b64decode(req.data))
         return AttachmentPutResponse(
             filename=req.filename, stored=True
+        )
+
+    def _handle_search(
+        self, req: SearchRequest
+    ) -> SearchResponse:
+        """Search entries using KaydetService (server-side FTS)."""
+        result = self.service.search_entries(req.query)
+        if not result.get("success"):
+            return SearchResponse(entries=[], total=0)
+
+        entries: list[EntryData] = []
+        for match in result.get("matches", [])[:req.limit]:
+            entry_id = int(match.get("id", 0))
+            loaded = self._load_entry(entry_id)
+            if loaded:
+                entries.append(loaded)
+
+        return SearchResponse(
+            entries=entries, total=len(entries)
         )
 
     def _handle_delete(
