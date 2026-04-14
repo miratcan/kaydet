@@ -123,6 +123,46 @@ class AttachmentPutResponse:
     stored: bool = False
 
 
+# -- Delete / Update --
+
+
+@dataclass
+class DeleteEntryRequest:
+    """Delete an entry by ID."""
+
+    entry_id: int = 0
+    device_id: str = ""
+
+
+@dataclass
+class DeleteEntryResponse:
+    """Response after deleting an entry."""
+
+    entry_id: int = 0
+    deleted: bool = False
+    error: str = ""
+
+
+@dataclass
+class UpdateEntryRequest:
+    """Update an existing entry."""
+
+    entry_id: int = 0
+    text: Optional[str] = None
+    tags: Optional[List[str]] = None
+    metadata: Optional[Dict[str, str]] = None
+    device_id: str = ""
+
+
+@dataclass
+class UpdateEntryResponse:
+    """Response after updating an entry."""
+
+    entry_id: int = 0
+    updated: bool = False
+    error: str = ""
+
+
 # -- Protocol message envelope --
 
 
@@ -142,6 +182,8 @@ _REQUEST_TYPES = {
     "push": PushEntriesRequest,
     "attachment_get": AttachmentGetRequest,
     "attachment_put": AttachmentPutRequest,
+    "delete": DeleteEntryRequest,
+    "update": UpdateEntryRequest,
 }
 
 _RESPONSE_TYPES = {
@@ -150,6 +192,8 @@ _RESPONSE_TYPES = {
     "push": PushEntriesResponse,
     "attachment_get": AttachmentGetResponse,
     "attachment_put": AttachmentPutResponse,
+    "delete": DeleteEntryResponse,
+    "update": UpdateEntryResponse,
 }
 
 

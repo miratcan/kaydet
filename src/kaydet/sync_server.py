@@ -14,6 +14,8 @@ from .sync_protocol import (
     AttachmentGetResponse,
     AttachmentPutRequest,
     AttachmentPutResponse,
+    DeleteEntryRequest,
+    DeleteEntryResponse,
     EntryData,
     ProtocolMessage,
     PushEntriesRequest,
@@ -23,6 +25,8 @@ from .sync_protocol import (
     SyncChangesResponse,
     SyncEntriesRequest,
     SyncEntriesResponse,
+    UpdateEntryRequest,
+    UpdateEntryResponse,
     deserialize_message,
     make_response_message,
     parse_request,
@@ -70,6 +74,12 @@ class SyncServer:
         elif msg.method == "attachment_put":
             req = parse_request(msg)
             resp = self._handle_attachment_put(req)
+        elif msg.method == "delete":
+            req = parse_request(msg)
+            resp = self._handle_delete(req)
+        elif msg.method == "update":
+            req = parse_request(msg)
+            resp = self._handle_update(req)
         else:
             resp = {"error": f"Unknown method: {msg.method}"}
             return ProtocolMessage(method=msg.method, body=resp)
@@ -209,6 +219,55 @@ class SyncServer:
         return AttachmentPutResponse(
             filename=req.filename, stored=True
         )
+
+    def _handle_delete(
+        self, req: DeleteEntryRequest
+    ) -> DeleteEntryResponse:
+        """Delete an entry by ID."""
+        try:
+            result = self.service.delete_entry(req.entry_id)
+            if result.get("success"):
+                return DeleteEntryResponse(
+                    entry_id=req.entry_id, deleted=True
+                )
+            return DeleteEntryResponse(
+                entry_id=req.entry_id,
+                deleted=False,
+                error=result.get("error", "Delete failed"),
+            )
+        except Exception as e:
+            return DeleteEntryResponse(
+                entry_id=req.entry_id,
+                deleted=False,
+                error=str(e),
+            )
+
+    def _handle_update(
+        self, req: UpdateEntryRequest
+    ) -> UpdateEntryResponse:
+        """Update an existing entry."""
+        try:
+            result = self.service.update_entry(
+                req.entry_id,
+                text=req.text,
+                metadata=req.metadata,
+                tags=req.tags,
+            )
+            if result.get("success"):
+                return UpdateEntryResponse(
+                    entry_id=req.entry_id, updated=True
+                )
+            return UpdateEntryResponse(
+                entry_id=req.entry_id,
+                updated=False,
+                error=result.get("error", "Update failed"),
+            )
+        except Exception as e:
+            return UpdateEntryResponse(
+                entry_id=req.entry_id,
+                updated=False,
+                error=str(e),
+            )
 
     def _upsert_entry(
         self,
