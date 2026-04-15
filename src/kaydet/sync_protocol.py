@@ -187,6 +187,26 @@ class UpdateEntryResponse:
     error: str = ""
 
 
+# -- Single round-trip sync --
+
+
+@dataclass
+class SyncRequest:
+    """Single round-trip sync: client sends token + local changes."""
+
+    since: int = 0  # client's last sync token
+    entries: List[EntryData] = field(default_factory=list)
+    device_id: str = ""
+
+
+@dataclass
+class SyncResponse:
+    """Server returns remote changes + new token."""
+
+    entries: List[EntryData] = field(default_factory=list)
+    new_token: int = 0
+
+
 # -- Protocol message envelope --
 
 
@@ -209,6 +229,7 @@ _REQUEST_TYPES = {
     "delete": DeleteEntryRequest,
     "update": UpdateEntryRequest,
     "search": SearchRequest,
+    "sync": SyncRequest,
 }
 
 _RESPONSE_TYPES = {
@@ -220,6 +241,7 @@ _RESPONSE_TYPES = {
     "delete": DeleteEntryResponse,
     "update": UpdateEntryResponse,
     "search": SearchResponse,
+    "sync": SyncResponse,
 }
 
 
@@ -280,6 +302,23 @@ def _from_dict(cls: type, data: dict) -> Any:
         ]
         return SearchResponse(
             entries=entries, total=data.get("total", 0)
+        )
+    if cls == SyncRequest:
+        entries = [
+            EntryData(**e) for e in data.get("entries", [])
+        ]
+        return SyncRequest(
+            since=data.get("since", 0),
+            entries=entries,
+            device_id=data.get("device_id", ""),
+        )
+    if cls == SyncResponse:
+        entries = [
+            EntryData(**e) for e in data.get("entries", [])
+        ]
+        return SyncResponse(
+            entries=entries,
+            new_token=data.get("new_token", 0),
         )
     if cls == PushEntriesRequest:
         entries = [

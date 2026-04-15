@@ -27,6 +27,8 @@ from .sync_protocol import (
     SyncChangesResponse,
     SyncEntriesRequest,
     SyncEntriesResponse,
+    SyncRequest,
+    SyncResponse,
     UpdateEntryRequest,
     UpdateEntryResponse,
     deserialize_message,
@@ -76,6 +78,9 @@ class SyncServer:
         elif msg.method == "attachment_put":
             req = parse_request(msg)
             resp = self._handle_attachment_put(req)
+        elif msg.method == "sync":
+            req = parse_request(msg)
+            resp = self._handle_sync(req)
         elif msg.method == "search":
             req = parse_request(msg)
             resp = self._handle_search(req)
@@ -116,6 +121,65 @@ class SyncServer:
             changes=changes,
             new_token=new_token,
             has_more=len(rows) == 1000,
+        )
+
+    def _handle_sync(
+        self, req: SyncRequest
+    ) -> SyncResponse:
+        """Single round-trip sync: accept client entries, return changes."""
+        now = datetime.now()
+
+        # 1. Record the current max sync_log id before applying
+        #    client entries, so we don't send them back.
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT MAX(id) FROM sync_log")
+        pre_apply_max = cursor.fetchone()[0] or 0
+
+        # 2. Apply client's entries (same as push)
+        for entry_data in req.entries:
+            try:
+                self._upsert_entry(entry_data, req.device_id, now)
+            except Exception:
+                pass  # skip failed entries
+
+        # 3. Find changes since client's token, excluding
+        #    entries we just applied from the client.
+        cursor.execute(
+            "SELECT id, entry_id, action FROM sync_log "
+            "WHERE id > ? AND id <= ? ORDER BY id",
+            (req.since, pre_apply_max),
+        )
+        rows = cursor.fetchall()
+
+        # 4. Collect unique entry IDs to send back
+        to_send: dict[str, str] = {}  # entry_id -> action
+        for _log_id, entry_id, action in rows:
+            to_send[entry_id] = action
+
+        # 5. Load full entry data for created/updated
+        entries: List[EntryData] = []
+        for entry_id, action in to_send.items():
+            if action in ("created", "updated"):
+                loaded = self._load_entry(entry_id)
+                if loaded:
+                    entries.append(loaded)
+            # For "deleted" entries, send a tombstone
+            elif action == "deleted":
+                entries.append(EntryData(
+                    entry_id=entry_id,
+                    source_file="",
+                    timestamp="",
+                    text="",
+                    metadata={"_deleted": "true"},
+                ))
+
+        # 6. New token = max sync_log id now (after our applies)
+        cursor.execute("SELECT MAX(id) FROM sync_log")
+        new_token = cursor.fetchone()[0] or req.since
+
+        return SyncResponse(
+            entries=entries,
+            new_token=new_token,
         )
 
     def _handle_entries(

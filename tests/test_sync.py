@@ -238,6 +238,71 @@ class TestSyncServer:
         # Either no status metadata, or it's not "stale"
         assert row is None or row[0] != "stale"
 
+    def test_handle_sync_single_roundtrip(self, sync_env):
+        """The sync method accepts entries and returns changes."""
+        conn, storage_dir, config, config_dir, service = sync_env
+
+        # Create an entry on server (DB + day file)
+        database.add_entry(
+            conn, "2025-01-01.txt", "10:00", ["work"], "server entry",
+            {}, entry_id="d1"
+        )
+        database.log_sync_action(conn, "d1", "created")
+        day_file = storage_dir / "2025-01-01.txt"
+        day_file.write_text(
+            "2025/01/01/ - Wednesday\n"
+            "---\n"
+            "10:00 [d1]: server entry #work\n",
+            encoding="utf-8",
+        )
+
+        server = SyncServer(service)
+
+        # Client sends its entry + token 0
+        from dataclasses import asdict
+        client_entry = EntryData(
+            entry_id="c1",
+            source_file="2025-01-02.txt",
+            timestamp="14:00",
+            text="client entry",
+            tags=["sync"],
+        )
+        msg = ProtocolMessage(
+            method="sync",
+            body={
+                "since": 0,
+                "entries": [asdict(client_entry)],
+                "device_id": "test-client",
+            },
+        )
+        resp = server.handle_message(msg)
+        sync_resp = parse_response("sync", resp.body)
+
+        # Server should return its entry to the client
+        assert len(sync_resp.entries) == 1
+        assert sync_resp.entries[0].entry_id == "d1"
+        assert sync_resp.new_token > 0
+
+        # Verify client's entry was stored on server
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id FROM entries WHERE id = 'c1'"
+        )
+        assert cursor.fetchone() is not None
+
+    def test_handle_sync_empty(self, sync_env):
+        """Sync with no changes returns empty."""
+        conn, storage_dir, config, config_dir, service = sync_env
+        server = SyncServer(service)
+
+        msg = ProtocolMessage(
+            method="sync",
+            body={"since": 0, "entries": [], "device_id": "x"},
+        )
+        resp = server.handle_message(msg)
+        sync_resp = parse_response("sync", resp.body)
+        assert len(sync_resp.entries) == 0
+
     def test_unknown_method(self, sync_env):
         conn, storage_dir, config, config_dir, service = sync_env
         server = SyncServer(service)

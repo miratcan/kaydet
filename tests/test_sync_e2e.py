@@ -7,9 +7,7 @@ from configparser import ConfigParser
 from kaydet import database
 from kaydet.service import KaydetService
 from kaydet.sync_client import SyncClient
-from kaydet.sync_protocol import (
-    ProtocolMessage,
-)
+from kaydet.sync_protocol import ProtocolMessage
 from kaydet.sync_server import SyncServer
 from kaydet.sync_transport import SyncTransport
 
@@ -23,10 +21,7 @@ def _add_and_log(service, **kwargs):
 
 
 class DirectTransport(SyncTransport):
-    """In-process transport that calls SyncServer directly.
-
-    No subprocess needed — ideal for testing.
-    """
+    """In-process transport that calls SyncServer directly."""
 
     def __init__(self, server: SyncServer) -> None:
         self.server = server
@@ -68,141 +63,108 @@ def _make_instance(tmp_path, name, prefix="d"):
 
 
 class TestE2ESync:
-    def test_basic_sync_flow(self, tmp_path):
-        """Add entry on client, push to server, verify on server."""
+    def test_push_to_server(self, tmp_path):
+        """Add entry on client, sync to server."""
         client_svc = _make_instance(tmp_path, "client")
         server_svc = _make_instance(tmp_path, "server")
 
         server = SyncServer(server_svc)
-        transport = DirectTransport(server)
-        client = SyncClient(client_svc, transport)
+        client = SyncClient(client_svc, DirectTransport(server))
 
-        # Add entry on client
         _add_and_log(client_svc, text="Hello from client")
 
-        # Push to server
-        push_result = client.push()
-        assert push_result["pushed"] == 1
+        result = client.sync()
+        assert result["pushed"] == 1
 
-        # Verify entry exists on server
         server_entries = server_svc.list_recent_entries(limit=10)
-        texts = [
-            e["text"] for e in server_entries["entries"]
-        ]
+        texts = [e["text"] for e in server_entries["entries"]]
         assert any("Hello from client" in t for t in texts)
 
     def test_pull_from_server(self, tmp_path):
-        """Add entry on server, pull to client."""
+        """Add entry on server, sync to client."""
         client_svc = _make_instance(tmp_path, "client")
         server_svc = _make_instance(tmp_path, "server")
 
         server = SyncServer(server_svc)
-        transport = DirectTransport(server)
-        client = SyncClient(client_svc, transport)
+        client = SyncClient(client_svc, DirectTransport(server))
 
-        # Add entry on server
         _add_and_log(server_svc, text="Hello from server")
 
-        # Pull to client
-        pull_result = client.pull()
-        assert pull_result["pulled"] == 1
+        result = client.sync()
+        assert result["pulled"] == 1
 
-        # Verify entry exists on client
-        client_entries = client_svc.list_recent_entries(
-            limit=10
-        )
-        texts = [
-            e["text"] for e in client_entries["entries"]
-        ]
+        client_entries = client_svc.list_recent_entries(limit=10)
+        texts = [e["text"] for e in client_entries["entries"]]
         assert any("Hello from server" in t for t in texts)
 
-    def test_no_sync_loop(self, tmp_path):
-        """Pulled entries must NOT be pushed back."""
-        client_svc = _make_instance(tmp_path, "client")
-        server_svc = _make_instance(tmp_path, "server")
-
-        server = SyncServer(server_svc)
-        transport = DirectTransport(server)
-        client = SyncClient(client_svc, transport)
-
-        # Add entry on server
-        _add_and_log(server_svc, text="Server entry")
-
-        # Pull to client
-        client.pull()
-
-        # Now push — should push 0 (the pulled entry
-        # must not be pushed back)
-        push_result = client.push()
-        assert push_result["pushed"] == 0
-
     def test_bidirectional_sync(self, tmp_path):
-        """Both sides add entries, full sync merges them."""
-        # Use different prefixes to avoid any doubt
+        """Both sides add entries, single sync merges them."""
         client_svc = _make_instance(tmp_path, "client", prefix="c")
         server_svc = _make_instance(tmp_path, "server", prefix="s")
 
         server = SyncServer(server_svc)
-        transport = DirectTransport(server)
-        client = SyncClient(client_svc, transport)
+        client = SyncClient(client_svc, DirectTransport(server))
 
-        # Add entries on both sides
         _add_and_log(client_svc, text="Client note")
         _add_and_log(server_svc, text="Server note")
 
-        # Full sync
         result = client.sync()
+        assert result["pushed"] == 1
+        assert result["pulled"] >= 1
 
-        # Client pushed its entry
-        assert result["push"]["pushed"] == 1
-        # Client pulled server's entry
-        assert result["pull"]["pulled"] >= 1
-
-        # Verify client has both
-        client_entries = client_svc.list_recent_entries(
-            limit=10
-        )
+        # Client has both
         client_texts = [
-            e["text"] for e in client_entries["entries"]
+            e["text"]
+            for e in client_svc.list_recent_entries(limit=10)["entries"]
         ]
         assert any("Client note" in t for t in client_texts)
         assert any("Server note" in t for t in client_texts)
 
-        # Verify server has both
-        server_entries = server_svc.list_recent_entries(
-            limit=10
-        )
+        # Server has both
         server_texts = [
-            e["text"] for e in server_entries["entries"]
+            e["text"]
+            for e in server_svc.list_recent_entries(limit=10)["entries"]
         ]
         assert any("Client note" in t for t in server_texts)
         assert any("Server note" in t for t in server_texts)
 
-    def test_multiple_syncs_no_duplication(self, tmp_path):
-        """Running sync multiple times must not create duplicates."""
+    def test_no_sync_loop(self, tmp_path):
+        """Synced entries must NOT bounce back on next sync."""
         client_svc = _make_instance(tmp_path, "client")
         server_svc = _make_instance(tmp_path, "server")
 
         server = SyncServer(server_svc)
-        transport = DirectTransport(server)
-        client = SyncClient(client_svc, transport)
+        client = SyncClient(client_svc, DirectTransport(server))
 
-        # Add one entry and sync
+        _add_and_log(server_svc, text="Server entry")
+
+        # First sync: pull server entry
+        first = client.sync()
+        assert first["pulled"] == 1
+
+        # Second sync: nothing should happen
+        second = client.sync()
+        assert second["pushed"] == 0
+        assert second["pulled"] == 0
+
+    def test_multiple_syncs_no_duplication(self, tmp_path):
+        """Repeated syncs must not create duplicate entries."""
+        client_svc = _make_instance(tmp_path, "client")
+        server_svc = _make_instance(tmp_path, "server")
+
+        server = SyncServer(server_svc)
+        client = SyncClient(client_svc, DirectTransport(server))
+
         _add_and_log(client_svc, text="Only once")
         client.sync()
 
-        # Sync again — nothing new should happen
         result = client.sync()
-        assert result["push"]["pushed"] == 0
-        assert result["pull"]["pulled"] == 0
+        assert result["pushed"] == 0
+        assert result["pulled"] == 0
 
-        # Verify only one entry on server
-        server_entries = server_svc.list_recent_entries(
-            limit=10
-        )
         matching = [
             e
-            for e in server_entries["entries"]
+            for e in server_svc.list_recent_entries(limit=10)["entries"]
             if "Only once" in e["text"]
         ]
         assert len(matching) == 1
@@ -220,29 +182,25 @@ class TestE2ESync:
         server_svc = _make_instance(tmp_path, "server")
 
         server = SyncServer(server_svc)
-        transport = DirectTransport(server)
-        client = SyncClient(client_svc, transport)
+        client = SyncClient(client_svc, DirectTransport(server))
 
-        # Add entry with secret on client
         result = _add_and_log(client_svc, text="Secret entry")
         eid = result["entry_id"]
         password = "test-password"
         encrypted = encrypt_secret("my secret", password)
         store_secret(eid, encrypted, client_svc.storage_dir)
 
-        # Sync
         client.sync()
 
-        # Verify secret is on server (as opaque blob in file)
-        server_cursor = server_svc.conn.cursor()
-        server_cursor.execute(
-            "SELECT id FROM entries"
-        )
-        server_ids = [r[0] for r in server_cursor.fetchall()]
-        # Find the synced entry
+        # Find the synced entry's secret on server
+        server_ids = [
+            r[0]
+            for r in server_svc.conn.execute(
+                "SELECT id FROM entries"
+            ).fetchall()
+        ]
         found_secret = False
         for sid in server_ids:
-            # Call with storage_dir
             enc = get_secret(sid, server_svc.storage_dir)
             if enc:
                 decrypted = decrypt_secret(enc, password)
