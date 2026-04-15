@@ -303,6 +303,70 @@ class TestSyncServer:
         sync_resp = parse_response("sync", resp.body)
         assert len(sync_resp.entries) == 0
 
+    def test_handle_get_entry(self, sync_env):
+        conn, storage_dir, config, config_dir, service = sync_env
+        database.add_entry(
+            conn, "2025-01-01.txt", "10:00", [], "test entry",
+            {}, entry_id="d1"
+        )
+        (storage_dir / "2025-01-01.txt").write_text(
+            "2025/01/01/\n---\n10:00 [d1]: test entry\n"
+        )
+        server = SyncServer(service)
+
+        msg = ProtocolMessage(
+            method="get_entry", body={"entry_id": "d1"}
+        )
+        resp = server.handle_message(msg)
+        parsed = parse_response("get_entry", resp.body)
+        assert parsed.found is True
+        assert parsed.entry.entry_id == "d1"
+
+        # Not found
+        msg2 = ProtocolMessage(
+            method="get_entry", body={"entry_id": "d999"}
+        )
+        resp2 = server.handle_message(msg2)
+        parsed2 = parse_response("get_entry", resp2.body)
+        assert parsed2.found is False
+
+    def test_handle_list_tags(self, sync_env):
+        conn, storage_dir, config, config_dir, service = sync_env
+        database.add_entry(
+            conn, "2025-01-01.txt", "10:00", ["work", "urgent"],
+            "tagged entry", {}, entry_id="d1"
+        )
+        server = SyncServer(service)
+
+        msg = ProtocolMessage(
+            method="list_tags", body={}
+        )
+        resp = server.handle_message(msg)
+        parsed = parse_response("list_tags", resp.body)
+        tag_names = [t["tag"] for t in parsed.tags]
+        assert "work" in tag_names
+        assert "urgent" in tag_names
+
+    def test_handle_get_stats(self, sync_env):
+        conn, storage_dir, config, config_dir, service = sync_env
+        database.add_entry(
+            conn, "2025-01-01.txt", "10:00", [], "entry",
+            {}, entry_id="d1"
+        )
+        (storage_dir / "2025-01-01.txt").write_text(
+            "2025/01/01/\n---\n10:00 [d1]: entry\n"
+        )
+        server = SyncServer(service)
+
+        msg = ProtocolMessage(
+            method="get_stats", body={"year": 2025, "month": 1}
+        )
+        resp = server.handle_message(msg)
+        parsed = parse_response("get_stats", resp.body)
+        assert parsed.year == 2025
+        assert parsed.month == 1
+        assert parsed.total_entries >= 1
+
     def test_unknown_method(self, sync_env):
         conn, storage_dir, config, config_dir, service = sync_env
         server = SyncServer(service)

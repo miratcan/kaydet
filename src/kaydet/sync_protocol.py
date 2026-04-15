@@ -187,6 +187,57 @@ class UpdateEntryResponse:
     error: str = ""
 
 
+# -- Read-only queries --
+
+
+@dataclass
+class GetEntryRequest:
+    """Get a single entry by ID."""
+
+    entry_id: str = ""
+
+
+@dataclass
+class GetEntryResponse:
+    """Single entry response."""
+
+    entry: Optional[EntryData] = None
+    found: bool = False
+    error: str = ""
+
+
+@dataclass
+class ListTagsRequest:
+    """List all tags."""
+
+    pass
+
+
+@dataclass
+class ListTagsResponse:
+    """All tags with counts."""
+
+    tags: List[Dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass
+class GetStatsRequest:
+    """Get calendar stats."""
+
+    year: Optional[int] = None
+    month: Optional[int] = None
+
+
+@dataclass
+class GetStatsResponse:
+    """Calendar stats response."""
+
+    year: int = 0
+    month: int = 0
+    days: Dict[str, int] = field(default_factory=dict)
+    total_entries: int = 0
+
+
 # -- Single round-trip sync --
 
 
@@ -230,6 +281,9 @@ _REQUEST_TYPES = {
     "update": UpdateEntryRequest,
     "search": SearchRequest,
     "sync": SyncRequest,
+    "get_entry": GetEntryRequest,
+    "list_tags": ListTagsRequest,
+    "get_stats": GetStatsRequest,
 }
 
 _RESPONSE_TYPES = {
@@ -242,6 +296,9 @@ _RESPONSE_TYPES = {
     "update": UpdateEntryResponse,
     "search": SearchResponse,
     "sync": SyncResponse,
+    "get_entry": GetEntryResponse,
+    "list_tags": ListTagsResponse,
+    "get_stats": GetStatsResponse,
 }
 
 
@@ -302,6 +359,14 @@ def _from_dict(cls: type, data: dict) -> Any:
         ]
         return SearchResponse(
             entries=entries, total=data.get("total", 0)
+        )
+    if cls == GetEntryResponse:
+        entry_data = data.get("entry")
+        entry = EntryData(**entry_data) if entry_data else None
+        return GetEntryResponse(
+            entry=entry,
+            found=data.get("found", False),
+            error=data.get("error", ""),
         )
     if cls == SyncRequest:
         entries = [

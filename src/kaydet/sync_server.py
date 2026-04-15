@@ -17,6 +17,12 @@ from .sync_protocol import (
     DeleteEntryRequest,
     DeleteEntryResponse,
     EntryData,
+    GetEntryRequest,
+    GetEntryResponse,
+    GetStatsRequest,
+    GetStatsResponse,
+    ListTagsRequest,
+    ListTagsResponse,
     ProtocolMessage,
     PushEntriesRequest,
     PushEntriesResponse,
@@ -90,6 +96,15 @@ class SyncServer:
         elif msg.method == "update":
             req = parse_request(msg)
             resp = self._handle_update(req)
+        elif msg.method == "get_entry":
+            req = parse_request(msg)
+            resp = self._handle_get_entry(req)
+        elif msg.method == "list_tags":
+            req = parse_request(msg)
+            resp = self._handle_list_tags(req)
+        elif msg.method == "get_stats":
+            req = parse_request(msg)
+            resp = self._handle_get_stats(req)
         else:
             resp = {"error": f"Unknown method: {msg.method}"}
             return ProtocolMessage(method=msg.method, body=resp)
@@ -307,6 +322,40 @@ class SyncServer:
 
         return SearchResponse(
             entries=entries, total=len(entries)
+        )
+
+    def _handle_get_entry(
+        self, req: GetEntryRequest
+    ) -> GetEntryResponse:
+        """Return a single entry by ID."""
+        loaded = self._load_entry(req.entry_id)
+        if loaded:
+            return GetEntryResponse(entry=loaded, found=True)
+        return GetEntryResponse(
+            found=False, error=f"Entry {req.entry_id} not found"
+        )
+
+    def _handle_list_tags(
+        self, req: ListTagsRequest
+    ) -> ListTagsResponse:
+        """Return all tags with counts."""
+        result = self.service.list_tags()
+        return ListTagsResponse(tags=result.get("tags", []))
+
+    def _handle_get_stats(
+        self, req: GetStatsRequest
+    ) -> GetStatsResponse:
+        """Return calendar stats."""
+        result = self.service.get_stats(
+            year=req.year, month=req.month
+        )
+        if not result.get("success"):
+            return GetStatsResponse()
+        return GetStatsResponse(
+            year=result["year"],
+            month=result["month"],
+            days=result["days"],
+            total_entries=result["total_entries"],
         )
 
     def _handle_delete(
