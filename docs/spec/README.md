@@ -17,6 +17,7 @@ fixtures included with each spec.
 | [encryption](v1/encryption.md) | 1.0 | Frozen | Secret encryption wire format (scrypt + AES-256-GCM) |
 | [file-format](v1/file-format.md) | 1.0 | Frozen | Day file and entry format |
 | [sync-protocol](v1/sync-protocol.md) | 1.0 | Frozen | Sync protocol (fat-server, single round-trip) |
+| [file-transfer](v1/file-transfer.md) | 1.0 | Draft | Chunked upload/download with integrity verification |
 
 ## Fixtures
 
