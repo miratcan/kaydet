@@ -1,0 +1,155 @@
+{
+  "spec": "v1/sync-protocol",
+  "scenarios": [
+    {
+      "name": "first_sync_push",
+      "description": "Client pushes one entry on first sync, server has nothing",
+      "request": {
+        "method": "sync",
+        "body": {
+          "since": 0,
+          "entries": [
+            {
+              "entry_id": "c1",
+              "source_file": "2026-04-15.txt",
+              "timestamp": "14:00",
+              "text": "Hello from client #work",
+              "tags": ["work"],
+              "metadata": {},
+              "attachments": [],
+              "encrypted_secret": null,
+              "updated_at": "2026-04-15T14:00:00"
+            }
+          ],
+          "device_id": "c"
+        }
+      },
+      "expected_response": {
+        "entries_count": 0,
+        "new_token_gt": 0
+      },
+      "postconditions": [
+        "Server MUST have entry c1 in its store",
+        "Server day file 2026-04-15.txt MUST contain the entry"
+      ]
+    },
+    {
+      "name": "first_sync_pull",
+      "description": "Client has nothing, server has one entry",
+      "preconditions": [
+        "Server has entry s1 with text 'Server note' and sync_log entry"
+      ],
+      "request": {
+        "method": "sync",
+        "body": {
+          "since": 0,
+          "entries": [],
+          "device_id": "c"
+        }
+      },
+      "expected_response": {
+        "entries_count": 1,
+        "entries": [
+          {
+            "entry_id": "s1",
+            "text_contains": "Server note"
+          }
+        ],
+        "new_token_gt": 0
+      }
+    },
+    {
+      "name": "bidirectional_sync",
+      "description": "Both sides have entries, single sync merges them",
+      "preconditions": [
+        "Server has entry s1 with sync_log",
+        "Client has entry c1 in local sync_log"
+      ],
+      "request": {
+        "method": "sync",
+        "body": {
+          "since": 0,
+          "entries": [
+            {
+              "entry_id": "c1",
+              "source_file": "2026-04-15.txt",
+              "timestamp": "10:00",
+              "text": "Client entry",
+              "tags": [],
+              "metadata": {},
+              "attachments": [],
+              "encrypted_secret": null,
+              "updated_at": "2026-04-15T10:00:00"
+            }
+          ],
+          "device_id": "c"
+        }
+      },
+      "expected_response": {
+        "entries_count": 1,
+        "entries": [
+          {"entry_id": "s1"}
+        ],
+        "new_token_gt": 0
+      },
+      "postconditions": [
+        "Server MUST have both s1 and c1",
+        "Client receives s1 in response entries"
+      ]
+    },
+    {
+      "name": "no_sync_loop",
+      "description": "Second sync with same token returns nothing new",
+      "preconditions": [
+        "First sync completed with new_token=T"
+      ],
+      "request": {
+        "method": "sync",
+        "body": {
+          "since": "T (from previous sync)",
+          "entries": [],
+          "device_id": "c"
+        }
+      },
+      "expected_response": {
+        "entries_count": 0,
+        "new_token_gte": "T"
+      }
+    },
+    {
+      "name": "deletion_tombstone",
+      "description": "Deleted entry appears as tombstone in sync",
+      "preconditions": [
+        "Server had entry d1, then it was deleted",
+        "sync_log has action='deleted' for d1"
+      ],
+      "request": {
+        "method": "sync",
+        "body": {
+          "since": 0,
+          "entries": [],
+          "device_id": "c"
+        }
+      },
+      "expected_response": {
+        "entries": [
+          {
+            "entry_id": "d1",
+            "text": "",
+            "metadata": {"_deleted": "true"}
+          }
+        ]
+      },
+      "postconditions": [
+        "Client MUST delete d1 from local index upon receiving this"
+      ]
+    }
+  ],
+  "validation_rules": [
+    "Server MUST NOT return entries that the client just pushed in the same sync call",
+    "Server MUST skip client entries when server copy has newer updated_at",
+    "Client MUST store new_token and use it in the next sync",
+    "Entries with metadata._deleted=true are tombstones; client MUST delete locally",
+    "Sync token 0 means 'give me everything'"
+  ]
+}
