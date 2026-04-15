@@ -102,9 +102,9 @@ def test_service_update_and_recent(mcp_env):
     )
     assert updated["success"] is True
 
-    recent = service.list_recent_entries(limit=2)
-    assert len(recent["entries"]) == 2
-    ids = [entry["id"] for entry in recent["entries"]]
+    recent = service.search_entries(limit=2)
+    assert len(recent["matches"]) == 2
+    ids = [entry["id"] for entry in recent["matches"]]
     assert b["entry_id"] in ids
 
     by_tag = service.entries_by_tag("team")

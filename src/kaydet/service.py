@@ -156,7 +156,9 @@ class KaydetService:
             return {"success": False, "error": "Entry not updated."}
         return {"success": True, **result}
 
-    def search_entries(self, query: str) -> dict[str, Any]:
+    def search_entries(
+        self, query: str = "", *, limit: int = 0
+    ) -> dict[str, Any]:
         now = datetime.now()
         self._ensure_index(now)
 
@@ -167,9 +169,9 @@ class KaydetService:
             exclude_meta,
             include_tags,
             exclude_tags,
-        ) = tokenize_query(query)
+        ) = tokenize_query(query) if query else ([], [], [], [], [], [])
 
-        if not any(
+        has_filters = any(
             [
                 include_text,
                 exclude_text,
@@ -178,21 +180,33 @@ class KaydetService:
                 include_tags,
                 exclude_tags,
             ]
-        ):
-            return {"success": False, "error": "Search query is empty."}
-
-        sql_query, params = build_search_query(
-            include_text,
-            exclude_text,
-            include_meta,
-            exclude_meta,
-            include_tags,
-            exclude_tags,
         )
+
+        if has_filters:
+            sql_query, params = build_search_query(
+                include_text,
+                exclude_text,
+                include_meta,
+                exclude_meta,
+                include_tags,
+                exclude_tags,
+            )
+        else:
+            # No query = return all entries (most recent first)
+            sql_query = (
+                "SELECT source_file, id FROM entries "
+                "ORDER BY id DESC"
+            )
+            params = []
+
+        if limit > 0:
+            sql_query += " LIMIT ?"
+            params.append(limit)
+
         cursor = self.conn.cursor()
         try:
             cursor.execute(sql_query, params)
-        except Exception as error:  # pragma: no cover - sqlite errors rare
+        except Exception as error:  # pragma: no cover
             return {
                 "success": False,
                 "error": f"Database query failed: {error}",
@@ -351,25 +365,6 @@ class KaydetService:
             "days": counts,
             "total_entries": total,
         }
-
-    def list_recent_entries(self, limit: int = 10) -> dict[str, Any]:
-        now = datetime.now()
-        self._ensure_index(now)
-        cursor = self.conn.cursor()
-        cursor.execute(
-            "SELECT source_file, id FROM entries ORDER BY id DESC LIMIT ?",
-            (limit,),
-        )
-        locations = cursor.fetchall()
-        if not locations:
-            return {"success": True, "entries": []}
-        matches = load_matches(locations, self.storage_dir, self.config)
-        matches.sort(
-            key=lambda entry: entry_id_sort_key(entry.entry_id),
-            reverse=True,
-        )
-        payload = [match.to_dict() for match in matches]
-        return {"success": True, "entries": payload}
 
     def entries_by_tag(self, tag: str, limit: int = 10) -> dict[str, Any]:
         now = datetime.now()

@@ -76,8 +76,8 @@ class TestE2ESync:
         result = client.sync()
         assert result["pushed"] == 1
 
-        server_entries = server_svc.list_recent_entries(limit=10)
-        texts = [e["text"] for e in server_entries["entries"]]
+        server_entries = server_svc.search_entries(limit=10)
+        texts = [e["text"] for e in server_entries["matches"]]
         assert any("Hello from client" in t for t in texts)
 
     def test_pull_from_server(self, tmp_path):
@@ -93,8 +93,8 @@ class TestE2ESync:
         result = client.sync()
         assert result["pulled"] == 1
 
-        client_entries = client_svc.list_recent_entries(limit=10)
-        texts = [e["text"] for e in client_entries["entries"]]
+        client_entries = client_svc.search_entries(limit=10)
+        texts = [e["text"] for e in client_entries["matches"]]
         assert any("Hello from server" in t for t in texts)
 
     def test_bidirectional_sync(self, tmp_path):
@@ -115,7 +115,7 @@ class TestE2ESync:
         # Client has both
         client_texts = [
             e["text"]
-            for e in client_svc.list_recent_entries(limit=10)["entries"]
+            for e in client_svc.search_entries(limit=10)["matches"]
         ]
         assert any("Client note" in t for t in client_texts)
         assert any("Server note" in t for t in client_texts)
@@ -123,7 +123,7 @@ class TestE2ESync:
         # Server has both
         server_texts = [
             e["text"]
-            for e in server_svc.list_recent_entries(limit=10)["entries"]
+            for e in server_svc.search_entries(limit=10)["matches"]
         ]
         assert any("Client note" in t for t in server_texts)
         assert any("Server note" in t for t in server_texts)
@@ -164,7 +164,7 @@ class TestE2ESync:
 
         matching = [
             e
-            for e in server_svc.list_recent_entries(limit=10)["entries"]
+            for e in server_svc.search_entries(limit=10)["matches"]
             if "Only once" in e["text"]
         ]
         assert len(matching) == 1

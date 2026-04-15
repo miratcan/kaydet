@@ -147,6 +147,7 @@ async def serve() -> None:
                     "type": "object",
                     "properties": {
                         "query": {"type": "string"},
+                        "limit": {"type": "integer", "minimum": 1},
                     },
                     "required": ["query"],
                 },
@@ -157,7 +158,11 @@ async def serve() -> None:
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "limit": {"type": "integer", "minimum": 1},
+                        "limit": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "default": 10,
+                        },
                     },
                 },
             ),
@@ -330,12 +335,14 @@ async def serve() -> None:
             query = arguments.get("query", "")
             if not query:
                 return error_response("Search query is required")
-            result = service.search_entries(query)
+            result = service.search_entries(
+                query, limit=arguments.get("limit", 0)
+            )
             return [TextContent(type="text", text=json.dumps(result))]
 
         if name == "list_recent_entries":
             limit = arguments.get("limit", 10)
-            result = service.list_recent_entries(limit=limit)
+            result = service.search_entries(limit=limit)
             return [TextContent(type="text", text=json.dumps(result))]
 
         if name == "entries_by_tag":
