@@ -1,0 +1,22 @@
+{
+  "spec": "v1/encryption",
+  "vectors": [
+    {
+      "description": "ASCII plaintext, deterministic salt and nonce",
+      "password": "test-password-123",
+      "salt_hex": "00112233445566778899aabbccddeeff",
+      "nonce_hex": "aabbccddeeff00112233aabb",
+      "derived_key_hex": "a455522e74d20e05ad8be58c6fd8c37e8532067f62e00ea17f35a0633236ce69",
+      "plaintext": "Hello, world! This is a secret.",
+      "plaintext_bytes": 31,
+      "wire_hex": "00112233445566778899aabbccddeeffaabbccddeeff00112233aabbc1c6939bd8a9a3694531874967e10ae42cf98cab7f3dade911c50c6b52682d26e269310fa70009ce3b12106fc7ae15",
+      "wire_length": 75
+    }
+  ],
+  "validation_rules": [
+    "Given password + wire_hex → decrypt MUST produce plaintext",
+    "Given password + salt_hex + nonce_hex + plaintext → encrypt MUST produce wire_hex",
+    "Given password + wire_hex with last byte flipped → decrypt MUST fail with auth error",
+    "Given wrong password + wire_hex → decrypt MUST fail with auth error"
+  ]
+}

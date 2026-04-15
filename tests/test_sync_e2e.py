@@ -14,6 +14,14 @@ from kaydet.sync_server import SyncServer
 from kaydet.sync_transport import SyncTransport
 
 
+def _add_and_log(service, **kwargs):
+    """Add an entry and log it to sync_log (simulating CLI/MCP behavior)."""
+    result = service.add_entry(**kwargs)
+    assert result["success"]
+    database.log_sync_action(service.conn, result["entry_id"], "created")
+    return result
+
+
 class DirectTransport(SyncTransport):
     """In-process transport that calls SyncServer directly.
 
@@ -27,7 +35,7 @@ class DirectTransport(SyncTransport):
         return self.server.handle_message(msg)
 
 
-def _make_instance(tmp_path, name):
+def _make_instance(tmp_path, name, prefix="d"):
     """Create a kaydet instance (service + DB) in a subdirectory."""
     base = tmp_path / name
     storage = base / "storage"
@@ -46,6 +54,8 @@ def _make_instance(tmp_path, name):
         "STORAGE_DIR": str(storage),
         "EDITOR": "cat",
         "sync_token": "0",
+        "DEVICE_PREFIX": prefix,
+        "LAST_ID": "0",
     }
 
     service = KaydetService(
@@ -68,8 +78,7 @@ class TestE2ESync:
         client = SyncClient(client_svc, transport)
 
         # Add entry on client
-        result = client_svc.add_entry(text="Hello from client")
-        assert result["success"]
+        _add_and_log(client_svc, text="Hello from client")
 
         # Push to server
         push_result = client.push()
@@ -92,10 +101,7 @@ class TestE2ESync:
         client = SyncClient(client_svc, transport)
 
         # Add entry on server
-        result = server_svc.add_entry(
-            text="Hello from server"
-        )
-        assert result["success"]
+        _add_and_log(server_svc, text="Hello from server")
 
         # Pull to client
         pull_result = client.pull()
@@ -120,7 +126,7 @@ class TestE2ESync:
         client = SyncClient(client_svc, transport)
 
         # Add entry on server
-        server_svc.add_entry(text="Server entry")
+        _add_and_log(server_svc, text="Server entry")
 
         # Pull to client
         client.pull()
@@ -132,24 +138,24 @@ class TestE2ESync:
 
     def test_bidirectional_sync(self, tmp_path):
         """Both sides add entries, full sync merges them."""
-        client_svc = _make_instance(tmp_path, "client")
-        server_svc = _make_instance(tmp_path, "server")
+        # Use different prefixes to avoid any doubt
+        client_svc = _make_instance(tmp_path, "client", prefix="c")
+        server_svc = _make_instance(tmp_path, "server", prefix="s")
 
         server = SyncServer(server_svc)
         transport = DirectTransport(server)
         client = SyncClient(client_svc, transport)
 
         # Add entries on both sides
-        client_svc.add_entry(text="Client note")
-        server_svc.add_entry(text="Server note")
+        _add_and_log(client_svc, text="Client note")
+        _add_and_log(server_svc, text="Server note")
 
         # Full sync
         result = client.sync()
 
         # Client pushed its entry
         assert result["push"]["pushed"] == 1
-        # Client pulled server's entry (may also pull back
-        # its own pushed entry since the server logged it)
+        # Client pulled server's entry
         assert result["pull"]["pulled"] >= 1
 
         # Verify client has both
@@ -182,7 +188,7 @@ class TestE2ESync:
         client = SyncClient(client_svc, transport)
 
         # Add one entry and sync
-        client_svc.add_entry(text="Only once")
+        _add_and_log(client_svc, text="Only once")
         client.sync()
 
         # Sync again — nothing new should happen
@@ -218,16 +224,16 @@ class TestE2ESync:
         client = SyncClient(client_svc, transport)
 
         # Add entry with secret on client
-        result = client_svc.add_entry(text="Secret entry")
+        result = _add_and_log(client_svc, text="Secret entry")
         eid = result["entry_id"]
         password = "test-password"
         encrypted = encrypt_secret("my secret", password)
-        store_secret(client_svc.conn, eid, encrypted)
+        store_secret(eid, encrypted, client_svc.storage_dir)
 
         # Sync
         client.sync()
 
-        # Verify secret is on server (as opaque blob)
+        # Verify secret is on server (as opaque blob in file)
         server_cursor = server_svc.conn.cursor()
         server_cursor.execute(
             "SELECT id FROM entries"
@@ -236,7 +242,8 @@ class TestE2ESync:
         # Find the synced entry
         found_secret = False
         for sid in server_ids:
-            enc = get_secret(server_svc.conn, sid)
+            # Call with storage_dir
+            enc = get_secret(sid, server_svc.storage_dir)
             if enc:
                 decrypted = decrypt_secret(enc, password)
                 if decrypted == "my secret":

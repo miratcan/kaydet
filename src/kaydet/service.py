@@ -1,4 +1,4 @@
-"""Central service layer for Kaydet diary application."""
+"""Central service layer for Kaydet."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from . import database
+from .utils import entry_id_sort_key
 from .cli import INDEX_FILENAME
 from .commands.add import EmptyEntryError, create_entry
 from .commands.delete import delete_entry_command
@@ -22,7 +23,7 @@ from .commands.stats import collect_month_counts
 from .commands.todo import done_command
 from .indexing import rebuild_index_if_empty
 from .parsers import parse_day_entries, resolve_entry_date
-from .sync import sync_modified_diary_files
+from .sync import sync_modified_day_files
 from .utils import load_config
 
 
@@ -55,8 +56,8 @@ class KaydetService:
         )
 
     def _ensure_index(self, now: datetime) -> None:
-        sync_modified_diary_files(
-            self.conn, self.storage_dir, self.config, now
+        sync_modified_day_files(
+            self.conn, self.storage_dir, self.config, now, config_dir=self.config_dir
         )
         rebuild_index_if_empty(
             self.conn, self.storage_dir, self.config, now
@@ -71,6 +72,7 @@ class KaydetService:
         timestamp: str | None = None,
         secret: str | None = None,
         at: datetime | None = None,
+        entry_id: str | None = None,
     ) -> dict[str, Any]:
         now = at or datetime.now()
         metadata = metadata or {}
@@ -109,12 +111,13 @@ class KaydetService:
                 conn=self.conn,
                 secret_text=secret,
                 secret_password=secret_password,
+                entry_id=entry_id,
             )
         except EmptyEntryError as error:
             return {"success": False, "error": str(error)}
         return {"success": True, **result}
 
-    def delete_entry(self, entry_id: int) -> dict[str, Any]:
+    def delete_entry(self, entry_id: str) -> dict[str, Any]:
         now = datetime.now()
         result = delete_entry_command(
             self.conn,
@@ -130,7 +133,7 @@ class KaydetService:
 
     def update_entry(
         self,
-        entry_id: int,
+        entry_id: str,
         *,
         text: str | None = None,
         metadata: dict[str, str] | None = None,
@@ -200,7 +203,7 @@ class KaydetService:
 
         matches = load_matches(locations, self.storage_dir, self.config)
         matches.sort(
-            key=lambda entry: int(entry.entry_id or 0),
+            key=lambda entry: entry_id_sort_key(entry.entry_id),
             reverse=True,
         )
         payload = [match.to_dict() for match in matches]
@@ -211,8 +214,8 @@ class KaydetService:
             "total": len(payload),
         }
 
-    def get_entry(self, entry_id: int) -> dict[str, Any]:
-        """Return a single entry by its numeric identifier."""
+    def get_entry(self, entry_id: str) -> dict[str, Any]:
+        """Return a single entry by its identifier."""
         now = datetime.now()
         self._ensure_index(now)
 
@@ -235,7 +238,7 @@ class KaydetService:
         from .secrets import decrypt_secret, get_secret
         from .utils import get_secret_password
 
-        encrypted = get_secret(self.conn, entry_id)
+        encrypted = get_secret(entry_id, self.storage_dir)
         if encrypted:
             password = get_secret_password(self.config_dir)
             if password:
@@ -362,7 +365,7 @@ class KaydetService:
             return {"success": True, "entries": []}
         matches = load_matches(locations, self.storage_dir, self.config)
         matches.sort(
-            key=lambda entry: int(entry.entry_id or 0),
+            key=lambda entry: entry_id_sort_key(entry.entry_id),
             reverse=True,
         )
         payload = [match.to_dict() for match in matches]
@@ -387,6 +390,10 @@ class KaydetService:
         if not locations:
             return {"success": True, "entries": []}
         matches = load_matches(locations, self.storage_dir, self.config)
+        matches.sort(
+            key=lambda entry: entry_id_sort_key(entry.entry_id),
+            reverse=True,
+        )
         payload = [match.to_dict() for match in matches]
         return {"success": True, "entries": payload}
 
@@ -413,7 +420,7 @@ class KaydetService:
             return {"success": False, "error": str(error)}
         return {"success": True, **result}
 
-    def mark_todo_done(self, entry_id: int) -> dict[str, Any]:
+    def mark_todo_done(self, entry_id: str) -> dict[str, Any]:
         """Mark a todo entry as done by updating its status."""
         now = datetime.now()
         try:

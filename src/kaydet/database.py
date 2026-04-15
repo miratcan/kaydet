@@ -6,7 +6,7 @@ from typing import Iterable
 
 # Database schema version
 # Increment when we intentionally drop and recreate the schema.
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 5
 
 # Legacy migrations kept a user_version pragma, but SQLite is purely an
 # index/cache for Kaydet. We can safely drop and recreate tables whenever the
@@ -23,7 +23,7 @@ DROP_TABLE_STATEMENTS = (
 
 CREATE_TABLE_ENTRIES = """
 CREATE TABLE entries (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id TEXT PRIMARY KEY,
     source_file TEXT NOT NULL,
     timestamp TEXT NOT NULL,
     updated_at TEXT
@@ -32,7 +32,7 @@ CREATE TABLE entries (
 
 CREATE_TABLE_TAGS = """
 CREATE TABLE tags (
-    entry_id INTEGER NOT NULL,
+    entry_id TEXT NOT NULL,
     tag_name TEXT NOT NULL,
     FOREIGN KEY (entry_id) REFERENCES entries(id) ON DELETE CASCADE,
     UNIQUE(entry_id, tag_name)
@@ -41,14 +41,14 @@ CREATE TABLE tags (
 
 CREATE_VIRTUAL_TABLE_FTS = """
 CREATE VIRTUAL TABLE entries_fts USING fts5(
+    entry_id UNINDEXED,
     body,
-
 )
 """
 
 CREATE_TABLE_METADATA = """
 CREATE TABLE metadata (
-    entry_id INTEGER NOT NULL,
+    entry_id TEXT NOT NULL,
     meta_key TEXT NOT NULL,
     meta_value TEXT NOT NULL,
     numeric_value REAL,
@@ -64,18 +64,10 @@ CREATE TABLE IF NOT EXISTS synced_files (
 )
 """
 
-CREATE_TABLE_SECRETS = """
-CREATE TABLE IF NOT EXISTS secrets (
-    entry_id INTEGER PRIMARY KEY,
-    encrypted_data BLOB NOT NULL,
-    FOREIGN KEY (entry_id) REFERENCES entries(id) ON DELETE CASCADE
-)
-"""
-
 CREATE_TABLE_SYNC_LOG = """
 CREATE TABLE IF NOT EXISTS sync_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    entry_id INTEGER NOT NULL,
+    entry_id TEXT NOT NULL,
     action TEXT NOT NULL,
     device_id TEXT,
     created_at TEXT NOT NULL
@@ -104,10 +96,6 @@ CREATE_INDEX_STATEMENTS = (
 )
 
 INSERT_ENTRY_SQL = (
-    "INSERT INTO entries (source_file, timestamp, updated_at) "
-    "VALUES (?, ?, datetime('now'))"
-)
-INSERT_ENTRY_WITH_ID_SQL = (
     "INSERT INTO entries (id, source_file, timestamp, updated_at) "
     "VALUES (?, ?, ?, datetime('now'))"
 )
@@ -118,7 +106,7 @@ UPDATE_ENTRY_SQL = (
 )
 
 INSERT_TAG_SQL = "INSERT INTO tags (entry_id, tag_name) VALUES (?, ?)"
-INSERT_FTS_SQL = "INSERT INTO entries_fts (rowid, body) VALUES (?, ?)"
+INSERT_FTS_SQL = "INSERT INTO entries_fts (entry_id, body) VALUES (?, ?)"
 INSERT_METADATA_SQL = (
     "INSERT INTO metadata (entry_id, meta_key, meta_value, numeric_value) "
     "VALUES (?, ?, ?, ?)"
@@ -133,7 +121,7 @@ SELECT_SYNCED_FILES_SQL = "SELECT source_file, last_mtime FROM synced_files"
 
 def log_sync_action(
     conn: sqlite3.Connection,
-    entry_id: int,
+    entry_id: str,
     action: str,
     device_id: str | None = None,
 ) -> None:
@@ -168,7 +156,6 @@ def initialize_database(conn: sqlite3.Connection):
         cursor.execute(CREATE_VIRTUAL_TABLE_FTS)
         cursor.execute(CREATE_TABLE_METADATA)
         cursor.execute(CREATE_TABLE_SYNCED_FILES)
-        cursor.execute(CREATE_TABLE_SECRETS)
         cursor.execute(CREATE_TABLE_SYNC_LOG)
         cursor.execute(CREATE_TABLE_SYNC_KEYS)
 
@@ -180,7 +167,6 @@ def initialize_database(conn: sqlite3.Connection):
         return
 
     cursor.execute(CREATE_TABLE_SYNCED_FILES)
-    cursor.execute(CREATE_TABLE_SECRETS)
     cursor.execute(CREATE_TABLE_SYNC_LOG)
     cursor.execute(CREATE_TABLE_SYNC_KEYS)
 
@@ -189,20 +175,16 @@ def _ensure_entry_id(
     cursor: sqlite3.Cursor,
     source_file: str,
     timestamp: str,
-    entry_id: int | None = None,
-) -> tuple[int, bool]:
+    entry_id: str,
+) -> tuple[str, bool]:
     """
     Ensure an entry exists in the database and return its ID.
 
     Returns:
-        tuple[int, bool]: (entry_id, is_created) where is_created indicates
+        tuple[str, bool]: (entry_id, is_created) where is_created indicates
                          whether a new entry was created (True) or an existing
                          entry was updated (False).
     """
-    if entry_id is None:
-        cursor.execute(INSERT_ENTRY_SQL, (source_file, timestamp))
-        return cursor.lastrowid, True
-
     cursor.execute(SELECT_ENTRY_BY_ID_SQL, (entry_id,))
     entry_on_db = cursor.fetchone()
 
@@ -211,14 +193,14 @@ def _ensure_entry_id(
         return entry_id, False
 
     cursor.execute(
-        INSERT_ENTRY_WITH_ID_SQL, (entry_id, source_file, timestamp)
+        INSERT_ENTRY_SQL, (entry_id, source_file, timestamp)
     )
     return entry_id, True
 
 
 def _upsert_source_records(
     cursor: sqlite3.Cursor,
-    entry_id: int,
+    entry_id: str,
     tags: Iterable[str],
     body: str,
     metadata: dict[str, tuple[str, float | None]],
@@ -247,8 +229,8 @@ def _add_entry_to_cursor(
     body: str,
     metadata: dict[str, tuple[str, float | None]],
     *,
-    entry_id: int | None = None,
-) -> int:
+    entry_id: str,
+) -> str:
     """Internal helper to add entry data to a cursor without committing."""
     # Ensure entry exists and get its ID
     entry_id, _ = _ensure_entry_id(cursor, source_file, timestamp, entry_id)
@@ -267,8 +249,8 @@ def add_entry(
     body: str,
     metadata: dict[str, tuple[str, float | None]],
     *,
-    entry_id: int | None = None,
-) -> int:
+    entry_id: str,
+) -> str:
     """Add an entry in a single atomic database transaction."""
     cursor = conn.cursor()
     try:
@@ -281,9 +263,6 @@ def add_entry(
             body,
             metadata,
             entry_id=entry_id,
-        )
-        cursor.execute(
-            LOG_SYNC_ACTION_SQL, (eid, "created", None)
         )
         cursor.execute("COMMIT")
         return eid

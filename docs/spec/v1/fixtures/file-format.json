@@ -1,0 +1,54 @@
+{
+  "spec": "v1/file-format",
+  "files": [
+    {
+      "filename": "day-file-simple.txt",
+      "description": "Day file with three entries: simple, metadata-rich, and multi-line",
+      "expected_entries": [
+        {
+          "entry_id": "d1",
+          "timestamp": "10:30",
+          "text": "Morning standup #work",
+          "tags": ["work"],
+          "metadata": {},
+          "attachments": [],
+          "body_lines": []
+        },
+        {
+          "entry_id": "d2",
+          "timestamp": "14:00",
+          "text": "Fixed login bug | | #work #bugfix",
+          "tags": ["bugfix", "work"],
+          "metadata": {
+            "commit": "a3f8e21",
+            "status": "done",
+            "time": "2h"
+          },
+          "attachments": [],
+          "body_lines": []
+        },
+        {
+          "entry_id": "d3",
+          "timestamp": "16:45",
+          "text": "Read chapter 5 of Rust book #learning\n    Really interesting ownership model.\n    Need to practice more with lifetimes.",
+          "tags": ["learning"],
+          "metadata": {},
+          "attachments": [],
+          "body_lines": [
+            "    Really interesting ownership model.",
+            "    Need to practice more with lifetimes."
+          ]
+        }
+      ]
+    }
+  ],
+  "validation_rules": [
+    "Parser MUST extract exactly the listed entries from each file",
+    "entry.text includes header message + body lines joined by newline",
+    "entry.text retains inline hashtags and pipe delimiters",
+    "Metadata tokens are extracted from text (keys/values stored separately)",
+    "Tags MUST be deduplicated and lowercased; order is alphabetical in fixture",
+    "Body lines MUST preserve leading whitespace exactly",
+    "Lines before the first entry header (title/separator) MUST be ignored"
+  ]
+}

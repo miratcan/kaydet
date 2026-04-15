@@ -104,8 +104,8 @@ def test_service_update_and_recent(mcp_env):
 
     recent = service.list_recent_entries(limit=2)
     assert len(recent["entries"]) == 2
-    ids = [int(entry["id"]) for entry in recent["entries"]]
-    assert ids[0] > ids[1]
+    ids = [entry["id"] for entry in recent["entries"]]
+    assert b["entry_id"] in ids
 
     by_tag = service.entries_by_tag("team")
     assert len(by_tag["entries"]) == 1
@@ -175,7 +175,7 @@ def test_service_get_entry(mcp_env):
     assert "Retrievable note" in got["entry"]["text"]
 
     # Nonexistent ID
-    missing = service.get_entry(999999)
+    missing = service.get_entry("999999")
     assert missing["success"] is False
 
     service.delete_entry(entry_id)

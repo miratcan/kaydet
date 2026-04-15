@@ -14,7 +14,7 @@ class SyncChange:
     """A single mutation in the changes feed."""
 
     id: int
-    entry_id: int
+    entry_id: str
     action: str  # 'created', 'updated', 'deleted'
     device_id: Optional[str] = None
     created_at: str = ""
@@ -43,22 +43,27 @@ class SyncChangesResponse:
 class EntryData:
     """Serialized entry for transport."""
 
-    entry_id: int
+    entry_id: str
     source_file: str
     timestamp: str
     text: str
     tags: List[str] = field(default_factory=list)
     metadata: Dict[str, str] = field(default_factory=dict)
     attachments: List[str] = field(default_factory=list)
-    encrypted_secret: Optional[str] = None  # base64-encoded
-    updated_at: Optional[str] = None  # ISO 8601 timestamp
+    encrypted_secret: Optional[str] = None  # Base64 encoded Fernet token
+    updated_at: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to a JSON-serializable dictionary."""
+        return asdict(self)
+
 
 
 @dataclass
 class SyncEntriesRequest:
     """Request full entry data for specific entry IDs."""
 
-    entry_ids: List[int] = field(default_factory=list)
+    entry_ids: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -149,7 +154,7 @@ class SearchResponse:
 class DeleteEntryRequest:
     """Delete an entry by ID."""
 
-    entry_id: int = 0
+    entry_id: str = ""
     device_id: str = ""
 
 
@@ -157,7 +162,7 @@ class DeleteEntryRequest:
 class DeleteEntryResponse:
     """Response after deleting an entry."""
 
-    entry_id: int = 0
+    entry_id: str = ""
     deleted: bool = False
     error: str = ""
 
@@ -166,7 +171,7 @@ class DeleteEntryResponse:
 class UpdateEntryRequest:
     """Update an existing entry."""
 
-    entry_id: int = 0
+    entry_id: str = ""
     text: Optional[str] = None
     tags: Optional[List[str]] = None
     metadata: Optional[Dict[str, str]] = None
@@ -177,7 +182,7 @@ class UpdateEntryRequest:
 class UpdateEntryResponse:
     """Response after updating an entry."""
 
-    entry_id: int = 0
+    entry_id: str = ""
     updated: bool = False
     error: str = ""
 

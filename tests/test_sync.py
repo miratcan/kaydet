@@ -40,6 +40,8 @@ def sync_env(tmp_path):
         "DAY_TITLE_PATTERN": "%Y/%m/%d/ - %A",
         "STORAGE_DIR": str(storage_dir),
         "EDITOR": "cat",
+        "DEVICE_PREFIX": "d",
+        "LAST_ID": "0",
     }
     config = cp["SETTINGS"]
 
@@ -54,7 +56,7 @@ def sync_env(tmp_path):
 
 
 class TestSyncLogHooks:
-    def test_add_entry_logs_created(self, sync_env):
+    def test_log_sync_action_created(self, sync_env):
         conn, storage_dir, config, config_dir, service = sync_env
         database.add_entry(
             conn,
@@ -63,7 +65,9 @@ class TestSyncLogHooks:
             ["test"],
             "hello",
             {},
+            entry_id="d1"
         )
+        database.log_sync_action(conn, "d1", "created")
         cursor = conn.cursor()
         cursor.execute(
             "SELECT entry_id, action FROM sync_log"
@@ -71,15 +75,18 @@ class TestSyncLogHooks:
         rows = cursor.fetchall()
         assert len(rows) == 1
         assert rows[0][1] == "created"
+        assert rows[0][0] == "d1"
 
-    def test_multiple_adds_log_multiple(self, sync_env):
+    def test_multiple_logs(self, sync_env):
         conn, *_ = sync_env
         database.add_entry(
-            conn, "2025-01-01.txt", "10:00", [], "a", {}
+            conn, "2025-01-01.txt", "10:00", [], "a", {}, entry_id="d1"
         )
         database.add_entry(
-            conn, "2025-01-01.txt", "11:00", [], "b", {}
+            conn, "2025-01-01.txt", "11:00", [], "b", {}, entry_id="d2"
         )
+        database.log_sync_action(conn, "d1", "created")
+        database.log_sync_action(conn, "d2", "created")
         cursor = conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM sync_log")
         assert cursor.fetchone()[0] == 2
@@ -99,7 +106,6 @@ class TestSyncServer:
 
     def test_handle_changes_returns_entries(self, sync_env):
         conn, storage_dir, config, config_dir, service = sync_env
-        # Create an entry to generate a sync_log entry
         database.add_entry(
             conn,
             "2025-01-01.txt",
@@ -107,7 +113,9 @@ class TestSyncServer:
             ["work"],
             "hello",
             {},
+            entry_id="d1"
         )
+        database.log_sync_action(conn, "d1", "created")
 
         server = SyncServer(service)
         msg = ProtocolMessage(
@@ -117,6 +125,7 @@ class TestSyncServer:
         changes = parse_response("changes", resp.body)
         assert len(changes.changes) == 1
         assert changes.changes[0].action == "created"
+        assert changes.changes[0].entry_id == "d1"
         assert changes.new_token > 0
 
     def test_handle_entries(self, sync_env):
@@ -129,6 +138,7 @@ class TestSyncServer:
             ["work"],
             "hello world",
             {},
+            entry_id="d1"
         )
         day_file = storage_dir / "2025-01-01.txt"
         day_file.write_text(
@@ -146,13 +156,14 @@ class TestSyncServer:
         entries = parse_response("entries", resp.body)
         assert len(entries.entries) == 1
         assert "hello world" in entries.entries[0].text
+        assert entries.entries[0].entry_id == "d1"
 
     def test_handle_push(self, sync_env):
         conn, storage_dir, config, config_dir, service = sync_env
         server = SyncServer(service)
 
         entry = EntryData(
-            entry_id=0,
+            entry_id="client1",
             source_file="2025-06-01.txt",
             timestamp="14:00",
             text="pushed entry",
@@ -198,13 +209,12 @@ class TestSyncServer:
 
         from dataclasses import asdict
 
-        # Push a stale version of the same entry (same text
-        # root so it matches, but older updated_at)
+        # Push a stale version of the same entry (same ID)
         stale = EntryData(
-            entry_id=0,
+            entry_id=eid,
             source_file=source_file,
             timestamp=ts,
-            text="original text",  # same text = same entry
+            text="original text",
             tags=[],
             metadata={"status": "stale"},
             updated_at="2025-05-01T10:00:00",
@@ -256,7 +266,7 @@ class TestSyncServer:
         put_msg = ProtocolMessage(
             method="attachment_put",
             body={
-                "filename": "1_test.txt",
+                "filename": "d1_test.txt",
                 "data": data,
             },
         )
@@ -267,7 +277,7 @@ class TestSyncServer:
 
         get_msg = ProtocolMessage(
             method="attachment_get",
-            body={"filename": "1_test.txt"},
+            body={"filename": "d1_test.txt"},
         )
         get_resp = server.handle_message(get_msg)
         att = parse_response(

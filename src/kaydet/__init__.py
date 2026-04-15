@@ -1,4 +1,4 @@
-"""Kaydet terminal diary package metadata."""
+"""Kaydet package metadata."""
 
 from __future__ import annotations
 
@@ -14,8 +14,8 @@ __author__ = "Mirat Can Bayrak"
 __copyright__ = "Copyright 2016, Planet Earth"
 __version__ = "0.36.0"
 __description__ = (
-    "Simple and terminal-based personal diary app designed to help you "
-    "preserve your daily thoughts, experiences, and memories."
+    "A queryable personal database stored in plain text. "
+    "Capture, query, and remember."
 )
 
 from .cli import main

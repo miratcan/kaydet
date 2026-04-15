@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sqlite3
 from configparser import SectionProxy
 from datetime import datetime
 from pathlib import Path
@@ -11,6 +12,7 @@ from rich.console import Console
 
 from ..commands.add import create_entry
 from ..parsers import (
+    format_entry_header,
     parse_day_entries,
     parse_numeric_value,
     partition_entry_tokens,
@@ -69,12 +71,12 @@ def todo_command(
 
 
 def done_command(
-    conn,
+    conn: sqlite3.Connection,
     storage_dir: Path,
     config: SectionProxy,
-    entry_id: int,
+    entry_id: str,
     now: datetime,
-) -> None:
+) -> dict[str, str]:
     """Mark a todo entry as done by updating its status metadata."""
     # Find the entry
     cursor = conn.cursor()
@@ -94,123 +96,62 @@ def done_command(
     entry_date = resolve_entry_date(day_file, day_file_pattern)
     entries = parse_day_entries(day_file, entry_date)
 
-    # Find the specific entry
+    # Find and update the specific entry object
     target_entry = None
     for entry in entries:
-        if entry.entry_id == str(entry_id):
+        if entry.entry_id == entry_id:
             target_entry = entry
             break
 
     if not target_entry:
         raise ValueError(f"Entry {entry_id} not found in {source_file}.")
 
-    # Read the entire file
-    with day_file.open("r", encoding="utf-8") as f:
-        lines = f.readlines()
-
-    # Find and update the entry
+    # Update metadata
     completed_time = now.strftime("%H:%M")
-    updated_lines = []
-    found_entry = False
+    target_entry.metadata["status"] = "done"
+    target_entry.metadata["completed_at"] = completed_time
 
-    for _i, line in enumerate(lines):
-        # Check if this line starts a new entry
-        if line.strip() and line[0].isdigit() and ":" in line[:5]:
-            # Extract entry ID from line if it has one
-            if f"[{entry_id}]" in line:
-                found_entry = True
+    # Re-render the file
+    from .entry_ops import read_day_file, write_day_file
+    header_text, lines, had_trailing_newline = read_day_file(day_file)
 
-                # Update the line with new metadata
-                # Format: "timestamp [id]: text | metadata items | #tags"
-                if " | " in line:
-                    # Has metadata
-                    parts = line.split(" | ")
-                    timestamp_and_text = parts[0]
+    # We need to find where the entry block was in the original lines
+    # and replace it with the new header + body.
+    # This is slightly complex because parse_day_entries already parsed everything.
+    # A cleaner way is to use find_entry_block.
+    from .entry_ops import find_entry_block
+    start, end = find_entry_block(lines, entry_id)
 
-                    # Metadata is in parts[1], tags in parts[2] (if exists)
-                    metadata_section = parts[1] if len(parts) > 1 else ""
-                    tags_section = parts[2] if len(parts) > 2 else ""
+    # Prepare new entry block
+    message = target_entry.lines[0] if target_entry.lines else ""
+    # We want to keep tags as they are in the header or text
+    # Deduplicate_tags in Entry.tags is good, but for writing back
+    # we want to follow the format_entry_header convention.
+    inline_tags = target_entry.tags # This might include hashtags from text
+    # Actually format_entry_header takes extra_tag_markers
+    # Let's just use the metadata and tags from the target_entry
+    new_header = format_entry_header(
+        target_entry.timestamp,
+        message,
+        target_entry.metadata,
+        [], # extra tags - they are likely already in metadata or text
+        entry_id=entry_id,
+        attachments=target_entry.attachments
+    )
+    new_block = [new_header] + list(target_entry.lines[1:])
 
-                    # Split metadata by spaces
-                    metadata_items = metadata_section.split()
-                    new_metadata_items = []
-                    has_status = False
-                    has_completed_at = False
+    # Replace block in lines
+    lines[start:end] = new_block
 
-                    for item in metadata_items:
-                        if item.startswith("status:"):
-                            new_metadata_items.append("status:done")
-                            has_status = True
-                        elif item.startswith("completed_at:"):
-                            new_metadata_items.append(
-                                f"completed_at:{completed_time}"
-                            )
-                            has_completed_at = True
-                        else:
-                            new_metadata_items.append(item)
+    # Write back
+    write_day_file(day_file, lines, had_trailing_newline)
 
-                    if not has_status:
-                        new_metadata_items.insert(0, "status:done")
-                    if not has_completed_at:
-                        new_metadata_items.insert(
-                            1, f"completed_at:{completed_time}"
-                        )
-
-                    # Reconstruct line
-                    new_metadata_section = " ".join(new_metadata_items)
-                    if tags_section:
-                        new_line = (
-                            f"{timestamp_and_text} | "
-                            f"{new_metadata_section} | {tags_section}"
-                        )
-                    else:
-                        new_line = (
-                            f"{timestamp_and_text} | {new_metadata_section} |"
-                        )
-
-                    if not new_line.endswith("\n"):
-                        new_line += "\n"
-                    updated_lines.append(new_line)
-                else:
-                    # No metadata, add it
-                    line = line.rstrip("\n")
-                    new_line = (
-                        f"{line} | status:done "
-                        f"completed_at:{completed_time} |\n"
-                    )
-                    updated_lines.append(new_line)
-            else:
-                updated_lines.append(line)
-        else:
-            updated_lines.append(line)
-
-    if not found_entry:
-        raise ValueError(f"Could not find entry {entry_id} in the file.")
-
-    # Write back to file
-    with day_file.open("w", encoding="utf-8") as f:
-        f.writelines(updated_lines)
-
-    # Update database metadata
+    # Update database metadata (Index)
     cursor.execute(
-        "UPDATE metadata SET meta_value = 'done' "
-        "WHERE entry_id = ? AND meta_key = 'status'",
+        "INSERT OR REPLACE INTO metadata (entry_id, meta_key, meta_value) "
+        "VALUES (?, 'status', 'done')",
         (entry_id,),
     )
-    cursor.execute(
-        "SELECT COUNT(*) FROM metadata "
-        "WHERE entry_id = ? AND meta_key = 'status'",
-        (entry_id,),
-    )
-    if cursor.fetchone()[0] == 0:
-        # Status doesn't exist, insert it
-        cursor.execute(
-            "INSERT INTO metadata (entry_id, meta_key, meta_value) "
-            "VALUES (?, 'status', 'done')",
-            (entry_id,),
-        )
-
-    # Add completed_at metadata
     numeric_val = parse_numeric_value(completed_time)
     cursor.execute(
         "INSERT OR REPLACE INTO metadata "
@@ -268,7 +209,7 @@ def list_todos_command(
         entries = parse_day_entries(day_file, entry_date)
 
         for entry in entries:
-            if entry.entry_id == str(entry_id):
+            if entry.entry_id == entry_id:
                 status = entry.metadata.get("status", "pending")
                 completed_at = entry.metadata.get("completed_at", "")
 

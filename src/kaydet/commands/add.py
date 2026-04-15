@@ -18,7 +18,6 @@ from ..parsers import (
     parse_numeric_value,
     partition_entry_tokens,
 )
-from ..secrets import encrypt_secret, store_secret
 from ..utils import (
     ensure_day_file,
     open_editor,
@@ -38,12 +37,19 @@ def _ensure_attachments_dir(storage_dir: Path) -> Path:
     return attachments_dir
 
 
+def _ensure_secrets_dir(storage_dir: Path) -> Path:
+    """Create and return the secrets directory inside the log dir."""
+    secrets_dir = storage_dir / "secrets"
+    secrets_dir.mkdir(exist_ok=True)
+    return secrets_dir
+
+
 def store_attachment(
-    source_path: Path, entry_id: int, storage_dir: Path, *, move: bool = False,
+    source_path: Path, entry_id: str, storage_dir: Path, *, move: bool = False,
 ) -> str:
     """Copy or move a file into the attachments directory.
 
-    Returns the attachment filename (e.g. ``42_photo.jpg``).
+    Returns the attachment filename (e.g. ``d42_photo.jpg``).
     """
     attachments_dir = _ensure_attachments_dir(storage_dir)
     dest_name = f"{entry_id}_{source_path.name}"
@@ -79,7 +85,7 @@ def _parse_at_str(at_str: str, now: datetime) -> datetime:
 
 def inject_entry(
     day_file: Path,
-    entry_id: int,
+    entry_id: str,
     timestamp: str,
     message_lines: Tuple[str, ...],
     metadata: Dict[str, str],
@@ -92,7 +98,7 @@ def inject_entry(
         message_lines[0] if message_lines else "",
         metadata,
         extra_tag_markers,
-        entry_id=str(entry_id),
+        entry_id=entry_id,
         attachments=attachments,
     )
     # Body lines written verbatim (no extra indentation,
@@ -143,6 +149,7 @@ def create_entry(
     grab_paths: List[Path] | None = None,
     secret_text: str | None = None,
     secret_password: str | None = None,
+    entry_id: str | None = None,
 ) -> Dict[str, str]:
     """Persist an entry using shared logic for CLI and programmatic callers."""
 
@@ -159,6 +166,11 @@ def create_entry(
     day_file = ensure_day_file(storage_dir, now, config)
     timestamp = now.strftime("%H:%M")
 
+    # Generate persistent alphanumeric ID at creation time if not provided (Sync)
+    if not entry_id:
+        from ..utils import generate_next_id
+        entry_id = generate_next_id(config, config_dir)
+
     message_lines = tuple(entry_body.splitlines() or [entry_body])
     embedded_tags = extract_tags_from_text(entry_body)
     extra_tag_markers = [
@@ -174,13 +186,14 @@ def create_entry(
     cursor = conn.cursor()
     conn.execute("BEGIN")
     try:
-        entry_id = database._add_entry_to_cursor(
+        database._add_entry_to_cursor(
             cursor=cursor,
             source_file=day_file.name,
             timestamp=timestamp,
             tags=all_tags,
             body=entry_body,
             metadata=full_metadata,
+            entry_id=entry_id,
         )
 
         # Store attachments
@@ -192,16 +205,11 @@ def create_entry(
             name = store_attachment(path, entry_id, storage_dir, move=True)
             attachment_names.append(name)
 
-        # Store encrypted secret if provided
+        # Store encrypted secret as file in secrets/ dir
         if secret_text and secret_password:
+            from ..secrets import encrypt_secret, store_secret
             encrypted = encrypt_secret(secret_text, secret_password)
-            store_secret(conn, entry_id, encrypted)
-
-        # Log to sync_log for sync
-        cursor.execute(
-            database.LOG_SYNC_ACTION_SQL,
-            (entry_id, "created", None),
-        )
+            store_secret(entry_id, encrypted, storage_dir)
 
         write_func = inject_entry if at_str else append_entry
         write_func(
@@ -244,21 +252,21 @@ def get_entry(
 
 def append_entry(
     day_file: Path,
-    entry_id: int,
+    entry_id: str,
     timestamp: str,
     message_lines: Tuple[str, ...],
     metadata: Dict[str, str],
     extra_tag_markers: Iterable[str],
     attachments: Iterable[str] = (),
 ) -> None:
-    """Append a timestamped entry with its numeric identifier."""
+    """Append a timestamped entry with its unique identifier."""
     first_line = message_lines[0] if message_lines else ""
     header_line = format_entry_header(
         timestamp,
         first_line,
         metadata,
         extra_tag_markers,
-        entry_id=str(entry_id),
+        entry_id=entry_id,
         attachments=attachments,
     )
 
@@ -331,6 +339,8 @@ def add_entry_command(args, config, config_dir, storage_dir, now, conn):
         secret_text=secret_text,
         secret_password=secret_password,
     )
+
+    database.log_sync_action(conn, result["entry_id"], "created")
 
     msg = f"Entry added to: {result['day_file']} (ID: {result['entry_id']})"
     if result.get("attachments"):

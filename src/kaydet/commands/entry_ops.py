@@ -1,4 +1,4 @@
-"""Shared helpers for manipulating diary entries stored on disk."""
+"""Shared helpers for manipulating entries stored on disk."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from ..parsers import ENTRY_LINE_PATTERN
 
 
 class EntryNotFoundError(LookupError):
-    """Raised when an entry cannot be located inside a diary file."""
+    """Raised when an entry cannot be located inside a day file."""
 
 
 def read_day_file(day_file: Path) -> Tuple[str, List[str], bool]:
@@ -22,20 +22,19 @@ def read_day_file(day_file: Path) -> Tuple[str, List[str], bool]:
     return raw_text, lines, raw_text.endswith("\n")
 
 
-def find_entry_block(lines: Sequence[str], entry_id: int) -> Tuple[int, int]:
+def find_entry_block(lines: Sequence[str], entry_id: str) -> Tuple[int, int]:
     """Return the start (inclusive) and end (exclusive) indices."""
-    entry_id_str = str(entry_id)
     start_index = None
     for index, line in enumerate(lines):
         match = ENTRY_LINE_PATTERN.match(line)
         if not match:
             continue
         matched_id = match.group(2)
-        if matched_id == entry_id_str:
+        if matched_id == entry_id:
             start_index = index
             break
     if start_index is None:
-        raise EntryNotFoundError(entry_id_str)
+        raise EntryNotFoundError(entry_id)
     end_index = start_index + 1
     while end_index < len(lines) and not ENTRY_LINE_PATTERN.match(
         lines[end_index]
@@ -49,7 +48,7 @@ def write_day_file(
     lines: Sequence[str],
     ensure_trailing_newline: bool,
 ) -> None:
-    """Persist the provided lines back to the diary file."""
+    """Persist the provided lines back to the day file."""
     new_text = "\n".join(lines)
     if ensure_trailing_newline or not lines:
         new_text = f"{new_text}\n" if new_text else "\n"

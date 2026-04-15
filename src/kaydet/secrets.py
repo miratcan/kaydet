@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-import sqlite3
+from pathlib import Path
 from typing import Optional
 
 
@@ -43,38 +43,44 @@ def decrypt_secret(encrypted: bytes, password: str) -> str:
     return plaintext.decode("utf-8")
 
 
-# -- SQLite storage --
+# -- File-based storage (secrets/ directory is SoT) --
+
+
+def _secrets_dir(storage_dir: Path) -> Path:
+    """Return the secrets directory, creating it if needed."""
+    d = storage_dir / "secrets"
+    d.mkdir(exist_ok=True)
+    return d
 
 
 def store_secret(
-    conn: sqlite3.Connection, entry_id: int, encrypted_data: bytes
+    entry_id: str,
+    encrypted_data: bytes,
+    storage_dir: Path,
 ) -> None:
     """Save or replace an encrypted secret for an entry."""
-    conn.execute(
-        "INSERT OR REPLACE INTO secrets (entry_id, encrypted_data) "
-        "VALUES (?, ?)",
-        (entry_id, encrypted_data),
-    )
+    path = _secrets_dir(storage_dir) / f"{entry_id}.enc"
+    path.write_bytes(encrypted_data)
 
 
 def get_secret(
-    conn: sqlite3.Connection, entry_id: int
+    entry_id: str,
+    storage_dir: Path,
 ) -> Optional[bytes]:
     """Retrieve encrypted secret data for an entry, or None."""
-    cursor = conn.execute(
-        "SELECT encrypted_data FROM secrets WHERE entry_id = ?",
-        (entry_id,),
-    )
-    row = cursor.fetchone()
-    return row[0] if row else None
+    path = storage_dir / "secrets" / f"{entry_id}.enc"
+    if path.exists():
+        return path.read_bytes()
+    return None
 
 
 def delete_secret(
-    conn: sqlite3.Connection, entry_id: int
+    entry_id: str,
+    storage_dir: Path,
 ) -> bool:
-    """Delete the secret for an entry. Returns True if a row was deleted."""
-    cursor = conn.execute(
-        "DELETE FROM secrets WHERE entry_id = ?",
-        (entry_id,),
-    )
-    return cursor.rowcount > 0
+    """Delete the secret file for an entry. Returns True if deleted."""
+    path = storage_dir / "secrets" / f"{entry_id}.enc"
+    if path.exists():
+        path.unlink()
+        return True
+    return False

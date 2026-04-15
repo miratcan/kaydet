@@ -62,8 +62,8 @@ def build_search_query(
         fts_query_parts.append(f'NOT "{clean_term}"')
 
     if fts_query_parts:
-        from_clauses.append("JOIN entries_fts fts ON e.id = fts.rowid")
-        where_clauses.append("entries_fts MATCH ?")
+        from_clauses.append("JOIN entries_fts fts ON e.id = fts.entry_id")
+        where_clauses.append("fts.body MATCH ?")
         params.append(" ".join(fts_query_parts))
 
     # Tags inclusion
@@ -145,7 +145,7 @@ def load_matches(
     storage_dir: Path,
     config: SectionProxy,
 ):
-    """Resolve stored entry identifiers into diary entries."""
+    """Resolve stored entry identifiers into entries."""
     file_map = defaultdict(list)
     for source_file, entry_id in locations:
         file_map[source_file].append(str(entry_id))
@@ -161,7 +161,7 @@ def load_matches(
         entry_map = {
             entry.entry_id: entry
             for entry in entries_in_file
-            if entry.entry_id and entry.entry_id.isdigit()
+            if entry.entry_id
         }
         for entry_id in entry_ids:
             if entry_id in entry_map:
@@ -286,7 +286,7 @@ def search_command(
     query: str,
     allow_empty: bool = False,
 ) -> dict:
-    """Search diary entries using the SQLite index and return matches."""
+    """Search entries using the SQLite index and return matches."""
     rebuild_index_if_empty(conn, storage_dir, config)
 
     # Tokenize the query into inclusion and exclusion lists

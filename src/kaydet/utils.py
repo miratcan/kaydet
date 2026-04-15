@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import platform
+import re
 import shlex
 import subprocess
 from configparser import ConfigParser, SectionProxy
@@ -29,6 +30,8 @@ DEFAULT_SETTINGS = {
     "COLOR_TAG": "bold magenta",
     "COLOR_DATE": "green",
     "COLOR_ID": "yellow",
+    "DEVICE_PREFIX": "d",
+    "LAST_ID": "0",
 }
 LAST_ENTRY_FILENAME = "last_entry_timestamp"
 REMINDER_THRESHOLD = timedelta(hours=2)
@@ -191,10 +194,10 @@ def load_config() -> Tuple[SectionProxy, Path, Path, Path, Path]:
     return section, config_path, config_dir, storage_dir, index_dir
 
 
-def iter_diary_entries(
+def iter_day_entries(
     storage_dir: Path, config: SectionProxy
 ) -> Iterable[Entry]:
-    """Yield entries from every diary file sorted by filename."""
+    """Yield entries from every day file sorted by filename."""
     if not storage_dir.exists():
         return
     day_file_pattern = config.get(
@@ -273,6 +276,44 @@ def open_editor(initial_text: str, editor_command: str) -> str:
 def open_file_in_editor(file_path: Path, editor_command: str) -> None:
     """Open a file directly in the configured editor."""
     subprocess.call(shlex.split(editor_command) + [str(file_path)])
+
+
+_ENTRY_ID_RE = re.compile(r"^([a-zA-Z_]*)(\d+)$")
+
+
+def entry_id_sort_key(eid: str | None) -> tuple[str, int]:
+    """Sort key that orders entry IDs naturally (d2 < d10)."""
+    if not eid:
+        return ("", 0)
+    m = _ENTRY_ID_RE.match(eid)
+    if m:
+        return (m.group(1), int(m.group(2)))
+    return (eid, 0)
+
+
+def generate_next_id(config: SectionProxy, config_dir: Path) -> str:
+    """Generate the next unique ID using device prefix and numeric sequence."""
+    prefix = config.get("DEVICE_PREFIX", "d")
+    last_id = int(config.get("LAST_ID", "0"))
+    next_num = last_id + 1
+
+    config["LAST_ID"] = str(next_num)
+    save_config_setting(config_dir, "LAST_ID", str(next_num))
+
+    return f"{prefix}{next_num}"
+
+
+def save_config_setting(config_dir: Path, key: str, value: str) -> None:
+    """Persist a single SETTINGS key to config.ini on disk."""
+    config_path = config_dir / "config.ini"
+    parser = ConfigParser(interpolation=None)
+    if config_path.exists():
+        parser.read(config_path, encoding="utf-8")
+    if CONFIG_SECTION not in parser:
+        parser[CONFIG_SECTION] = {}
+    parser[CONFIG_SECTION][key] = value
+    with config_path.open("w", encoding="utf-8") as f:
+        parser.write(f)
 
 
 def get_secret_password(config_dir: Path) -> Optional[str]:

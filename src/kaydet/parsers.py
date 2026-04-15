@@ -1,4 +1,4 @@
-"""Parsing utilities for diary entries, tags, and metadata."""
+"""Parsing utilities for entries, tags, and metadata."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from .models import Entry
 ENTRY_LINE_PATTERN = re.compile(
     r"^(?:[a-zA-Z0-9_-]{22}:)?"  # Optional legacy UUID prefix
     r"(\d{2}:\d{2})"  # Timestamp (HH:MM)
-    r"(?:\s+\[\s*(\d+)\s*\])?"  # Optional ID like `[123]` or `[  123  ]`
+    r"(?:\s+\[\s*([a-zA-Z0-9]+)\s*\])?"  # Optional ID like `[L123]`
     r":\s*(.*)"  # Remainder of the header line
 )
 LEGACY_TAG_PATTERN = re.compile(
@@ -154,7 +154,7 @@ def format_entry_header(
     entry_id: str | None = None,
     attachments: Iterable[str] = (),
 ) -> str:
-    """Format the first line of a diary entry for storage."""
+    """Format the first line of a entry for storage."""
     time_block = f"{timestamp} [{entry_id}]" if entry_id else timestamp
     header = f"{time_block}: {message}" if message else f"{time_block}:"
 
@@ -266,8 +266,8 @@ def parse_comparison_expression(
     return None
 
 
-def read_diary_lines(path: Path) -> List[str]:
-    """Return diary file lines, tolerating non-UTF8 bytes."""
+def read_day_lines(path: Path) -> List[str]:
+    """Return day file lines, tolerating non-UTF8 bytes."""
     try:
         return path.read_text(encoding="utf-8").splitlines()
     except UnicodeDecodeError:
@@ -275,8 +275,8 @@ def read_diary_lines(path: Path) -> List[str]:
 
 
 def count_entries(day_file: Path) -> int:
-    """Count timestamped diary entries inside a daily file."""
-    lines = read_diary_lines(day_file)
+    """Count timestamped entries inside a day file."""
+    lines = read_day_lines(day_file)
     return sum(1 for line in lines if ENTRY_LINE_PATTERN.match(line))
 
 
@@ -325,8 +325,8 @@ class _ParserState:
 
 
 def parse_day_entries(day_file: Path, day: Optional[date]) -> List[Entry]:
-    """Parse diary entries, supporting both UUID and legacy formats."""
-    lines = read_diary_lines(day_file)
+    """Parse entries from a day file, supporting both UUID and legacy formats."""
+    lines = read_day_lines(day_file)
     entries: List[Entry] = []
     state = _ParserState(day, day_file)
 
@@ -393,7 +393,7 @@ def extract_words_from_text(text: str) -> List[str]:
 
 
 def resolve_entry_date(day_file: Path, pattern: str) -> Optional[date]:
-    """Infer a diary date from the file name and pattern."""
+    """Infer an entry date from the file name and pattern."""
     try:
         return datetime.strptime(day_file.name, pattern).date()
     except ValueError:

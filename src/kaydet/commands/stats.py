@@ -16,7 +16,7 @@ def stats_command(
 ) -> dict:
     """Return calendar stats for the current month."""
     if not storage_dir.exists():
-        return {"success": False, "error": "No diary entries found yet."}
+        return {"success": False, "error": "No entries found yet."}
 
     day_pattern = config.get(
         "DAY_FILE_PATTERN", DEFAULT_SETTINGS["DAY_FILE_PATTERN"]
@@ -24,7 +24,7 @@ def stats_command(
     glob_pattern = get_file_glob_from_pattern(day_pattern)
 
     if not any(storage_dir.glob(glob_pattern)):
-        return {"success": False, "error": "No diary entries found yet."}
+        return {"success": False, "error": "No entries found yet."}
 
     year = now.year
     month = now.month

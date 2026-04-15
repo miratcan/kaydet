@@ -1,4 +1,4 @@
-"""Utilities for synchronizing diary files with the SQLite index."""
+"""Utilities for synchronizing day files with the SQLite index."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 def _split_header(lines: Sequence[str]) -> List[str]:
-    """Return the header lines preceding the first diary entry."""
+    """Return the header lines preceding the first entry."""
     for index, line in enumerate(lines):
         if ENTRY_LINE_PATTERN.match(line):
             return list(lines[:index])
@@ -33,7 +33,7 @@ def _split_header(lines: Sequence[str]) -> List[str]:
 
 
 def _render_entry(entry: Entry) -> List[str]:
-    """Return normalized lines for a diary entry with an ID block."""
+    """Return normalized lines for a entry with an ID block."""
     message = entry.lines[0] if entry.lines else ""
     inline_tags = set(deduplicate_tags([], entry.lines))
     explicit_markers = [tag for tag in entry.tags if tag not in inline_tags]
@@ -78,73 +78,80 @@ def _upsert_entry_record(
     day_file_name: str,
     entry: Entry,
     updated_at: str | None = None,
-) -> int:
+    config: SectionProxy | None = None,
+    config_dir: Path | None = None,
+) -> str:
     """Ensure an entry record exists in the database and return its ID."""
-    candidate_id = (
-        int(entry.entry_id)
-        if entry.entry_id and entry.entry_id.isdigit()
-        else None
-    )
+    entry_id = entry.entry_id
+    if not entry_id:
+        if config and config_dir:
+            from .utils import generate_next_id
+            entry_id = generate_next_id(config, config_dir)
+        else:
+            # Fallback for transient environments (e.g. some tests)
+            import hashlib
+            content = f"{day_file_name}:{entry.timestamp}:{entry.text}"
+            entry_id = "transient_" + hashlib.md5(content.encode()).hexdigest()[:8]
 
-    if candidate_id is not None:
-        cursor.execute(
-            "SELECT source_file FROM entries WHERE id = ?",
-            (candidate_id,),
-        )
-        if row := cursor.fetchone():
-            if row[0] == day_file_name:
+    cursor.execute(
+        "SELECT source_file FROM entries WHERE id = ?",
+        (entry_id,),
+    )
+    if row := cursor.fetchone():
+        if row[0] == day_file_name:
+            sql = (
+                "UPDATE entries SET source_file = ?, "
+                "timestamp = ? WHERE id = ?"
+            )
+            params: list[Any] = [day_file_name, entry.timestamp, entry_id]
+            if updated_at:
                 sql = (
                     "UPDATE entries SET source_file = ?, "
-                    "timestamp = ? WHERE id = ?"
+                    "timestamp = ?, updated_at = ? WHERE id = ?"
                 )
-                params = [day_file_name, entry.timestamp, candidate_id]
-                if updated_at:
-                    sql = (
-                        "UPDATE entries SET source_file = ?, "
-                        "timestamp = ?, updated_at = ? WHERE id = ?"
-                    )
-                    params = [
-                        day_file_name,
-                        entry.timestamp,
-                        updated_at,
-                        candidate_id,
-                    ]
-                cursor.execute(sql, params)
-                return candidate_id
+                params = [
+                    day_file_name,
+                    entry.timestamp,
+                    updated_at,
+                    entry_id,
+                ]
+            cursor.execute(sql, params)
+            return entry_id
+        else:
+            # ID exists but in a different file — conflict.
+            # Generate a new unique ID to resolve it.
+            if config and config_dir:
+                from .utils import generate_next_id
+                entry_id = generate_next_id(config, config_dir)
             else:
-                # ID exists but in a different file.
-                # Ignore it to force re-assignment.
-                candidate_id = None
-
-    if candidate_id is not None:
-        sql = (
-            "INSERT INTO entries (id, source_file, timestamp) "
-            "VALUES (?, ?, ?)"
-        )
-        params = [candidate_id, day_file_name, entry.timestamp]
-        if updated_at:
-            sql = (
-                "INSERT INTO entries (id, source_file, timestamp, updated_at) "
-                "VALUES (?, ?, ?, ?)"
+                import hashlib
+                content = f"{day_file_name}:{entry.timestamp}:{entry.text}"
+                entry_id = "x_" + hashlib.sha256(
+                    content.encode()
+                ).hexdigest()[:10]
+            return _upsert_entry_record(
+                cursor, day_file_name,
+                replace(entry, entry_id=entry_id),
+                updated_at, config, config_dir,
             )
-            params.append(updated_at)
-        cursor.execute(sql, params)
-        return candidate_id
 
-    sql = "INSERT INTO entries (source_file, timestamp) VALUES (?, ?)"
-    params = [day_file_name, entry.timestamp]
+    sql = (
+        "INSERT INTO entries (id, source_file, timestamp) "
+        "VALUES (?, ?, ?)"
+    )
+    params = [entry_id, day_file_name, entry.timestamp]
     if updated_at:
         sql = (
-            "INSERT INTO entries (source_file, timestamp, updated_at) "
-            "VALUES (?, ?, ?)"
+            "INSERT INTO entries (id, source_file, timestamp, updated_at) "
+            "VALUES (?, ?, ?, ?)"
         )
         params.append(updated_at)
     cursor.execute(sql, params)
-    return cursor.lastrowid
+    return entry_id
 
 
 def _cleanup_missing_entries(
-    cursor: sqlite3.Cursor, day_file_name: str, assigned_ids: List[int]
+    cursor: sqlite3.Cursor, day_file_name: str, assigned_ids: List[str]
 ) -> None:
     """Remove records for entries that no longer exist in the file."""
     cursor.execute(
@@ -159,7 +166,7 @@ def _cleanup_missing_entries(
 
     payload = [(eid,) for eid in missing]
     cursor.executemany("DELETE FROM tags WHERE entry_id = ?", payload)
-    cursor.executemany("DELETE FROM entries_fts WHERE rowid = ?", payload)
+    cursor.executemany("DELETE FROM entries_fts WHERE entry_id = ?", payload)
     cursor.executemany("DELETE FROM metadata WHERE entry_id = ?", payload)
     cursor.executemany("DELETE FROM entries WHERE id = ?", payload)
 
@@ -169,18 +176,25 @@ def _normalize_entries(
     day_file: Path,
     entries: List[Entry],
     updated_at: str | None = None,
+    config: SectionProxy | None = None,
+    config_dir: Path | None = None,
 ) -> List[Entry]:
-    """Assign IDs to entries and clean up the database."""
+    """Sync entries with database and clean up the database."""
     cursor = conn.cursor()
-    assigned_ids: List[int] = []
+    assigned_ids: List[str] = []
     normalized: List[Entry] = []
 
     for entry in entries:
         eid = _upsert_entry_record(
-            cursor, day_file.name, entry, updated_at=updated_at
+            cursor, 
+            day_file.name, 
+            entry, 
+            updated_at=updated_at,
+            config=config,
+            config_dir=config_dir
         )
         assigned_ids.append(eid)
-        normalized.append(replace(entry, entry_id=str(eid)))
+        normalized.append(replace(entry, entry_id=eid))
 
     _cleanup_missing_entries(cursor, day_file.name, assigned_ids)
     return normalized
@@ -192,12 +206,12 @@ def _reindex_entries(
     """Refresh tags, FTS data, and metadata rows for the provided entries."""
     cursor = conn.cursor()
     for entry in entries:
-        if not entry.entry_id or not entry.entry_id.isdigit():
+        eid = entry.entry_id
+        if not eid:
             continue
 
-        eid = int(entry.entry_id)
         cursor.execute("DELETE FROM tags WHERE entry_id = ?", (eid,))
-        cursor.execute("DELETE FROM entries_fts WHERE rowid = ?", (eid,))
+        cursor.execute("DELETE FROM entries_fts WHERE entry_id = ?", (eid,))
         cursor.execute("DELETE FROM metadata WHERE entry_id = ?", (eid,))
 
         if entry.tags:
@@ -223,8 +237,10 @@ def _sync_single_file(
     conn: sqlite3.Connection,
     day_file: Path,
     day_pattern: str,
+    config: SectionProxy | None = None,
+    config_dir: Path | None = None,
 ) -> bool:
-    """Sync a single diary file. Returns True if file was modified on disk."""
+    """Sync a single day file. Returns True if file was modified on disk."""
     try:
         raw_text = day_file.read_text(encoding="utf-8")
     except UnicodeDecodeError:
@@ -241,7 +257,12 @@ def _sync_single_file(
     conn.execute("BEGIN")
     try:
         normalized = _normalize_entries(
-            conn, day_file, entries, updated_at=updated_at
+            conn, 
+            day_file, 
+            entries, 
+            updated_at=updated_at,
+            config=config,
+            config_dir=config_dir
         )
         _reindex_entries(conn, normalized)
 
@@ -265,15 +286,16 @@ def _sync_single_file(
         raise
 
 
-def sync_modified_diary_files(
+def sync_modified_day_files(
     conn: sqlite3.Connection,
     storage_dir: Path,
-    config: Dict[str, str],
+    config: SectionProxy,
     now: datetime,
     *,
+    config_dir: Path | None = None,
     force: bool = False,
 ) -> List[Path]:
-    """Incrementally synchronize modified diary files with the SQLite index."""
+    """Incrementally synchronize modified day files with the SQLite index."""
     if not storage_dir.exists():
         return []
 
@@ -305,7 +327,13 @@ def sync_modified_diary_files(
         if not needs_sync:
             continue
 
-        if _sync_single_file(conn, day_file, day_pattern):
+        if _sync_single_file(
+            conn, 
+            day_file, 
+            day_pattern, 
+            config=config, 
+            config_dir=config_dir
+        ):
             normalized_files.append(day_file)
 
     if normalized_files:

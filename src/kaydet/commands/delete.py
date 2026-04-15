@@ -1,4 +1,4 @@
-"""Delete command for removing an existing diary entry."""
+"""Delete command for removing an existing entry."""
 
 from __future__ import annotations
 
@@ -8,7 +8,8 @@ from datetime import datetime
 from pathlib import Path
 
 from ..database import log_sync_action
-from ..sync import sync_modified_diary_files
+from ..secrets import delete_secret
+from ..sync import sync_modified_day_files
 from .entry_ops import (
     EntryNotFoundError,
     find_entry_block,
@@ -17,7 +18,7 @@ from .entry_ops import (
 )
 
 
-def _confirm_delete(entry_id: int, preview: str, *, assume_yes: bool) -> bool:
+def _confirm_delete(entry_id: str, preview: str, *, assume_yes: bool) -> bool:
     """Return True if the deletion should proceed."""
     if assume_yes:
         return True
@@ -30,7 +31,7 @@ def delete_entry_command(
     conn: sqlite3.Connection,
     storage_dir: Path,
     config: SectionProxy,
-    entry_id: int,
+    entry_id: str,
     *,
     assume_yes: bool,
     now: datetime,
@@ -71,11 +72,14 @@ def delete_entry_command(
 
     del lines[start:end]
 
+    # Delete secret file if present
+    delete_secret(entry_id, storage_dir)
+
     log_sync_action(conn, entry_id, "deleted")
 
     ensure_newline = had_trailing_newline
     write_day_file(day_file, lines, ensure_newline)
-    sync_modified_diary_files(conn, storage_dir, config, now)
+    sync_modified_day_files(conn, storage_dir, config, now)
     return {
         "success": True,
         "entry_id": entry_id,

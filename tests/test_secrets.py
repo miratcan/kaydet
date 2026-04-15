@@ -1,7 +1,5 @@
 """Tests for the secrets module."""
 
-import sqlite3
-
 import pytest
 
 from kaydet.secrets import (
@@ -13,29 +11,67 @@ from kaydet.secrets import (
 )
 
 
-@pytest.fixture
-def conn():
-    """In-memory SQLite connection with secrets table."""
-    c = sqlite3.Connection(":memory:")
-    c.execute("PRAGMA foreign_keys = ON")
-    c.execute(
-        "CREATE TABLE entries ("
-        "id INTEGER PRIMARY KEY AUTOINCREMENT,"
-        "source_file TEXT NOT NULL,"
-        "timestamp TEXT NOT NULL)"
-    )
-    c.execute(
-        "CREATE TABLE IF NOT EXISTS secrets ("
-        "entry_id INTEGER PRIMARY KEY,"
-        "encrypted_data BLOB NOT NULL,"
-        "FOREIGN KEY (entry_id) "
-        "REFERENCES entries(id) ON DELETE CASCADE)"
-    )
-    c.execute(
-        "INSERT INTO entries (source_file, timestamp) "
-        "VALUES ('2025-01-01.txt', '10:00')"
-    )
-    return c
+class TestSpecFixture:
+    """Validate against docs/spec/fixtures/encryption-v1.json."""
+
+    def test_decrypt_fixture(self):
+        import json
+        from pathlib import Path
+
+        fixture_path = (
+            Path(__file__).parent.parent
+            / "docs" / "spec" / "v1" / "fixtures" / "encryption.json"
+        )
+        fixture = json.loads(fixture_path.read_text())
+        vec = fixture["vectors"][0]
+
+        wire = bytes.fromhex(vec["wire_hex"])
+        result = decrypt_secret(wire, vec["password"])
+        assert result == vec["plaintext"]
+
+    def test_encrypt_fixture_deterministic(self):
+        import json
+        from pathlib import Path
+
+        from kaydet.secrets import _derive_key
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+        fixture_path = (
+            Path(__file__).parent.parent
+            / "docs" / "spec" / "v1" / "fixtures" / "encryption.json"
+        )
+        fixture = json.loads(fixture_path.read_text())
+        vec = fixture["vectors"][0]
+
+        salt = bytes.fromhex(vec["salt_hex"])
+        nonce = bytes.fromhex(vec["nonce_hex"])
+        key = _derive_key(vec["password"], salt)
+        assert key.hex() == vec["derived_key_hex"]
+
+        aesgcm = AESGCM(key)
+        ciphertext = aesgcm.encrypt(
+            nonce, vec["plaintext"].encode("utf-8"), None
+        )
+        wire = salt + nonce + ciphertext
+        assert wire.hex() == vec["wire_hex"]
+
+    def test_tampered_wire_fails(self):
+        import json
+        from pathlib import Path
+
+        from cryptography.exceptions import InvalidTag
+
+        fixture_path = (
+            Path(__file__).parent.parent
+            / "docs" / "spec" / "v1" / "fixtures" / "encryption.json"
+        )
+        fixture = json.loads(fixture_path.read_text())
+        vec = fixture["vectors"][0]
+
+        wire = bytearray.fromhex(vec["wire_hex"])
+        wire[-1] ^= 0xFF  # flip last byte
+        with pytest.raises(InvalidTag):
+            decrypt_secret(bytes(wire), vec["password"])
 
 
 class TestEncryption:
@@ -72,29 +108,27 @@ class TestEncryption:
 
 
 class TestSecretStorage:
-    def test_store_and_get(self, conn):
+    def test_store_and_get(self, tmp_path):
         data = b"encrypted_blob_data"
-        store_secret(conn, 1, data)
-        result = get_secret(conn, 1)
+        store_secret("d1", data, tmp_path)
+        result = get_secret("d1", tmp_path)
         assert result == data
+        assert (tmp_path / "secrets" / "d1.enc").exists()
 
-    def test_get_nonexistent(self, conn):
-        assert get_secret(conn, 999) is None
+    def test_get_nonexistent(self, tmp_path):
+        assert get_secret("d999", tmp_path) is None
 
-    def test_store_replaces(self, conn):
-        store_secret(conn, 1, b"first")
-        store_secret(conn, 1, b"second")
-        assert get_secret(conn, 1) == b"second"
+    def test_store_replaces(self, tmp_path):
+        store_secret("d1", b"first", tmp_path)
+        store_secret("d1", b"second", tmp_path)
+        assert get_secret("d1", tmp_path) == b"second"
+        assert (tmp_path / "secrets" / "d1.enc").read_bytes() == b"second"
 
-    def test_delete(self, conn):
-        store_secret(conn, 1, b"data")
-        assert delete_secret(conn, 1) is True
-        assert get_secret(conn, 1) is None
+    def test_delete(self, tmp_path):
+        store_secret("d1", b"data", tmp_path)
+        assert delete_secret("d1", tmp_path) is True
+        assert get_secret("d1", tmp_path) is None
+        assert not (tmp_path / "secrets" / "d1.enc").exists()
 
-    def test_delete_nonexistent(self, conn):
-        assert delete_secret(conn, 999) is False
-
-    def test_cascade_delete(self, conn):
-        store_secret(conn, 1, b"data")
-        conn.execute("DELETE FROM entries WHERE id = 1")
-        assert get_secret(conn, 1) is None
+    def test_delete_nonexistent(self, tmp_path):
+        assert delete_secret("d999", tmp_path) is False

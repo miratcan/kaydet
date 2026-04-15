@@ -129,7 +129,7 @@ class SyncServer:
                 entries.append(entry_data)
         return SyncEntriesResponse(entries=entries)
 
-    def _load_entry(self, entry_id: int) -> Optional[EntryData]:
+    def _load_entry(self, entry_id: str) -> Optional[EntryData]:
         """Load a single entry via KaydetService."""
         from .secrets import get_secret
 
@@ -150,8 +150,8 @@ class SyncServer:
         source_file = row[0] if row else ""
         updated_at = row[1] if row else None
 
-        # Get encrypted secret
-        encrypted = get_secret(self.conn, entry_id)
+        # Get encrypted secret (check disk fallback)
+        encrypted = get_secret(entry_id, self.storage_dir)
         enc_b64 = None
         if encrypted:
             enc_b64 = base64.b64encode(
@@ -235,10 +235,11 @@ class SyncServer:
 
         entries: list[EntryData] = []
         for match in result.get("matches", [])[:req.limit]:
-            entry_id = int(match.get("id", 0))
-            loaded = self._load_entry(entry_id)
-            if loaded:
-                entries.append(loaded)
+            entry_id = str(match.get("id", ""))
+            if entry_id:
+                loaded = self._load_entry(entry_id)
+                if loaded:
+                    entries.append(loaded)
 
         return SearchResponse(
             entries=entries, total=len(entries)
@@ -300,31 +301,16 @@ class SyncServer:
         now: datetime,
     ) -> None:
         """Insert or update an entry on the server."""
-        # Check if entry already exists by source_file + timestamp
+        # Check if entry already exists by ID
         cursor = self.conn.cursor()
         cursor.execute(
-            "SELECT e.id, e.updated_at, f.body "
-            "FROM entries e "
-            "LEFT JOIN entries_fts f ON f.rowid = e.id "
-            "WHERE e.source_file = ? AND e.timestamp = ?",
-            (entry_data.source_file, entry_data.timestamp),
+            "SELECT id, updated_at FROM entries WHERE id = ?",
+            (entry_data.entry_id,),
         )
         existing = cursor.fetchone()
 
         if existing:
-            existing_id, server_updated_at, existing_body = (
-                existing
-            )
-            # Different text at same timestamp = different entry
-            if (
-                existing_body
-                and existing_body.strip()
-                != entry_data.text.strip()
-            ):
-                existing = None
-
-        if existing:
-            existing_id, server_updated_at, _ = existing
+            existing_id, server_updated_at = existing
             # Reject if server copy is newer
             if (
                 server_updated_at
@@ -340,7 +326,7 @@ class SyncServer:
 
     def _update_existing_entry(
         self,
-        existing_id: int,
+        existing_id: str,
         entry_data: EntryData,
         device_id: str,
     ) -> None:
@@ -365,7 +351,7 @@ class SyncServer:
             encrypted = base64.b64decode(
                 entry_data.encrypted_secret
             )
-            store_secret(self.conn, existing_id, encrypted)
+            store_secret(existing_id, encrypted, self.storage_dir)
 
     def _create_new_entry(
         self,
@@ -406,6 +392,7 @@ class SyncServer:
             metadata=entry_data.metadata or None,
             tags=entry_data.tags or None,
             at=entry_at,
+            entry_id=entry_data.entry_id,
         )
 
         if not result.get("success"):
@@ -419,7 +406,7 @@ class SyncServer:
             encrypted = base64.b64decode(
                 entry_data.encrypted_secret
             )
-            store_secret(self.conn, new_id, encrypted)
+            store_secret(new_id, encrypted, self.storage_dir)
 
 
 def validate_api_key(

@@ -217,7 +217,7 @@ class SearchResultFormatter:
         return len(timestamp) + 2 + max_id_width + 3
 
     def _format_entry_header(
-        self, timestamp: str, entry_id: int, max_id_width: int
+        self, timestamp: str, entry_id: str, max_id_width: int
     ) -> str:
         """
         Format entry header with timestamp and ID.
@@ -229,8 +229,8 @@ class SearchResultFormatter:
         >>> config = ConfigParser()
         >>> config["SETTINGS"] = {}
         >>> formatter = SearchResultFormatter(console, 80, config["SETTINGS"])
-        >>> formatter._format_entry_header("14:30", 42, 3)
-        '[green]14:30[/green] [[yellow] 42[/yellow]]:'
+        >>> formatter._format_entry_header("14:30", "d42", 3)
+        '[green]14:30[/green] [[yellow]d42[/yellow]]:'
         """
         id_str = str(entry_id).rjust(max_id_width)
         color_id = self.config.get("COLOR_ID", "yellow")

@@ -1,4 +1,4 @@
-"""Edit command for updating an existing diary entry."""
+"""Edit command for updating an existing entry."""
 
 from __future__ import annotations
 
@@ -8,7 +8,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
-from ..database import log_sync_action
 from ..parsers import (
     ENTRY_LINE_PATTERN,
     deduplicate_tags,
@@ -16,7 +15,7 @@ from ..parsers import (
     format_entry_header,
     parse_stored_entry_remainder,
 )
-from ..sync import sync_modified_diary_files
+from ..sync import sync_modified_day_files
 from ..utils import DEFAULT_SETTINGS, open_editor
 from .entry_ops import (
     EntryNotFoundError,
@@ -27,11 +26,11 @@ from .entry_ops import (
 
 
 class InvalidEntryEdit(Exception):
-    """Raised when the edited block cannot be parsed into a diary entry."""
+    """Raised when the edited block cannot be parsed into an entry."""
 
 
-def _normalize_edited_block(entry_id: int, lines: List[str]) -> List[str]:
-    """Return canonical diary lines after validating the edited block."""
+def _normalize_edited_block(entry_id: str, lines: List[str]) -> List[str]:
+    """Return canonical entry lines after validating the edited block."""
     if not lines:
         raise InvalidEntryEdit("Entry content cannot be empty.")
 
@@ -55,7 +54,7 @@ def _normalize_edited_block(entry_id: int, lines: List[str]) -> List[str]:
         message,
         metadata,
         explicit_markers,
-        entry_id=str(entry_id),
+        entry_id=entry_id,
         attachments=attachments,
     )
     return [normalized_header, *body_lines]
@@ -65,7 +64,7 @@ def edit_entry_command(
     conn: sqlite3.Connection,
     storage_dir: Path,
     config: SectionProxy,
-    entry_id: int,
+    entry_id: str,
     now: datetime,
 ) -> None:
     """Launch the configured editor to update an existing entry."""
@@ -120,8 +119,7 @@ def edit_entry_command(
     lines[start:end] = normalized_block
     ensure_newline = had_trailing_newline or edited_text.endswith("\n")
     write_day_file(day_file, lines, ensure_newline)
-    log_sync_action(conn, entry_id, "updated")
-    sync_modified_diary_files(conn, storage_dir, config, now)
+    sync_modified_day_files(conn, storage_dir, config, now)
     print(f"Updated entry {entry_id} in {source_file}.")
 
 
@@ -129,7 +127,7 @@ def update_entry_inline(
     conn: sqlite3.Connection,
     storage_dir: Path,
     config: SectionProxy,
-    entry_id: int,
+    entry_id: str,
     *,
     text: Optional[str] = None,
     metadata: Optional[Dict[str, str]] = None,
@@ -216,7 +214,7 @@ def update_entry_inline(
         message_lines[0] if message_lines else "",
         metadata_map,
         extra_tag_markers,
-        entry_id=str(entry_id),
+        entry_id=entry_id,
         attachments=current_attachments,
     )
 
@@ -226,8 +224,7 @@ def update_entry_inline(
         text is not None and text.endswith("\n")
     )
     write_day_file(day_file, lines, ensure_newline)
-    log_sync_action(conn, entry_id, "updated")
-    sync_modified_diary_files(conn, storage_dir, config, now)
+    sync_modified_day_files(conn, storage_dir, config, now)
     print(f"Updated entry {entry_id} in {source_file}.")
     return {
         "entry_id": entry_id,

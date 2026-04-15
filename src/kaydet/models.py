@@ -1,4 +1,4 @@
-"""Data models for kaydet diary entries."""
+"""Data models for kaydet entries."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from typing import Dict, Optional, Tuple
 
 @dataclass(frozen=True)
 class Entry:
-    """Structured view of a diary entry loaded from disk."""
+    """Structured view of an entry loaded from disk."""
 
     entry_id: Optional[str]
     day: Optional[date]

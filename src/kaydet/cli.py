@@ -1,4 +1,4 @@
-"Command-line interface for the kaydet diary application."
+"Command-line interface for kaydet."
 
 from __future__ import annotations
 
@@ -30,6 +30,7 @@ from .commands.search import (
     print_matches,
 )
 from .commands.todo import list_todos_command
+from .database import log_sync_action
 from .formatters import format_todo_results
 from .indexing import rebuild_index_if_empty
 from .parsers import (
@@ -37,7 +38,7 @@ from .parsers import (
     tokenize_query,
 )
 from .startfile import startfile
-from .sync import sync_modified_diary_files
+from .sync import sync_modified_day_files
 from .utils import (
     DEFAULT_SETTINGS,  # noqa: F401
     load_config,
@@ -146,7 +147,7 @@ def build_parser(
     todo_group.add_argument(
         "--done",
         dest="done",
-        type=int,
+        type=str,
         nargs="+",
         metavar="ID",
         help="Mark todos as done by ID (e.g., 'kaydet --done 1 2 3').",
@@ -194,9 +195,9 @@ def build_parser(
     query_group.add_argument(
         "--get",
         dest="get",
-        type=int,
+        type=str,
         metavar="ID",
-        help="Show a single entry by its numeric identifier.",
+        help="Show a single entry by its identifier.",
     )
     query_group.add_argument(
         "--tags", dest="list_tags", action="store_true", help="List all tags."
@@ -229,9 +230,9 @@ def build_parser(
     management_group.add_argument(
         "--delete",
         dest="delete",
-        type=int,
+        type=str,
         metavar="ID",
-        help="Delete an entry by numeric identifier.",
+        help="Delete an entry by identifier.",
     )
     management_group.add_argument(
         "--yes",
@@ -405,15 +406,15 @@ def main() -> None:
 
     if args.doctor:
         print(
-            "Rebuilding search index from diary files..."
+            "Rebuilding search index from day files..."
             " This may take a moment."
         )
         from kaydet.cli_printers import print_doctor
 
-        print_doctor(doctor_command(conn, storage_dir, config, now))
+        print_doctor(doctor_command(conn, storage_dir, config, now, config_dir=config_dir))
         return
 
-    sync_modified_diary_files(conn, storage_dir, config, now)
+    sync_modified_day_files(conn, storage_dir, config, now, config_dir=config_dir)
     rebuild_index_if_empty(conn, storage_dir, config, now)
 
     if args.stats:
@@ -455,7 +456,7 @@ def main() -> None:
         from .secrets import decrypt_secret, get_secret
         from .utils import get_secret_password
 
-        encrypted = get_secret(conn, args.get)
+        encrypted = get_secret(args.get, storage_dir)
         if encrypted:
             password = get_secret_password(config_dir)
             if password:
@@ -488,6 +489,8 @@ def main() -> None:
             res = todo_command(
                 args, config, config_dir, storage_dir, now, conn
             )
+            if res.get("entry_id"):
+                log_sync_action(conn, res["entry_id"], "created")
             if "message" in res:
                 print(res["message"])
         elif args.filter:
@@ -574,6 +577,7 @@ def main() -> None:
             )
             if "message" in res:
                 print(res["message"])
+            log_sync_action(conn, entry_id, "updated")
         return
 
     # Handle --today: add today's date as a since: filter
@@ -653,11 +657,7 @@ def main() -> None:
         print("Use either --edit or --delete, not both.")
         return
     if args.edit is not None:
-        try:
-            edit_id = int(args.edit[0])
-        except ValueError:
-            print(f"Invalid entry ID: {args.edit[0]}")
-            return
+        edit_id = args.edit[0]
         if len(args.edit) > 1:
             # Inline update: --edit ID "new text"
             inline_text = " ".join(args.edit[1:])
@@ -667,6 +667,7 @@ def main() -> None:
         else:
             # Editor mode: --edit ID
             edit_entry_command(conn, storage_dir, config, edit_id, now)
+        log_sync_action(conn, edit_id, "updated")
         return
     if args.delete is not None:
         res = delete_entry_command(
@@ -734,7 +735,7 @@ def _handle_sync_command(
 
 def _sync_setup(config, config_dir):
     """Interactive sync setup."""
-    from configparser import ConfigParser
+    from .utils import save_config_setting
 
     print("\nSync Setup")
     print("=" * 40)
@@ -746,29 +747,20 @@ def _sync_setup(config, config_dir):
     choice = input("\nChoose transport [1]: ").strip()
     transport = "http" if choice == "2" else "stdin"
 
-    config_path = config_dir / "config.ini"
-    parser = ConfigParser(interpolation=None)
-    if config_path.exists():
-        parser.read(config_path, encoding="utf-8")
-    section = "SETTINGS"
-    if section not in parser:
-        parser[section] = {}
-
-    parser[section]["sync_transport"] = transport
+    save_config_setting(config_dir, "sync_transport", transport)
 
     if transport == "http":
         server = input("Server URL: ").strip()
         api_key = input("API key: ").strip()
-        parser[section]["sync_server"] = server
-        parser[section]["sync_api_key"] = api_key
+        save_config_setting(config_dir, "sync_server", server)
+        save_config_setting(config_dir, "sync_api_key", api_key)
     else:
         path = input(
             "Server binary path [kaydet]: "
         ).strip()
-        parser[section]["sync_server_path"] = path or "kaydet"
-
-    with config_path.open("w", encoding="utf-8") as f:
-        parser.write(f)
+        save_config_setting(
+            config_dir, "sync_server_path", path or "kaydet"
+        )
 
     print("\nSync configured.")
 

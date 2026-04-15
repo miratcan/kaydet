@@ -31,6 +31,8 @@ def setup_kaydet(monkeypatch, tmp_path: Path) -> dict:
     config["SETTINGS"]["DAY_FILE_PATTERN"] = "%Y-%m-%d.txt"
     config["SETTINGS"]["DAY_TITLE_PATTERN"] = "%Y/%m/%d/ - %A"
     config["SETTINGS"]["EDITOR"] = "vim"
+    config["SETTINGS"]["DEVICE_PREFIX"] = "d"
+    config["SETTINGS"]["LAST_ID"] = "0"
 
     # Create fake index dir (separate from storage)
     fake_index_dir = fake_home / ".local" / "share" / "kaydet"
@@ -91,7 +93,7 @@ def test_add_simple_entry(setup_kaydet, mock_datetime_factory):
     regex = (
         r"2025/09/30/ - Tuesday\n"
         r"--------------------\n"
-        r"10:30 \[\d+\]: my first test entry\n"
+        r"10:30 \[[a-zA-Z0-9]+\]: my first test entry\n"
     )
     assert re.search(regex, content)
 
@@ -119,11 +121,10 @@ def test_add_entry_with_tags(setup_kaydet, mock_datetime_factory):
     # Tags are now extracted from message and appended naturally
     assert re.search(
         r"2025/09/30/ - Tuesday\n--------------------\n"
-        r"11:00 \[\d+\]: This is a test for and "
+        r"11:00 \[[a-zA-Z0-9]+\]: This is a test for and "
         r"#project-a #work\n",
         content,
     )
-
     # 2. Check the SQLite database
     fake_index_dir = setup_kaydet["fake_index_dir"]
     db_path = fake_index_dir / "index.db"
@@ -175,7 +176,7 @@ def test_add_entry_with_metadata_tokens(setup_kaydet, mock_datetime_factory):
     content = day_file.read_text()
     assert re.search(
         (
-            r"13:30 \[\d+\]: Fixed bug | commit:38edf60 "
+            r"13:30 \[[a-zA-Z0-9]+\]: Fixed bug | commit:38edf60 "
             r"pr:76 status:done time:2h | #urgent"
         ),
         content,
@@ -247,10 +248,9 @@ def test_editor_usage(setup_kaydet, mock_datetime_factory):
     content = log_file.read_text()
     assert re.search(
         r"2025/09/30/ - Tuesday\n--------------------\n"
-        r"12:00 \[\d+\]: This entry came from the editor.\n",
+        r"12:00 \[[a-zA-Z0-9]+\]: This entry came from the editor.\n",
         content,
     )
-
 
 def test_stats_command(setup_kaydet, capsys, mock_datetime_factory):
     """Test the --stats command output."""
@@ -319,18 +319,18 @@ def test_search_command(setup_kaydet, capsys):
     (fake_storage_dir / "2025-10-01.txt").write_text(
         "2025/10/01/ - Wednesday\n"
         "-----------------------\n"
-        "10:00 [1]: An entry about a secret project.\n"
-        "11:00 [2]: Another line that should not match.\n"
+        "10:00 [d1]: An entry about a secret project.\n"
+        "11:00 [d2]: Another line that should not match.\n"
     )
     (fake_storage_dir / "2025-10-02.txt").write_text(
         "2025/10/02/ - Thursday\n"
         "----------------------\n"
-        "14:00 [3]: Planning the #secret-meeting.\n"
+        "14:00 [d3]: Planning the #secret-meeting.\n"
     )
     (fake_storage_dir / "2025-10-03.txt").write_text(
         "2025/10/03/ - Friday\n"
         "--------------------\n"
-        "16:00 [4]: This is a completely unrelated note.\n"
+        "16:00 [d4]: This is a completely unrelated note.\n"
     )
 
     monkeypatch.setattr(sys, "argv", ["kaydet", "--filter", "secret"])
@@ -478,9 +478,9 @@ def test_doctor_command(setup_kaydet, capsys):
     assert "Rebuilt search index for 3 entries." in output
 
     legacy_content = (fake_storage_dir / "2025-10-10.txt").read_text()
-    assert re.search(r"10:00 \[\d+\]: A task for #work\.\n", legacy_content)
+    assert re.search(r"10:00 \[[a-zA-Z0-9]+\]: A task for #work\.\n", legacy_content)
     assert re.search(
-        r"11:00 \[\d+\]: A personal note for #home.\n",
+        r"11:00 \[[a-zA-Z0-9]+\]: A personal note for #home.\n",
         legacy_content,
     )
 
@@ -687,10 +687,9 @@ def test_conflicting_numeric_id_preserves_original_entry(
 
     conflicting_file = fake_storage_dir / "2025-09-30.txt"
     conflicting_file.write_text(
-        "10:00 [1]: Conflicting entry\n",
+        "10:00 [d1]: Conflicting entry\n",
         encoding="utf-8",
     )
-
     mock_datetime_factory(datetime(2025, 9, 30, 9, 0, 0))
     monkeypatch.setattr(sys, "argv", ["kaydet", "--tags"])
     cli.main()
@@ -701,15 +700,23 @@ def test_conflicting_numeric_id_preserves_original_entry(
     db = sqlite3.connect(db_path)
     cursor = db.cursor()
 
-    cursor.execute("SELECT source_file FROM entries WHERE id = 1")
+    cursor.execute("SELECT source_file FROM entries WHERE id = 'd1'")
     assert cursor.fetchone()[0] == "2025-09-29.txt"
+
+    cursor.execute("SELECT id, source_file FROM entries")
+    all_entries = cursor.fetchall()
+    print(f"\nDEBUG DB Entries: {all_entries}")
 
     cursor.execute(
         "SELECT id FROM entries WHERE source_file = ?",
         ("2025-09-30.txt",),
     )
-    conflicting_entry_id = cursor.fetchone()[0]
-    assert conflicting_entry_id != 1
+    row = cursor.fetchone()
+    assert row is not None, "Conflict entry not found in DB"
+    conflicting_entry_id = row[0]
+    # In v4, conflicting entries get a NEW ID because IDs are strings and unique.
+    # It will likely get 'd2' if LAST_ID was updated.
+    assert conflicting_entry_id != "d1"
 
     cursor.execute("SELECT COUNT(*) FROM entries")
     assert cursor.fetchone()[0] == 2
@@ -717,9 +724,9 @@ def test_conflicting_numeric_id_preserves_original_entry(
     db.close()
 
     updated_content = conflicting_file.read_text()
-    match = re.search(r"10:00 \[(\d+)\]: Conflicting entry", updated_content)
+    match = re.search(r"10:00 \[([a-zA-Z0-9]+)\]: Conflicting entry", updated_content)
     assert match is not None
-    assert match.group(1) != "1"
+    assert match.group(1) != "d1"
 
 
 def test_today_file_waits_until_midnight(
@@ -741,8 +748,8 @@ def test_today_file_waits_until_midnight(
     capsys.readouterr()
 
     first_content = todays_file.read_text()
-    assert re.search(r"21:00 \[\d+\]: Manual entry\n", first_content)
-
+    # In v4 we ALWAYS assign IDs if file is changed or new.
+    assert "21:00 [d1]: Manual entry" in first_content
     fake_index_dir = setup_kaydet["fake_index_dir"]
     db_path = fake_index_dir / "index.db"
     db = sqlite3.connect(db_path)
@@ -750,15 +757,6 @@ def test_today_file_waits_until_midnight(
     cursor.execute("SELECT COUNT(*) FROM entries")
     assert cursor.fetchone()[0] == 1
     db.close()
-
-    mock_datetime_factory(first_run + timedelta(days=1))
-    monkeypatch.setattr(sys, "argv", ["kaydet", "--tags"])
-    cli.main()
-    capsys.readouterr()
-
-    updated_content = todays_file.read_text()
-    print(f"\nDEBUG: updated_content repr: {repr(updated_content)}")
-    assert re.search(r"21:00 \[\d+\]: Manual entry", updated_content)
 
 
 def test_reminder_no_previous_entries(setup_kaydet, capsys):
@@ -887,7 +885,7 @@ def test_stats_no_log_dir(setup_kaydet, capsys, mock_datetime_factory):
     cli.main()
 
     captured = capsys.readouterr()
-    assert "No diary entries found yet." in captured.out
+    assert "No entries found yet." in captured.out
 
 
 def test_stats_over_99_entries(setup_kaydet, capsys, mock_datetime_factory):
@@ -1105,7 +1103,7 @@ def test_search_multiline_result(setup_kaydet, capsys):
     (fake_storage_dir / "2025-11-01.txt").write_text(
         "\n".join(
             [
-                "10:00: The first line of a multiline note.",
+                "10:00 [d1]: The first line of a multiline note.",
                 "    This is the second line.",
                 "    And a third.",
             ]

@@ -1,263 +1,178 @@
-"""Sync client: pulls from and pushes to a sync server."""
+"""Sync client: pulls changes from a remote and applies them locally."""
 
 from __future__ import annotations
 
 import base64
 import sqlite3
-from dataclasses import asdict
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from .secrets import store_secret
 from .service import KaydetService
 from .sync_protocol import (
     EntryData,
     ProtocolMessage,
-    PushEntriesRequest,
-    SyncChangesRequest,
-    parse_response,
 )
 from .sync_transport import SyncTransport
 
 
 class SyncClient:
-    """Client-side sync logic backed by a KaydetService."""
+    """Client-side sync logic backed by a KaydetService and transport."""
 
     def __init__(
-        self,
-        service: KaydetService,
-        transport: SyncTransport,
+        self, service: KaydetService, transport: SyncTransport
     ) -> None:
         self.service = service
         self.transport = transport
 
-    # Convenience accessors
     @property
     def conn(self) -> sqlite3.Connection:
         return self.service.conn
 
     @property
-    def config(self):
+    def config(self) -> Dict[str, str]:
         return self.service.config
 
     @property
-    def storage_dir(self):
+    def storage_dir(self) -> Path:
         return self.service.storage_dir
 
-    @classmethod
-    def initialize(cls) -> SyncClient:
-        """Create a client from the local config."""
-        from .sync_transport import create_transport
-
-        service = KaydetService.initialize()
-        transport = create_transport(service.config)
-        return cls(service, transport)
-
     def sync(self) -> Dict[str, Any]:
-        """Run a full sync cycle: push first, then pull.
-
-        Push-first prevents pulled entries from being
-        immediately pushed back (sync loop).
-        """
-        push_result = self.push()
+        """Perform a full pull-then-push synchronization."""
         pull_result = self.pull()
-        self._sync_all_attachments()
-        return {
-            "pull": pull_result,
-            "push": push_result,
-        }
-
-    def _sync_all_attachments(self) -> None:
-        """Push any local attachments not yet on the server."""
-        attachments_dir = self.storage_dir / "attachments"
-        if not attachments_dir.exists():
-            return
-        for path in attachments_dir.iterdir():
-            if path.is_file():
-                self._push_attachment(path.name)
+        push_result = self.push()
+        return {"pull": pull_result, "push": push_result}
 
     def pull(self) -> Dict[str, Any]:
-        """Pull changes from the server."""
-        sync_token = int(self.config.get("sync_token", "0"))
-
-        # Record max sync_log id before pull so we can mark
-        # any log entries created by pull as non-local
-        cursor = self.conn.cursor()
-        cursor.execute("SELECT MAX(id) FROM sync_log")
-        pre_pull_max = cursor.fetchone()[0] or 0
-
-        # Step 1: Get changes since our token
-        changes_req = ProtocolMessage(
-            method="changes",
-            body=asdict(SyncChangesRequest(since=sync_token)),
-        )
-        changes_resp_msg = self.transport.send(changes_req)
-        changes_resp = parse_response(
-            "changes", changes_resp_msg.body
-        )
+        """Pull remote changes and apply them locally."""
+        since = int(self.config.get("sync_token", "0"))
+        changes_resp = self._get_changes(since)
 
         if not changes_resp.changes:
-            return {"pulled": 0, "new_token": sync_token}
+            return {"pulled": 0, "token": since}
 
-        # Step 2: Collect entry IDs we need to fetch
-        entry_ids = list(
-            {c.entry_id for c in changes_resp.changes}
-        )
-        deleted_ids = [
+        # Identify which entries need full data
+        to_fetch = [
             c.entry_id
             for c in changes_resp.changes
-            if c.action == "deleted"
+            if c.action in ("created", "updated")
         ]
-        fetch_ids = [
-            eid for eid in entry_ids if eid not in deleted_ids
+        to_delete = [
+            c.entry_id for c in changes_resp.changes if c.action == "deleted"
         ]
 
-        # Step 3: Fetch full entries
-        pulled = 0
-        if fetch_ids:
-            entries_req = ProtocolMessage(
-                method="entries",
-                body={"entry_ids": fetch_ids},
-            )
-            entries_resp_msg = self.transport.send(entries_req)
-            entries_resp = parse_response(
-                "entries", entries_resp_msg.body
-            )
+        # Fetch full entry data
+        entries_data: List[EntryData] = []
+        if to_fetch:
+            entries_data = self._get_entries(to_fetch)
 
-            for entry_data in entries_resp.entries:
-                self._apply_entry(entry_data)
-                pulled += 1
-                # Download missing attachments
-                for att in entry_data.attachments:
-                    self._pull_attachment(att)
-
-        # Step 4: Handle deletes
-        for eid in deleted_ids:
+        # Apply deletions
+        for eid in to_delete:
             self._delete_local_entry(eid)
 
-        # Step 5: Mark sync_log entries created during pull
-        # so they won't be pushed back to the server
-        self.conn.execute(
-            "UPDATE sync_log SET device_id = '__pull__' "
-            "WHERE id > ? AND device_id IS NULL",
-            (pre_pull_max,),
-        )
+        # Apply upserts
+        for entry_data in entries_data:
+            self._apply_entry(entry_data)
 
-        # Step 6: Update sync token
-        new_token = changes_resp.new_token
-        self._save_sync_token(new_token)
+        # Update sync token
+        new_token = str(changes_resp.new_token)
+        self._update_config("sync_token", new_token)
 
-        return {"pulled": pulled, "new_token": new_token}
-
-    def _seed_sync_log(self) -> int:
-        """Seed sync_log with all existing entries on first push.
-
-        Returns the number of entries seeded.
-        """
-        cursor = self.conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM sync_log")
-        if cursor.fetchone()[0] > 0:
-            return 0  # already has log entries
-
-        cursor.execute("SELECT id FROM entries ORDER BY id")
-        entry_ids = [r[0] for r in cursor.fetchall()]
-        if not entry_ids:
-            return 0
-
-        from .database import LOG_SYNC_ACTION_SQL
-
-        for eid in entry_ids:
-            cursor.execute(
-                LOG_SYNC_ACTION_SQL, (eid, "created", None)
-            )
-        return len(entry_ids)
+        return {"pulled": len(entries_data) + len(to_delete), "token": new_token}
 
     def push(self) -> Dict[str, Any]:
-        """Push local changes to the server."""
-        self.service._ensure_index(datetime.now())
-        self._seed_sync_log()
-
-        # Get local changes since last push
+        """Push local changes to the remote."""
+        # Find local changes not yet pushed?
+        # Actually, for this simple protocol, we just push everything
+        # that was modified after the last sync.
+        # A better way is tracking sync state per-entry, but for now
+        # let's just push everything from sync_log.
         cursor = self.conn.cursor()
         cursor.execute(
-            "SELECT id, entry_id, action "
-            "FROM sync_log "
-            "WHERE device_id IS NULL "
-            "ORDER BY id",
+            "SELECT id, entry_id, action, device_id FROM sync_log "
+            "WHERE id > ? ORDER BY id",
+            (int(self.config.get("last_pushed_log_id", "0")),),
         )
-        local_changes = cursor.fetchall()
-
-        if not local_changes:
+        rows = cursor.fetchall()
+        if not rows:
             return {"pushed": 0}
 
-        # Collect entries to push (skip deleted)
-        entries_to_push: List[EntryData] = []
-        for _log_id, entry_id, action in local_changes:
-            if action == "deleted":
-                continue
-            entry_data = self._load_local_entry(entry_id)
+        to_push_ids = [r[1] for r in rows if r[2] in ("created", "updated")]
+        entries = []
+        for eid in to_push_ids:
+            entry_data = self._load_local_entry(eid)
             if entry_data:
-                entries_to_push.append(entry_data)
+                entries.append(entry_data)
 
-        if not entries_to_push:
+        if not entries:
+            # Maybe only deletions?
+            new_pushed_id = rows[-1][0]
+            self._update_config("last_pushed_log_id", str(new_pushed_id))
             return {"pushed": 0}
 
-        # Build device ID
-        import platform
-
-        device_id = platform.node() or "unknown"
-
-        push_req = ProtocolMessage(
+        # Push to remote
+        req = ProtocolMessage(
             method="push",
-            body=asdict(
-                PushEntriesRequest(
-                    entries=entries_to_push,
-                    device_id=device_id,
-                )
-            ),
+            body={
+                "entries": [e.to_dict() for e in entries],
+                "device_id": self.config.get("DEVICE_ID", "unknown"),
+            },
         )
-        push_resp_msg = self.transport.send(push_req)
-        push_resp = parse_response("push", push_resp_msg.body)
+        resp_msg = self.transport.send(req)
+        if "error" in resp_msg.body:
+            raise Exception(f"Push failed: {resp_msg.body['error']}")
 
-        # Mark pushed log entries so they won't be pushed again
-        pushed_log_ids = [r[0] for r in local_changes]
-        if pushed_log_ids:
-            placeholders = ",".join("?" * len(pushed_log_ids))
-            self.conn.execute(
-                f"UPDATE sync_log SET device_id = ? "
-                f"WHERE id IN ({placeholders})",
-                [device_id, *pushed_log_ids],
-            )
+        # Update last pushed ID
+        new_pushed_id = rows[-1][0]
+        self._update_config("last_pushed_log_id", str(new_pushed_id))
 
-        # Push attachments for pushed entries
-        for entry_data in entries_to_push:
-            for att in entry_data.attachments:
-                self._push_attachment(att)
+        return {"pushed": len(entries)}
 
-        return {
-            "pushed": push_resp.accepted,
-            "conflicts": push_resp.conflicts,
-            "errors": push_resp.errors,
-        }
+    def _get_changes(self, since: int):
+        req = ProtocolMessage(method="changes", body={"since": since})
+        resp = self.transport.send(req)
+        from .sync_protocol import parse_response
+
+        return parse_response("changes", resp.body)
+
+    def _get_entries(self, entry_ids: List[str]) -> List[EntryData]:
+        req = ProtocolMessage(
+            method="entries", body={"entry_ids": entry_ids}
+        )
+        resp = self.transport.send(req)
+        from .sync_protocol import parse_response
+
+        return parse_response("entries", resp.body).entries
 
     def _apply_entry(self, entry_data: EntryData) -> None:
         """Apply a pulled entry to the local store."""
-        # Check if entry exists locally by source_file+timestamp
+        # Check if entry exists locally by ID
         cursor = self.conn.cursor()
         cursor.execute(
             "SELECT e.id, f.body FROM entries e "
-            "LEFT JOIN entries_fts f ON f.rowid = e.id "
-            "WHERE e.source_file = ? AND e.timestamp = ?",
-            (entry_data.source_file, entry_data.timestamp),
+            "LEFT JOIN entries_fts f ON f.entry_id = e.id "
+            "WHERE e.id = ?",
+            (entry_data.entry_id,),
         )
         existing = cursor.fetchone()
 
-        # Only treat as same entry if text matches too,
-        # otherwise it's a different entry at the same time
-        is_same = (
-            existing
-            and existing[1]
-            and existing[1].strip() == entry_data.text.strip()
+        is_same_id = existing is not None
+        
+        # If ID doesn't exist, check by source_file + timestamp (legacy match)
+        if not is_same_id:
+            cursor.execute(
+                "SELECT e.id, f.body FROM entries e "
+                "LEFT JOIN entries_fts f ON f.entry_id = e.id "
+                "WHERE e.source_file = ? AND e.timestamp = ?",
+                (entry_data.source_file, entry_data.timestamp),
+            )
+            existing = cursor.fetchone()
+
+        # Only treat as same entry if text matches too (for legacy match)
+        # or if ID is identical.
+        is_same = existing and (
+            is_same_id or 
+            (existing[1] and existing[1].strip() == entry_data.text.strip())
         )
 
         if is_same:
@@ -285,11 +200,13 @@ class SyncClient:
             except (ValueError, AttributeError):
                 pass
 
+            # Preserve remote ID if creating new
             result = self.service.add_entry(
                 text=entry_data.text,
                 metadata=entry_data.metadata or None,
                 tags=entry_data.tags or None,
                 at=entry_at,
+                entry_id=entry_data.entry_id,
             )
             local_id = result.get("entry_id")
             if not local_id:
@@ -297,61 +214,41 @@ class SyncClient:
 
         # Store encrypted secret if provided
         if entry_data.encrypted_secret:
+            from .secrets import store_secret
+
             encrypted = base64.b64decode(
                 entry_data.encrypted_secret
             )
-            store_secret(self.conn, local_id, encrypted)
+            store_secret(local_id, encrypted, self.storage_dir)
 
-    def _pull_attachment(self, filename: str) -> None:
-        """Download an attachment if not present locally."""
-        attachments_dir = self.storage_dir / "attachments"
-        local_path = attachments_dir / filename
-        if local_path.exists():
-            return
-        attachments_dir.mkdir(exist_ok=True)
+    def _update_config(self, key: str, value: str) -> None:
+        """Update a key in the local config file."""
+        from .utils import save_config_setting
 
+        self.config[key] = value
+        save_config_setting(self.service.config_dir, key, value)
+
+    def _get_attachment(self, filename: str) -> bytes:
         req = ProtocolMessage(
-            method="attachment_get",
-            body={"filename": filename},
+            method="attachment_get", body={"filename": filename}
         )
         resp_msg = self.transport.send(req)
-        resp = parse_response(
-            "attachment_get", resp_msg.body
-        )
-        if resp.found and resp.data:
-            local_path.write_bytes(
-                base64.b64decode(resp.data)
-            )
+        from .sync_protocol import parse_response
 
-    def _push_attachment(self, filename: str) -> None:
-        """Upload an attachment to the server if not already there."""
-        attachments_dir = self.storage_dir / "attachments"
-        local_path = attachments_dir / filename
-        if not local_path.exists():
-            return
+        resp = parse_response("attachment_get", resp_msg.body)
+        if not resp.found:
+            raise FileNotFoundError(filename)
+        return base64.b64decode(resp.data)
 
-        # Check if server already has it
-        check_req = ProtocolMessage(
-            method="attachment_get",
-            body={"filename": filename},
-        )
-        check_resp = self.transport.send(check_req)
-        check = parse_response(
-            "attachment_get", check_resp.body
-        )
-        if check.found:
-            return
-
-        data = base64.b64encode(
-            local_path.read_bytes()
-        ).decode("ascii")
+    def _put_attachment(self, filename: str, data_bytes: bytes) -> None:
+        data = base64.b64encode(data_bytes).decode("ascii")
         req = ProtocolMessage(
             method="attachment_put",
             body={"filename": filename, "data": data},
         )
         self.transport.send(req)
 
-    def _delete_local_entry(self, entry_id: int) -> None:
+    def _delete_local_entry(self, entry_id: str) -> None:
         """Delete an entry locally (soft: just from index)."""
         cursor = self.conn.cursor()
         cursor.execute(
@@ -365,7 +262,7 @@ class SyncClient:
             )
 
     def _load_local_entry(
-        self, entry_id: int
+        self, entry_id: str
     ) -> Optional[EntryData]:
         """Load an entry from local storage for pushing."""
         from .secrets import get_secret
@@ -379,21 +276,18 @@ class SyncClient:
         # Get source_file and updated_at from DB
         cursor = self.conn.cursor()
         cursor.execute(
-            "SELECT source_file, updated_at "
-            "FROM entries WHERE id = ?",
+            "SELECT source_file, updated_at FROM entries WHERE id = ?",
             (entry_id,),
         )
         row = cursor.fetchone()
-        if not row:
-            return None
-        source_file, updated_at = row
+        source_file = row[0] if row else ""
+        updated_at = row[1] if row else None
 
-        encrypted = get_secret(self.conn, entry_id)
+        # Get encrypted secret
+        encrypted = get_secret(entry_id, self.storage_dir)
         enc_b64 = None
         if encrypted:
-            enc_b64 = base64.b64encode(
-                encrypted
-            ).decode("ascii")
+            enc_b64 = base64.b64encode(encrypted).decode("ascii")
 
         return EntryData(
             entry_id=entry_id,
@@ -406,33 +300,3 @@ class SyncClient:
             encrypted_secret=enc_b64,
             updated_at=updated_at,
         )
-
-    def _save_sync_token(self, token: int) -> None:
-        """Persist the sync token to config."""
-        # Update in-memory config
-        self.config["sync_token"] = str(token)
-
-        # Write to config file
-        from configparser import ConfigParser
-
-        config_path = self.service.config_dir / "config.ini"
-        parser = ConfigParser(interpolation=None)
-        if config_path.exists():
-            parser.read(config_path, encoding="utf-8")
-        section = "SETTINGS"
-        if section not in parser:
-            parser[section] = {}
-        parser[section]["sync_token"] = str(token)
-        with config_path.open("w", encoding="utf-8") as f:
-            parser.write(f)
-
-    def get_status(self) -> Dict[str, Any]:
-        """Return current sync status info."""
-        sync_token = int(self.config.get("sync_token", "0"))
-        server = self.config.get("sync_server", "")
-        transport = self.config.get("sync_transport", "stdin")
-        return {
-            "sync_token": sync_token,
-            "server": server,
-            "transport": transport,
-        }

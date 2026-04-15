@@ -63,12 +63,23 @@ def print_tags(result, output_format):
 def print_doctor(result):
     if not result.get("success"):
         return
+    
+    # 1. Print normalization info
+    normalized = result.get("normalized_files", [])
+    if normalized:
+        paths = ", ".join(str(p) for p in normalized)
+        print(f"Normalized IDs in {paths}")
+
+    # 2. Print existing messages
     for msg in result.get("messages", []):
         print(msg)
+
+    # 3. Print summary count
     total_entries = result.get("total_entries", 0)
     entry_label = "entry" if total_entries == 1 else "entries"
     print(f"Rebuilt search index for {total_entries} {entry_label}.")
     
+    # 4. Print tag stats
     tag_stats = result.get("tag_stats", [])
     if tag_stats:
         tag_list = ", ".join(f"#{t['tag']}: {t['count']}" for t in tag_stats)

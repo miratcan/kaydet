@@ -1,4 +1,4 @@
-"""MCP (Model Context Protocol) server for Kaydet diary application.
+"""MCP (Model Context Protocol) server for Kaydet.
 
 This module provides an MCP server that exposes Kaydet's functionality
 to AI assistants and other MCP-compatible tools.
@@ -13,6 +13,7 @@ import json
 import sys
 from typing import Any
 
+from .database import log_sync_action
 from .service import KaydetService
 
 
@@ -70,7 +71,7 @@ async def serve() -> None:
         return [
             Tool(
                 name="add_entry",
-                description="Add a new diary entry",
+                description="Add a new entry",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -99,7 +100,7 @@ async def serve() -> None:
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "entry_id": {"type": "integer"},
+                        "entry_id": {"type": "string"},
                         "text": {"type": "string"},
                         "metadata": {
                             "type": "object",
@@ -123,7 +124,7 @@ async def serve() -> None:
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "entry_id": {"type": "integer"},
+                        "entry_id": {"type": "string"},
                     },
                     "required": ["entry_id"],
                 },
@@ -134,14 +135,14 @@ async def serve() -> None:
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "entry_id": {"type": "integer"},
+                        "entry_id": {"type": "string"},
                     },
                     "required": ["entry_id"],
                 },
             ),
             Tool(
                 name="search_entries",
-                description="Search diary entries",
+                description="Search entries",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -235,7 +236,7 @@ async def serve() -> None:
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "entry_id": {"type": "integer"},
+                        "entry_id": {"type": "string"},
                     },
                     "required": ["entry_id"],
                 },
@@ -290,6 +291,8 @@ async def serve() -> None:
                 tags=arguments.get("tags"),
                 timestamp=arguments.get("timestamp"),
             )
+            if result.get("success") and result.get("entry_id"):
+                log_sync_action(service.conn, result["entry_id"], "created")
             return [TextContent(type="text", text=json.dumps(result))]
 
         if name == "update_entry":
@@ -303,6 +306,8 @@ async def serve() -> None:
                 tags=arguments.get("tags"),
                 timestamp=arguments.get("timestamp"),
             )
+            if result.get("success"):
+                log_sync_action(service.conn, entry_id, "updated")
             return [TextContent(type="text", text=json.dumps(result))]
 
         if name == "delete_entry":
@@ -310,6 +315,8 @@ async def serve() -> None:
             if entry_id is None:
                 return error_response("entry_id is required")
             result = service.delete_entry(entry_id)
+            if result.get("success"):
+                log_sync_action(service.conn, entry_id, "deleted")
             return [TextContent(type="text", text=json.dumps(result))]
 
         if name == "get_entry":
@@ -362,6 +369,8 @@ async def serve() -> None:
                 description=description,
                 metadata=arguments.get("metadata"),
             )
+            if result.get("success") and result.get("entry_id"):
+                log_sync_action(service.conn, result["entry_id"], "created")
             return [TextContent(type="text", text=json.dumps(result))]
 
         if name == "mark_todo_done":
@@ -369,6 +378,8 @@ async def serve() -> None:
             if entry_id is None:
                 return error_response("entry_id is required")
             result = service.mark_todo_done(entry_id)
+            if result.get("success"):
+                log_sync_action(service.conn, entry_id, "updated")
             return [TextContent(type="text", text=json.dumps(result))]
 
         if name == "list_todos":
