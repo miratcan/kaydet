@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from configparser import ConfigParser
 
-from kaydet import database
-from kaydet.service import KaydetService
-from kaydet.sync_client import SyncClient
-from kaydet.sync_protocol import ProtocolMessage
-from kaydet.sync_server import SyncServer
-from kaydet.sync_transport import SyncTransport
+from kaydet_core import database
+from kaydet_core.service import KaydetService
+from kaydet_core.sync_protocol import ProtocolMessage
+from kaydet_server.sync_client import SyncClient
+from kaydet_server.sync_server import SyncServer
+from kaydet_server.sync_transport import SyncTransport
 
 
 def _add_and_log(service, **kwargs):
@@ -171,7 +171,7 @@ class TestE2ESync:
 
     def test_secret_syncs(self, tmp_path):
         """Encrypted secrets should sync as opaque blobs."""
-        from kaydet.secrets import (
+        from kaydet_core.secrets import (
             decrypt_secret,
             encrypt_secret,
             get_secret,

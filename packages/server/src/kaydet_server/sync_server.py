@@ -13,8 +13,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from .service import KaydetService
-from .sync_protocol import (
+from kaydet_core.service import KaydetService
+from kaydet_core.sync_protocol import (
     AttachmentGetRequest,
     AttachmentGetResponse,
     AttachmentPutRequest,
@@ -411,7 +411,7 @@ class SyncServer:
 
     def _load_entry(self, entry_id: str) -> Optional[EntryData]:
         """Load a single entry via KaydetService."""
-        from .secrets import get_secret
+        from kaydet_core.secrets import get_secret
 
         result = self.service.get_entry(entry_id)
         if not result.get("success"):
@@ -660,7 +660,7 @@ class SyncServer:
         )
 
         if entry_data.encrypted_secret:
-            from .secrets import store_secret
+            from kaydet_core.secrets import store_secret
 
             encrypted = base64.b64decode(
                 entry_data.encrypted_secret
@@ -715,7 +715,7 @@ class SyncServer:
         new_id = result["entry_id"]
 
         if entry_data.encrypted_secret:
-            from .secrets import store_secret
+            from kaydet_core.secrets import store_secret
 
             encrypted = base64.b64decode(
                 entry_data.encrypted_secret

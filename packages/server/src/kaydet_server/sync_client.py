@@ -8,12 +8,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from .service import KaydetService
-from .sync_protocol import (
+from kaydet_core.service import KaydetService
+from kaydet_core.sync_protocol import (
     EntryData,
     ProtocolMessage,
     parse_response,
 )
+
 from .sync_transport import SyncTransport
 
 
@@ -150,7 +151,7 @@ class SyncClient:
 
         # Store encrypted secret if provided
         if entry_data.encrypted_secret:
-            from .secrets import store_secret
+            from kaydet_core.secrets import store_secret
 
             encrypted = base64.b64decode(
                 entry_data.encrypted_secret
@@ -169,7 +170,7 @@ class SyncClient:
         self, entry_id: str
     ) -> Optional[EntryData]:
         """Load an entry for pushing to the server."""
-        from .secrets import get_secret
+        from kaydet_core.secrets import get_secret
 
         result = self.service.get_entry(entry_id)
         if not result.get("success"):
@@ -331,7 +332,7 @@ class SyncClient:
 
     def _update_config(self, key: str, value: str) -> None:
         """Persist a config key to disk."""
-        from .utils import save_config_setting
+        from kaydet_core.utils import save_config_setting
 
         self.config[key] = value
         save_config_setting(self.service.config_dir, key, value)

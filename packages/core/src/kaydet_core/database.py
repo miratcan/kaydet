@@ -8,6 +8,8 @@ from typing import Iterable
 # Increment when we intentionally drop and recreate the schema.
 SCHEMA_VERSION = 5
 
+INDEX_FILENAME = "index.db"
+
 # Legacy migrations kept a user_version pragma, but SQLite is purely an
 # index/cache for Kaydet. We can safely drop and recreate tables whenever the
 # schema changes instead of juggling ALTER statements.

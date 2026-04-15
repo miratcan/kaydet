@@ -1,4 +1,4 @@
-from kaydet.parsers import extract_tags_from_text, partition_entry_tokens
+from kaydet_core.parsers import extract_tags_from_text, partition_entry_tokens
 
 
 def test_extract_tags_ignores_escaped_hash():

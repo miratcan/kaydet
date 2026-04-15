@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kaydet-server"
+version = "0.36.0"
+description = "Sync server and MCP server for Kaydet."
+authors = [{name = "Mirat Can Bayrak"}]
+license-files = ["../../LICENSE"]
+requires-python = ">=3.10"
+dependencies = [
+    "kaydet-core",
+]
+
+[project.optional-dependencies]
+mcp = [
+    "mcp>=0.9.0",
+]
+
+[project.scripts]
+kaydet-mcp = "kaydet_server.mcp_server:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

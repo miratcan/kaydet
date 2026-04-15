@@ -4,14 +4,14 @@ import base64
 
 import pytest
 
-from kaydet import database
-from kaydet.service import KaydetService
-from kaydet.sync_protocol import (
+from kaydet_core import database
+from kaydet_core.service import KaydetService
+from kaydet_core.sync_protocol import (
     EntryData,
     ProtocolMessage,
     parse_response,
 )
-from kaydet.sync_server import (
+from kaydet_server.sync_server import (
     SyncServer,
     generate_api_key,
     list_api_keys,

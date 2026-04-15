@@ -5,7 +5,7 @@ from datetime import date
 from rich.console import Console
 from rich.text import Text
 
-from kaydet.formatters import (
+from kaydet_cli.formatters import (
     SearchResult,
     format_search_results,
     format_todo_results,

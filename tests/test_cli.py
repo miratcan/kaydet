@@ -10,8 +10,9 @@ from pathlib import Path
 
 import pytest
 
-from kaydet import __version__ as package_version
-from kaydet import cli, utils
+from kaydet_cli import __version__ as package_version
+from kaydet_cli import cli
+from kaydet_core import utils
 
 
 @pytest.fixture
@@ -238,7 +239,7 @@ def test_editor_usage(setup_kaydet, mock_datetime_factory):
 
     editor_text = "This entry came from the editor."
     monkeypatch.setattr(
-        "kaydet.commands.add.open_editor", lambda *args: editor_text
+        "kaydet_core.commands.add.open_editor", lambda *args: editor_text
     )
 
     cli.main()
@@ -571,7 +572,7 @@ def test_edit_command_updates_entry(
         "Follow-up detail\n"
     )
     monkeypatch.setattr(
-        "kaydet.commands.edit.open_editor",
+        "kaydet_core.commands.edit.open_editor",
         lambda *_args, **_kwargs: edited_content,
     )
     monkeypatch.setattr(
@@ -811,7 +812,7 @@ def test_folder_command_opens_main_log_dir(setup_kaydet, mocker):
     """Test that `kaydet --folder` opens the main log directory."""
     fake_storage_dir = setup_kaydet["fake_storage_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
-    mock_startfile = mocker.patch("kaydet.cli.startfile")
+    mock_startfile = mocker.patch("kaydet_cli.cli.startfile")
 
     monkeypatch.setattr(sys, "argv", ["kaydet", "--folder"])
 
@@ -922,7 +923,7 @@ def test_open_editor_flow(setup_kaydet, mock_datetime_factory, mocker):
         temp_file_path.write_text(editor_content, encoding="utf-8")
 
     mock_call = mocker.patch(
-        "kaydet.cli.subprocess.call", side_effect=fake_subprocess_call
+        "kaydet_cli.cli.subprocess.call", side_effect=fake_subprocess_call
     )
 
     monkeypatch.setattr(sys, "argv", ["kaydet", "--editor"])
@@ -997,7 +998,7 @@ def test_empty_entry_from_editor(setup_kaydet, capsys, mock_datetime_factory):
     monkeypatch.setattr(sys, "argv", ["kaydet"])
 
     monkeypatch.setattr(
-        "kaydet.commands.add.open_editor", lambda *args: " \n "
+        "kaydet_core.commands.add.open_editor", lambda *args: " \n "
     )
 
     cli.main()

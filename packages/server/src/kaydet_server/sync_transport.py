@@ -11,7 +11,7 @@ from configparser import SectionProxy
 from pathlib import Path
 from typing import Optional
 
-from .sync_protocol import (
+from kaydet_core.sync_protocol import (
     ProtocolMessage,
     deserialize_message,
     serialize_message,
@@ -42,7 +42,7 @@ class StdinTransport(SyncTransport):
                 [
                     sys.executable,
                     "-m",
-                    "kaydet.sync_server",
+                    "kaydet_server.sync_server",
                 ],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,

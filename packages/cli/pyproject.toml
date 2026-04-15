@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kaydet-cli"
+version = "0.36.0"
+description = "CLI for Kaydet personal database."
+authors = [{name = "Mirat Can Bayrak"}]
+license-files = ["../../LICENSE"]
+requires-python = ">=3.10"
+dependencies = [
+    "kaydet-core",
+    "kaydet-server",
+    "rich>=13.0",
+]
+
+[project.scripts]
+kaydet = "kaydet_cli.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

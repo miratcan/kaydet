@@ -1,22 +1,11 @@
 "Search and tags commands."
 
-import json
-import re
-import shutil
 import sqlite3
 from collections import defaultdict
 from configparser import SectionProxy
 from datetime import date, datetime
 from pathlib import Path
-from typing import List, Optional, Tuple
 
-from rich import print
-from rich.console import Console
-
-from ..formatters import (
-    SearchResult,
-    format_search_results,
-)
 from ..indexing import rebuild_index_if_empty
 from ..parsers import (
     parse_comparison_expression,
@@ -169,114 +158,6 @@ def load_matches(
 
     matches.sort(key=lambda entry: (entry.day or date.min, entry.timestamp))
     return matches
-
-
-def print_matches(
-    matches,
-    query: str,
-    output_format: str,
-    config: SectionProxy,
-    console: Optional[Console] = None,
-    metadata_filters: Optional[List[Tuple[str, str]]] = None,
-    default_since_hint: Optional[str] = None,
-) -> None:
-    """Render matches either as JSON or a terminal-friendly listing."""
-    if output_format == "json":
-        print(
-            json.dumps(
-                {
-                    "query": query,
-                    "matches": [match.to_dict() for match in matches],
-                    "total": len(matches),
-                },
-                indent=2,
-                ensure_ascii=False,
-            )
-        )
-        return
-
-    if not matches:
-        return
-
-    try:
-        terminal_width = shutil.get_terminal_size().columns
-    except OSError:
-        terminal_width = 80
-
-    # Convert matches to SearchResult objects for formatting
-    search_results = [
-        SearchResult(
-            entry_id=match.entry_id,
-            day=match.day,
-            timestamp=match.timestamp,
-            lines=match.lines,
-            metadata=match.metadata,
-            tags=match.tags,
-            attachments=list(match.attachments),
-        )
-        for match in matches
-    ]
-
-    # Use the formatter to display results
-    format_search_results(search_results, terminal_width, config, console)
-
-    # Extract since/until filter info if present
-    since_value = None
-    until_value = None
-    if metadata_filters:
-        for key, value in metadata_filters:
-            if key == "since":
-                since_value = value
-            elif key == "until":
-                until_value = value
-
-    # Build status message at the bottom (terminal scrolls up)
-    entry_label = "entry" if len(matches) == 1 else "entries"
-
-    # Clean query: remove since:/until: filters from display (shown separately)
-    display_query = query
-    if "since:" in query:
-        # Remove since:VALUE from query string for cleaner display
-        display_query = re.sub(r"\bsince:\S+\s*", "", query).strip()
-    if "until:" in query:
-        # Remove until:VALUE from query string for cleaner display
-        display_query = re.sub(r"\buntil:\S+\s*", "", query).strip()
-
-    if display_query:
-        status_msg = (
-            f"\nListed {len(matches)} {entry_label} containing {display_query}"
-        )
-    else:
-        status_msg = f"\nListed {len(matches)} {entry_label}"
-
-    # Add date range info if filters are applied
-    has_since = since_value and since_value not in ("0", "all")
-    has_until = until_value and until_value not in ("0", "all")
-
-    if has_since and has_until:
-        # Show date range
-        status_msg += f" ({since_value} to {until_value})"
-    elif has_since:
-        status_msg += f" (since {since_value})"
-    elif has_until:
-        status_msg += f" (until {until_value})"
-
-    print(status_msg + ".")
-
-    # Show hint for seeing all entries if date filter is applied
-    if has_since or has_until:
-        if display_query:
-            print(f"Use '{display_query} since:0' to see all entries.")
-        else:
-            print("Use 'since:0' to see all entries.")
-
-    if default_since_hint and not display_query:
-        print(
-            "Note: No filter provided, so showing "
-            f"entries since {default_since_hint}. "
-            "Use '--list --filter \"since:0\"' for the "
-            "full archive (this may be very verbose)."
-        )
 
 
 def search_command(

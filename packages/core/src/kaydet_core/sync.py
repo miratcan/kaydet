@@ -8,7 +8,7 @@ from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Dict, Iterable, List, Sequence
+from typing import Iterable, List, Sequence
 
 from . import database
 from .models import Entry

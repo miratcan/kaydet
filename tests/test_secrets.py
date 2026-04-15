@@ -2,7 +2,7 @@
 
 import pytest
 
-from kaydet.secrets import (
+from kaydet_core.secrets import (
     decrypt_secret,
     delete_secret,
     encrypt_secret,
@@ -33,8 +33,9 @@ class TestSpecFixture:
         import json
         from pathlib import Path
 
-        from kaydet.secrets import _derive_key
         from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+        from kaydet_core.secrets import _derive_key
 
         fixture_path = (
             Path(__file__).parent.parent

@@ -4,13 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import time
-from pathlib import Path
 
 import pytest
 
-from kaydet.sync_protocol import validate_attachment_filename
-from kaydet.sync_server import FileTransferManager
-
+from kaydet_core.sync_protocol import validate_attachment_filename
+from kaydet_server.sync_server import FileTransferManager
 
 # -- validate_attachment_filename --
 

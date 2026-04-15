@@ -4,7 +4,7 @@ from dataclasses import asdict
 
 import pytest
 
-from kaydet.sync_protocol import (
+from kaydet_core.sync_protocol import (
     AttachmentGetRequest,
     AttachmentGetResponse,
     AttachmentPutRequest,

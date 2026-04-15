@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from kaydet import mcp_server
-from kaydet import service as service_module
+from kaydet_core import service as service_module
+from kaydet_server import mcp_server
 
 
 @pytest.fixture
@@ -42,7 +42,7 @@ def mcp_env(monkeypatch, tmp_path: Path):
             fake_index_dir,
         )
 
-    monkeypatch.setattr("kaydet.service.load_config", fake_load_config)
+    monkeypatch.setattr("kaydet_core.service.load_config", fake_load_config)
 
     fixed_now = datetime(2025, 10, 27, 9, 30, 0)
 
@@ -51,7 +51,7 @@ def mcp_env(monkeypatch, tmp_path: Path):
         def now(cls):  # type: ignore[override]
             return fixed_now
 
-    monkeypatch.setattr("kaydet.service.datetime", MockDateTime)
+    monkeypatch.setattr("kaydet_core.service.datetime", MockDateTime)
 
     return {
         "config_dir": fake_config_dir,

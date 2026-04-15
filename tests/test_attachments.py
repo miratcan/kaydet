@@ -3,9 +3,9 @@
 from datetime import date
 from pathlib import Path
 
-from kaydet.commands.add import _ensure_attachments_dir, store_attachment
-from kaydet.models import Entry
-from kaydet.parsers import (
+from kaydet_core.commands.add import _ensure_attachments_dir, store_attachment
+from kaydet_core.models import Entry
+from kaydet_core.parsers import (
     format_entry_header,
     parse_day_entries,
     parse_stored_entry_remainder,

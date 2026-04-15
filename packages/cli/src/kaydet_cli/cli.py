@@ -10,8 +10,8 @@ from textwrap import dedent
 
 from rich.console import Console
 
-from . import __description__, __version__, database
-from .commands import (
+from kaydet_core import database
+from kaydet_core.commands import (
     add_entry_command,
     delete_entry_command,
     doctor_command,
@@ -23,30 +23,159 @@ from .commands import (
     tags_command,
     todo_command,
 )
-from .commands.edit import update_entry_inline
-from .commands.search import (
+from kaydet_core.commands.edit import update_entry_inline
+from kaydet_core.commands.search import (
     build_search_query,
     load_matches,
-    print_matches,
 )
-from .commands.todo import list_todos_command
-from .database import log_sync_action
-from .formatters import format_todo_results
-from .indexing import rebuild_index_if_empty
-from .parsers import (
+from kaydet_core.commands.todo import list_todos_command
+from kaydet_core.database import INDEX_FILENAME, log_sync_action
+from kaydet_core.indexing import rebuild_index_if_empty
+from kaydet_core.parsers import (
     extract_tags_from_text,  # noqa: F401
     tokenize_query,
 )
-from .startfile import startfile
-from .sync import sync_modified_day_files
-from .utils import (
+from kaydet_core.sync import sync_modified_day_files
+from kaydet_core.utils import (
     DEFAULT_SETTINGS,  # noqa: F401
     load_config,
     migrate_storage,
     open_file_in_editor,
 )
 
-INDEX_FILENAME = "index.db"
+from . import __description__, __version__
+from .formatters import (
+    SearchResult,
+    format_search_results,
+    format_todo_results,
+)
+from .startfile import startfile
+
+
+def print_matches(
+    matches,
+    query: str,
+    output_format: str,
+    config,
+    console=None,
+    metadata_filters=None,
+    default_since_hint=None,
+) -> None:
+    """Render matches as JSON or terminal-friendly listing."""
+    import json
+    import re
+    import shutil
+
+    if output_format == "json":
+        print(
+            json.dumps(
+                {
+                    "query": query,
+                    "matches": [
+                        match.to_dict() for match in matches
+                    ],
+                    "total": len(matches),
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+        return
+
+    if not matches:
+        return
+
+    try:
+        terminal_width = shutil.get_terminal_size().columns
+    except OSError:
+        terminal_width = 80
+
+    search_results = [
+        SearchResult(
+            entry_id=match.entry_id,
+            day=match.day,
+            timestamp=match.timestamp,
+            lines=match.lines,
+            metadata=match.metadata,
+            tags=match.tags,
+            attachments=list(match.attachments),
+        )
+        for match in matches
+    ]
+
+    format_search_results(
+        search_results, terminal_width, config, console
+    )
+
+    since_value = None
+    until_value = None
+    if metadata_filters:
+        for key, value in metadata_filters:
+            if key == "since":
+                since_value = value
+            elif key == "until":
+                until_value = value
+
+    entry_label = (
+        "entry" if len(matches) == 1 else "entries"
+    )
+
+    display_query = query
+    if "since:" in query:
+        display_query = re.sub(
+            r"\bsince:\S+\s*", "", query
+        ).strip()
+    if "until:" in query:
+        display_query = re.sub(
+            r"\buntil:\S+\s*", "", query
+        ).strip()
+
+    if display_query:
+        status_msg = (
+            f"\nListed {len(matches)} {entry_label}"
+            f" containing {display_query}"
+        )
+    else:
+        status_msg = (
+            f"\nListed {len(matches)} {entry_label}"
+        )
+
+    has_since = since_value and since_value not in (
+        "0",
+        "all",
+    )
+    has_until = until_value and until_value not in (
+        "0",
+        "all",
+    )
+
+    if has_since and has_until:
+        status_msg += (
+            f" ({since_value} to {until_value})"
+        )
+    elif has_since:
+        status_msg += f" (since {since_value})"
+    elif has_until:
+        status_msg += f" (until {until_value})"
+
+    print(status_msg + ".")
+
+    if has_since or has_until:
+        if display_query:
+            print(
+                f"Use '{display_query} since:0' "
+                f"to see all entries."
+            )
+        else:
+            print("Use 'since:0' to see all entries.")
+
+    if default_since_hint and not display_query:
+        print(
+            "Note: No filter provided, so showing "
+            f"entries since {default_since_hint}. "
+            "Use '--list --filter \"since:0\"' for the "
+            "full archive (this may be very verbose)."
+        )
 
 
 def build_parser(
@@ -409,7 +538,7 @@ def main() -> None:
             "Rebuilding search index from day files..."
             " This may take a moment."
         )
-        from kaydet.cli_printers import print_doctor
+        from kaydet_cli.cli_printers import print_doctor
 
         print_doctor(doctor_command(conn, storage_dir, config, now, config_dir=config_dir))
         return
@@ -418,7 +547,7 @@ def main() -> None:
     rebuild_index_if_empty(conn, storage_dir, config, now)
 
     if args.stats:
-        from kaydet.cli_printers import print_stats
+        from kaydet_cli.cli_printers import print_stats
 
         print_stats(
             stats_command(storage_dir, config, now),
@@ -427,7 +556,7 @@ def main() -> None:
         return
 
     if args.list_tags:
-        from kaydet.cli_printers import print_tags
+        from kaydet_cli.cli_printers import print_tags
         print_tags(tags_command(conn), args.output_format)
         return
 
@@ -453,8 +582,8 @@ def main() -> None:
             console=console,
         )
         # Show decrypted secret if one exists
-        from .secrets import decrypt_secret, get_secret
-        from .utils import get_secret_password
+        from kaydet_core.secrets import decrypt_secret, get_secret
+        from kaydet_core.utils import get_secret_password
 
         encrypted = get_secret(args.get, storage_dir)
         if encrypted:
@@ -701,7 +830,7 @@ def _handle_sync_command(
         return
 
     if action == "status":
-        from .sync_client import SyncClient
+        from kaydet_server.sync_client import SyncClient
 
         client = SyncClient.initialize()
         status = client.get_status()
@@ -715,7 +844,7 @@ def _handle_sync_command(
         return
 
     # Default: run sync
-    from .sync_client import SyncClient
+    from kaydet_server.sync_client import SyncClient
 
     client = SyncClient.initialize()
     print("Syncing...")
@@ -735,7 +864,7 @@ def _handle_sync_command(
 
 def _sync_setup(config, config_dir):
     """Interactive sync setup."""
-    from .utils import save_config_setting
+    from kaydet_core.utils import save_config_setting
 
     print("\nSync Setup")
     print("=" * 40)
@@ -769,7 +898,7 @@ def _handle_server_command(
     args, config, config_dir, storage_dir, index_dir, console
 ):
     """Handle kaydet server subcommands."""
-    from . import database
+    from kaydet_core import database
 
     db_path = Path(index_dir) / INDEX_FILENAME
     conn = database.get_db_connection(db_path)
@@ -788,13 +917,13 @@ def _handle_server_command(
                 args.port,
             )
         else:
-            from .sync_server import run_stdin_server
+            from kaydet_server.sync_server import run_stdin_server
 
             run_stdin_server()
         return
 
     if action == "generate-key":
-        from .sync_server import generate_api_key
+        from kaydet_server.sync_server import generate_api_key
 
         key = generate_api_key(conn, args.name)
         print(f"API key generated: {key}")
@@ -804,7 +933,7 @@ def _handle_server_command(
         return
 
     if action == "list-keys":
-        from .sync_server import list_api_keys
+        from kaydet_server.sync_server import list_api_keys
 
         keys = list_api_keys(conn)
         if not keys:
@@ -820,7 +949,7 @@ def _handle_server_command(
         return
 
     if action == "revoke-key":
-        from .sync_server import revoke_api_key
+        from kaydet_server.sync_server import revoke_api_key
 
         if revoke_api_key(conn, args.name):
             print(f"Key '{args.name}' revoked.")
@@ -836,302 +965,8 @@ def _start_http_server(
     conn, storage_dir, config, config_dir, host, port
 ):
     """Start the HTTP sync server."""
-    import json as _json
-    import mimetypes
-    from http.server import BaseHTTPRequestHandler, HTTPServer
+    from kaydet_server.http_server import start_http_server
 
-    from .service import KaydetService
-    from .sync_protocol import (
-        deserialize_message,
-        serialize_message,
-        validate_attachment_filename,
+    start_http_server(
+        conn, storage_dir, config, config_dir, host, port
     )
-    from .sync_server import (
-        FileTransferManager,
-        SyncServer,
-        validate_api_key,
-    )
-
-    svc = KaydetService(
-        config=config, config_dir=config_dir,
-        storage_dir=storage_dir, conn=conn,
-    )
-    server_inst = SyncServer(svc)
-    file_mgr = FileTransferManager(storage_dir)
-
-    class SyncHandler(BaseHTTPRequestHandler):
-        def _cors_headers(self):
-            self.send_header(
-                "Access-Control-Allow-Origin", "*"
-            )
-            self.send_header(
-                "Access-Control-Allow-Methods",
-                "GET, POST, OPTIONS",
-            )
-            self.send_header(
-                "Access-Control-Allow-Headers",
-                "Content-Type, Authorization, "
-                "X-Upload-Id, X-Chunk-Offset, Range",
-            )
-            self.send_header(
-                "Access-Control-Expose-Headers",
-                "X-SHA256, Content-Range",
-            )
-
-        def _check_auth(self) -> bool:
-            """Validate Bearer token. Sends 401 and returns False on failure."""
-            auth = self.headers.get("Authorization", "")
-            if not auth.startswith("Bearer "):
-                self.send_response(401)
-                self._cors_headers()
-                self.end_headers()
-                self.wfile.write(b"Missing API key")
-                return False
-            if not validate_api_key(conn, auth[7:]):
-                self.send_response(401)
-                self._cors_headers()
-                self.end_headers()
-                self.wfile.write(b"Invalid API key")
-                return False
-            return True
-
-        def _json_response(self, code: int, obj: dict):
-            body = _json.dumps(obj).encode("utf-8")
-            self.send_response(code)
-            self.send_header("Content-Type", "application/json")
-            self._cors_headers()
-            self.end_headers()
-            self.wfile.write(body)
-
-        def do_OPTIONS(self):
-            self.send_response(204)
-            self._cors_headers()
-            self.end_headers()
-
-        def do_GET(self):
-            if not self.path.startswith("/files/"):
-                self.send_response(404)
-                self._cors_headers()
-                self.end_headers()
-                return
-
-            if not self._check_auth():
-                return
-
-            filename = self.path[7:]  # strip "/files/"
-            if not validate_attachment_filename(filename):
-                self._json_response(400, {"error": "Invalid filename"})
-                return
-
-            filepath = file_mgr.get_file_path(filename)
-            if not filepath:
-                self._json_response(404, {"error": "File not found"})
-                return
-
-            file_size = filepath.stat().st_size
-            sha256 = file_mgr.compute_sha256(filepath)
-            content_type = (
-                mimetypes.guess_type(filename)[0]
-                or "application/octet-stream"
-            )
-
-            range_header = self.headers.get("Range")
-            if range_header and range_header.startswith("bytes="):
-                range_spec = range_header[6:]
-                start_str, _, end_str = range_spec.partition("-")
-                start = int(start_str) if start_str else 0
-                end = int(end_str) if end_str else file_size - 1
-                end = min(end, file_size - 1)
-                length = end - start + 1
-
-                self.send_response(206)
-                self.send_header("Content-Type", content_type)
-                self.send_header("Content-Length", str(length))
-                self.send_header(
-                    "Content-Range",
-                    f"bytes {start}-{end}/{file_size}",
-                )
-                self.send_header("Accept-Ranges", "bytes")
-                self.send_header("X-SHA256", sha256)
-                self._cors_headers()
-                self.end_headers()
-
-                with open(filepath, "rb") as f:
-                    f.seek(start)
-                    remaining = length
-                    while remaining > 0:
-                        chunk = f.read(min(65536, remaining))
-                        if not chunk:
-                            break
-                        self.wfile.write(chunk)
-                        remaining -= len(chunk)
-            else:
-                self.send_response(200)
-                self.send_header("Content-Type", content_type)
-                self.send_header("Content-Length", str(file_size))
-                self.send_header("Accept-Ranges", "bytes")
-                self.send_header("X-SHA256", sha256)
-                self._cors_headers()
-                self.end_headers()
-
-                with open(filepath, "rb") as f:
-                    while chunk := f.read(65536):
-                        self.wfile.write(chunk)
-
-        def do_POST(self):
-            if self.path == "/sync":
-                self._handle_sync_post()
-            elif self.path == "/files/upload-start":
-                self._handle_upload_start()
-            elif self.path == "/files/upload-chunk":
-                self._handle_upload_chunk()
-            elif self.path == "/files/upload-finish":
-                self._handle_upload_finish()
-            else:
-                self.send_response(404)
-                self._cors_headers()
-                self.end_headers()
-                self.wfile.write(b"Not found")
-
-        def _handle_sync_post(self):
-            if not self._check_auth():
-                return
-
-            length = int(
-                self.headers.get("Content-Length", 0)
-            )
-            body = self.rfile.read(length).decode("utf-8")
-
-            try:
-                msg = deserialize_message(body)
-                response = server_inst.handle_message(msg)
-                resp_json = serialize_message(
-                    response
-                ).encode("utf-8")
-
-                self.send_response(200)
-                self.send_header(
-                    "Content-Type", "application/json"
-                )
-                self._cors_headers()
-                self.end_headers()
-                self.wfile.write(resp_json)
-            except Exception as e:
-                self.send_response(500)
-                self._cors_headers()
-                self.end_headers()
-                self.wfile.write(str(e).encode("utf-8"))
-
-        def _handle_upload_start(self):
-            if not self._check_auth():
-                return
-
-            length = int(
-                self.headers.get("Content-Length", 0)
-            )
-            body = _json.loads(
-                self.rfile.read(length).decode("utf-8")
-            )
-            resp = file_mgr.start_upload(
-                body.get("filename", ""),
-                body.get("size", 0),
-                body.get("sha256", ""),
-            )
-            if resp.upload_id is None and not resp.already_exists:
-                self._json_response(
-                    400, {"error": "Invalid filename"}
-                )
-                return
-            from dataclasses import asdict
-
-            self._json_response(200, asdict(resp))
-
-        def _handle_upload_chunk(self):
-            if not self._check_auth():
-                return
-
-            upload_id = self.headers.get("X-Upload-Id", "")
-            offset_str = self.headers.get("X-Chunk-Offset", "")
-
-            if not upload_id or not offset_str:
-                self._json_response(
-                    400,
-                    {"error": "Missing X-Upload-Id or X-Chunk-Offset"},
-                )
-                return
-
-            if upload_id not in file_mgr._uploads:
-                self._json_response(
-                    404, {"error": "Unknown upload_id"}
-                )
-                return
-
-            offset = int(offset_str)
-            expected = file_mgr.get_expected_offset(upload_id)
-            if offset != expected:
-                self._json_response(
-                    409,
-                    {
-                        "error": "Chunk offset mismatch",
-                        "expected_offset": expected,
-                    },
-                )
-                return
-
-            length = int(
-                self.headers.get("Content-Length", 0)
-            )
-            data = self.rfile.read(length)
-
-            result = file_mgr.write_chunk(
-                upload_id, offset, data
-            )
-            if result is None:
-                self._json_response(
-                    500, {"error": "Write failed"}
-                )
-                return
-
-            received, total = result
-            self._json_response(
-                200,
-                {
-                    "received_bytes": received,
-                    "total_received": total,
-                },
-            )
-
-        def _handle_upload_finish(self):
-            if not self._check_auth():
-                return
-
-            length = int(
-                self.headers.get("Content-Length", 0)
-            )
-            body = _json.loads(
-                self.rfile.read(length).decode("utf-8")
-            )
-            upload_id = body.get("upload_id", "")
-
-            if upload_id not in file_mgr._uploads:
-                self._json_response(
-                    404, {"error": "Unknown upload_id"}
-                )
-                return
-
-            resp = file_mgr.finish_upload(upload_id)
-            from dataclasses import asdict
-
-            code = 200 if resp.ok else 400
-            self._json_response(code, asdict(resp))
-
-        def log_message(self, format, *a):
-            print(f"[sync] {self.address_string()} "
-                  f"{format % a}")
-
-    httpd = HTTPServer((host, port), SyncHandler)
-    print(f"Sync server listening on {host}:{port}")
-    try:
-        httpd.serve_forever()
-    except KeyboardInterrupt:
-        print("\nServer stopped.")

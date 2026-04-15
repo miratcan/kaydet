@@ -13,8 +13,8 @@ import json
 import sys
 from typing import Any
 
-from .database import log_sync_action
-from .service import KaydetService
+from kaydet_core.database import log_sync_action
+from kaydet_core.service import KaydetService
 
 
 class MissingMCPDependencyError(RuntimeError):

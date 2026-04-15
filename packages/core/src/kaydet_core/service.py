@@ -9,8 +9,6 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from . import database
-from .utils import entry_id_sort_key
-from .cli import INDEX_FILENAME
 from .commands.add import EmptyEntryError, create_entry
 from .commands.delete import delete_entry_command
 from .commands.edit import update_entry_inline
@@ -21,10 +19,11 @@ from .commands.search import (
 )
 from .commands.stats import collect_month_counts
 from .commands.todo import done_command
+from .database import INDEX_FILENAME
 from .indexing import rebuild_index_if_empty
 from .parsers import parse_day_entries, resolve_entry_date
 from .sync import sync_modified_day_files
-from .utils import load_config
+from .utils import entry_id_sort_key, load_config
 
 
 @dataclass
