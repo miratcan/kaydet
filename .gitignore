@@ -14,3 +14,6 @@ build/
 UNKNOWN.egg-info/
 *.bak
 .pip/
+node_modules/
+.expo/
+*.egg-info/
