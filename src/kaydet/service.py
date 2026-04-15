@@ -366,32 +366,6 @@ class KaydetService:
             "total_entries": total,
         }
 
-    def entries_by_tag(self, tag: str, limit: int = 10) -> dict[str, Any]:
-        now = datetime.now()
-        self._ensure_index(now)
-        cursor = self.conn.cursor()
-        cursor.execute(
-            """
-            SELECT e.source_file, e.id
-            FROM entries e
-            JOIN tags t ON e.id = t.entry_id
-            WHERE t.tag_name = ?
-            ORDER BY e.id DESC
-            LIMIT ?
-            """,
-            (tag, limit),
-        )
-        locations = cursor.fetchall()
-        if not locations:
-            return {"success": True, "entries": []}
-        matches = load_matches(locations, self.storage_dir, self.config)
-        matches.sort(
-            key=lambda entry: entry_id_sort_key(entry.entry_id),
-            reverse=True,
-        )
-        payload = [match.to_dict() for match in matches]
-        return {"success": True, "entries": payload}
-
     def create_todo(
         self, description: str, metadata: dict[str, str] | None = None
     ) -> dict[str, Any]:

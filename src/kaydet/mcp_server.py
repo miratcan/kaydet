@@ -350,7 +350,9 @@ async def serve() -> None:
             if not tag:
                 return error_response("tag is required")
             limit = arguments.get("limit", 10)
-            result = service.entries_by_tag(tag, limit=limit)
+            result = service.search_entries(
+                f"#{tag}", limit=limit
+            )
             return [TextContent(type="text", text=json.dumps(result))]
 
         if name == "list_tags":

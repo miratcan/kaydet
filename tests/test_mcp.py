@@ -107,9 +107,9 @@ def test_service_update_and_recent(mcp_env):
     ids = [entry["id"] for entry in recent["matches"]]
     assert b["entry_id"] in ids
 
-    by_tag = service.entries_by_tag("team")
-    assert len(by_tag["entries"]) == 1
-    assert "Lunch with team" in by_tag["entries"][0]["text"]
+    by_tag = service.search_entries("#team", limit=10)
+    assert len(by_tag["matches"]) == 1
+    assert "Lunch with team" in by_tag["matches"][0]["text"]
 
 
 def test_service_get_stats(mcp_env):
