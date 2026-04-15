@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional
 
@@ -126,6 +127,57 @@ class AttachmentPutResponse:
 
     filename: str = ""
     stored: bool = False
+
+
+# -- Chunked file transfer (HTTP only) --
+
+_ATTACHMENT_FILENAME_RE = re.compile(
+    r"^[a-zA-Z0-9]+_[a-zA-Z0-9._-]+$"
+)
+
+
+def validate_attachment_filename(filename: str) -> bool:
+    """Validate filename: no path traversal, must match {entry_id}_{name}."""
+    if ".." in filename or "/" in filename or "\\" in filename:
+        return False
+    return bool(_ATTACHMENT_FILENAME_RE.match(filename))
+
+
+@dataclass
+class UploadStartRequest:
+    """Initiate a chunked file upload."""
+
+    filename: str = ""
+    size: int = 0
+    sha256: str = ""
+
+
+@dataclass
+class UploadStartResponse:
+    """Response to upload-start."""
+
+    upload_id: Optional[str] = None
+    chunk_size: int = 1048576  # 1MB default
+    existing_offset: int = 0
+    already_exists: bool = False
+
+
+@dataclass
+class UploadFinishRequest:
+    """Finalize a chunked upload."""
+
+    upload_id: str = ""
+
+
+@dataclass
+class UploadFinishResponse:
+    """Response to upload-finish."""
+
+    filename: str = ""
+    ok: bool = False
+    sha256_match: bool = False
+    size: int = 0
+    error: str = ""
 
 
 # -- Search --

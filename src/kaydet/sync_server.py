@@ -3,9 +3,14 @@
 from __future__ import annotations
 
 import base64
+import hashlib
+import secrets as secrets_mod
 import sqlite3
 import sys
+import time
+from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from .service import KaydetService
@@ -37,11 +42,207 @@ from .sync_protocol import (
     SyncResponse,
     UpdateEntryRequest,
     UpdateEntryResponse,
+    UploadFinishResponse,
+    UploadStartResponse,
     deserialize_message,
     make_response_message,
     parse_request,
     serialize_message,
+    validate_attachment_filename,
 )
+
+
+@dataclass
+class UploadState:
+    """Tracks an in-progress chunked upload."""
+
+    upload_id: str
+    filename: str
+    size: int
+    expected_sha256: str
+    received_bytes: int = 0
+    created_at: float = field(default_factory=time.time)
+
+
+class FileTransferManager:
+    """Manages chunked file uploads and file downloads."""
+
+    def __init__(
+        self,
+        storage_dir: Path,
+        cleanup_timeout: int = 86400,
+        chunk_size: int = 1048576,
+    ) -> None:
+        self.storage_dir = storage_dir
+        self.attachments_dir = storage_dir / "attachments"
+        self.uploads_dir = storage_dir / "uploads"
+        self.cleanup_timeout = cleanup_timeout
+        self.chunk_size = chunk_size
+        self._uploads: Dict[str, UploadState] = {}
+
+    def start_upload(
+        self, filename: str, size: int, sha256: str
+    ) -> UploadStartResponse:
+        """Initiate or resume a chunked upload."""
+        if not validate_attachment_filename(filename):
+            return UploadStartResponse(
+                upload_id=None, chunk_size=0, existing_offset=0
+            )
+
+        # Fast-path: file already exists with matching hash
+        target = self.attachments_dir / filename
+        if target.exists():
+            existing_hash = self.compute_sha256(target)
+            if existing_hash == sha256:
+                return UploadStartResponse(
+                    already_exists=True
+                )
+
+        # Check for existing partial upload for this filename
+        for uid, state in self._uploads.items():
+            if state.filename == filename:
+                part_file = self.uploads_dir / f"{uid}.part"
+                if part_file.exists():
+                    existing_offset = part_file.stat().st_size
+                    state.received_bytes = existing_offset
+                    return UploadStartResponse(
+                        upload_id=uid,
+                        chunk_size=self.chunk_size,
+                        existing_offset=existing_offset,
+                    )
+                # Stale state entry, clean it up
+                del self._uploads[uid]
+                break
+
+        # New upload
+        upload_id = secrets_mod.token_hex(8)
+        self.uploads_dir.mkdir(parents=True, exist_ok=True)
+        self._uploads[upload_id] = UploadState(
+            upload_id=upload_id,
+            filename=filename,
+            size=size,
+            expected_sha256=sha256,
+        )
+        return UploadStartResponse(
+            upload_id=upload_id,
+            chunk_size=self.chunk_size,
+            existing_offset=0,
+        )
+
+    def write_chunk(
+        self, upload_id: str, offset: int, data: bytes
+    ) -> Optional[tuple]:
+        """Write a chunk. Returns (received_bytes, total_received) or None."""
+        state = self._uploads.get(upload_id)
+        if state is None:
+            return None
+
+        part_file = self.uploads_dir / f"{upload_id}.part"
+        current_size = (
+            part_file.stat().st_size if part_file.exists() else 0
+        )
+
+        if offset != current_size:
+            return None  # offset mismatch
+
+        with open(part_file, "ab") as f:
+            f.write(data)
+
+        received = len(data)
+        state.received_bytes = current_size + received
+        return (received, state.received_bytes)
+
+    def get_expected_offset(self, upload_id: str) -> int:
+        """Return the expected next offset for an upload."""
+        part_file = self.uploads_dir / f"{upload_id}.part"
+        if part_file.exists():
+            return part_file.stat().st_size
+        return 0
+
+    def finish_upload(
+        self, upload_id: str
+    ) -> UploadFinishResponse:
+        """Finalize an upload: verify SHA-256, move to attachments."""
+        state = self._uploads.get(upload_id)
+        if state is None:
+            return UploadFinishResponse(
+                ok=False, error="Unknown upload_id"
+            )
+
+        part_file = self.uploads_dir / f"{upload_id}.part"
+        if not part_file.exists():
+            del self._uploads[upload_id]
+            return UploadFinishResponse(
+                filename=state.filename,
+                ok=False,
+                error="No data received",
+            )
+
+        actual_hash = self.compute_sha256(part_file)
+        actual_size = part_file.stat().st_size
+
+        if actual_hash != state.expected_sha256:
+            part_file.unlink()
+            del self._uploads[upload_id]
+            return UploadFinishResponse(
+                filename=state.filename,
+                ok=False,
+                sha256_match=False,
+                size=actual_size,
+                error=(
+                    f"SHA-256 mismatch: expected "
+                    f"{state.expected_sha256} "
+                    f"got {actual_hash}"
+                ),
+            )
+
+        # Move to attachments
+        self.attachments_dir.mkdir(parents=True, exist_ok=True)
+        target = self.attachments_dir / state.filename
+        part_file.rename(target)
+        del self._uploads[upload_id]
+
+        return UploadFinishResponse(
+            filename=state.filename,
+            ok=True,
+            sha256_match=True,
+            size=actual_size,
+        )
+
+    def get_file_path(
+        self, filename: str
+    ) -> Optional[Path]:
+        """Return path to an attachment if it exists."""
+        if not validate_attachment_filename(filename):
+            return None
+        filepath = self.attachments_dir / filename
+        if filepath.exists() and filepath.is_file():
+            return filepath
+        return None
+
+    @staticmethod
+    def compute_sha256(filepath: Path) -> str:
+        """Compute hex-encoded SHA-256 of a file."""
+        h = hashlib.sha256()
+        with open(filepath, "rb") as f:
+            while chunk := f.read(65536):
+                h.update(chunk)
+        return h.hexdigest()
+
+    def cleanup_stale(self) -> int:
+        """Remove uploads older than cleanup_timeout. Returns count removed."""
+        now = time.time()
+        stale = [
+            uid
+            for uid, state in self._uploads.items()
+            if now - state.created_at > self.cleanup_timeout
+        ]
+        for uid in stale:
+            part_file = self.uploads_dir / f"{uid}.part"
+            if part_file.exists():
+                part_file.unlink()
+            del self._uploads[uid]
+        return len(stale)
 
 
 class SyncServer:

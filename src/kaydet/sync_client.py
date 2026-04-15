@@ -68,10 +68,17 @@ class SyncClient:
         # 4. Update token
         self._update_config("sync_token", str(resp.new_token))
 
+        # 5. Sync attachment files
+        att_stats = self._sync_attachments(
+            resp.entries, local_entries
+        )
+
         return {
             "pushed": len(local_entries),
             "pulled": pulled,
             "token": resp.new_token,
+            "attachments_downloaded": att_stats["downloaded"],
+            "attachments_uploaded": att_stats["uploaded"],
         }
 
     def _collect_local_changes(self) -> List[EntryData]:
@@ -195,6 +202,132 @@ class SyncClient:
             encrypted_secret=enc_b64,
             updated_at=updated_at,
         )
+
+    def _sync_attachments(
+        self,
+        remote_entries: List[EntryData],
+        local_entries: List[EntryData],
+    ) -> Dict[str, int]:
+        """Transfer attachment files after entry sync."""
+        from .sync_transport import HttpTransport
+
+        if isinstance(self.transport, HttpTransport):
+            return self._sync_attachments_http(
+                remote_entries, local_entries
+            )
+        return self._sync_attachments_stdin(
+            remote_entries, local_entries
+        )
+
+    def _sync_attachments_http(
+        self,
+        remote_entries: List[EntryData],
+        local_entries: List[EntryData],
+    ) -> Dict[str, int]:
+        """Sync attachments via HTTP chunked file transfer."""
+        from .sync_transport import HttpTransport
+
+        transport: HttpTransport = self.transport  # type: ignore[assignment]
+        attachments_dir = self.storage_dir / "attachments"
+        downloaded = 0
+        uploaded = 0
+
+        # Download missing remote attachments
+        for entry in remote_entries:
+            for att_name in entry.attachments:
+                local_path = attachments_dir / att_name
+                if not local_path.exists():
+                    try:
+                        transport.download_file(
+                            att_name, local_path
+                        )
+                        downloaded += 1
+                    except Exception:
+                        pass
+
+        # Upload local attachments
+        for entry in local_entries:
+            for att_name in entry.attachments:
+                local_path = attachments_dir / att_name
+                if local_path.exists():
+                    try:
+                        transport.upload_file(
+                            local_path, att_name
+                        )
+                        uploaded += 1
+                    except Exception:
+                        pass
+
+        return {"downloaded": downloaded, "uploaded": uploaded}
+
+    def _sync_attachments_stdin(
+        self,
+        remote_entries: List[EntryData],
+        local_entries: List[EntryData],
+    ) -> Dict[str, int]:
+        """Sync attachments via stdin base64 protocol."""
+        import sys
+
+        attachments_dir = self.storage_dir / "attachments"
+        downloaded = 0
+        uploaded = 0
+
+        # Download missing remote attachments
+        for entry in remote_entries:
+            for att_name in entry.attachments:
+                local_path = attachments_dir / att_name
+                if not local_path.exists():
+                    try:
+                        resp_msg = self.transport.send(
+                            ProtocolMessage(
+                                method="attachment_get",
+                                body={"filename": att_name},
+                            )
+                        )
+                        if resp_msg.body.get("found"):
+                            data = base64.b64decode(
+                                resp_msg.body["data"]
+                            )
+                            attachments_dir.mkdir(
+                                parents=True, exist_ok=True
+                            )
+                            local_path.write_bytes(data)
+                            downloaded += 1
+                    except Exception:
+                        pass
+
+        # Upload local attachments
+        for entry in local_entries:
+            for att_name in entry.attachments:
+                local_path = attachments_dir / att_name
+                if local_path.exists():
+                    file_size = local_path.stat().st_size
+                    if file_size > 10 * 1024 * 1024:
+                        print(
+                            f"Warning: {att_name} is "
+                            f"{file_size // (1024*1024)}MB, "
+                            f"large files over stdin may "
+                            f"be slow",
+                            file=sys.stderr,
+                        )
+                    try:
+                        data_b64 = base64.b64encode(
+                            local_path.read_bytes()
+                        ).decode("ascii")
+                        self.transport.send(
+                            ProtocolMessage(
+                                method="attachment_put",
+                                body={
+                                    "filename": att_name,
+                                    "data": data_b64,
+                                },
+                            )
+                        )
+                        uploaded += 1
+                    except Exception:
+                        pass
+
+        return {"downloaded": downloaded, "uploaded": uploaded}
 
     def _update_config(self, key: str, value: str) -> None:
         """Persist a config key to disk."""
