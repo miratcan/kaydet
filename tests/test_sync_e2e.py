@@ -13,10 +13,9 @@ from kaydet_server.sync_transport import SyncTransport
 
 
 def _add_and_log(service, **kwargs):
-    """Add an entry and log it to sync_log (simulating CLI/MCP behavior)."""
+    """Add an entry via service (which now logs to sync_log automatically)."""
     result = service.add_entry(**kwargs)
     assert result["success"]
-    database.log_sync_action(service.conn, result["entry_id"], "created")
     return result
 
 

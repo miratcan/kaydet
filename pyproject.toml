@@ -1,5 +1,5 @@
 [tool.uv.workspace]
-members = ["packages/*"]
+members = ["packages/core", "packages/cli", "packages/server"]
 
 [tool.uv.sources]
 kaydet-core = {workspace = true}

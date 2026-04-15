@@ -122,6 +122,7 @@ class SyncClient:
                 text=entry_data.text,
                 metadata=entry_data.metadata or None,
                 tags=entry_data.tags or None,
+                log_sync=False,
             )
         else:
             day_pattern = self.config.get(
@@ -144,6 +145,7 @@ class SyncClient:
                 metadata=entry_data.metadata or None,
                 tags=entry_data.tags or None,
                 at=entry_at,
+                log_sync=False,
                 entry_id=entry_data.entry_id,
             )
             if not result.get("success"):

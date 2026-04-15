@@ -72,6 +72,7 @@ class KaydetService:
         secret: str | None = None,
         at: datetime | None = None,
         entry_id: str | None = None,
+        log_sync: bool = True,
     ) -> dict[str, Any]:
         now = at or datetime.now()
         metadata = metadata or {}
@@ -114,6 +115,10 @@ class KaydetService:
             )
         except EmptyEntryError as error:
             return {"success": False, "error": str(error)}
+        if log_sync:
+            database.log_sync_action(
+                self.conn, result["entry_id"], "created"
+            )
         return {"success": True, **result}
 
     def delete_entry(self, entry_id: str) -> dict[str, Any]:
@@ -138,6 +143,7 @@ class KaydetService:
         metadata: dict[str, str] | None = None,
         tags: Iterable[str] | None = None,
         timestamp: str | None = None,
+        log_sync: bool = True,
     ) -> dict[str, Any]:
         now = datetime.now()
         result = update_entry_inline(
@@ -153,6 +159,10 @@ class KaydetService:
         )
         if result is None:
             return {"success": False, "error": "Entry not updated."}
+        if log_sync:
+            database.log_sync_action(
+                self.conn, entry_id, "updated"
+            )
         return {"success": True, **result}
 
     def search_entries(
