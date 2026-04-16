@@ -13,6 +13,8 @@ const KEYS = {
   entries: "kaydet_entries",
 } as const;
 
+const ATT_PREFIX = "kaydet_att_";
+
 const DEVICE_ID = "kaydet-mobile";
 
 // -- Config --
@@ -94,4 +96,20 @@ export async function deleteCachedEntries(
 
 export async function clearAllData(): Promise<void> {
   await AsyncStorage.multiRemove(Object.values(KEYS));
+}
+
+// -- Attachment cache --
+// Stores base64-encoded attachment data keyed by filename.
+
+export async function getCachedAttachment(
+  filename: string
+): Promise<string | null> {
+  return AsyncStorage.getItem(ATT_PREFIX + filename);
+}
+
+export async function setCachedAttachment(
+  filename: string,
+  base64: string
+): Promise<void> {
+  await AsyncStorage.setItem(ATT_PREFIX + filename, base64);
 }

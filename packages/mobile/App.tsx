@@ -1,6 +1,12 @@
+import {
+  Lora_400Regular,
+  Lora_400Regular_Italic,
+  Lora_700Bold,
+  useFonts,
+} from "@expo-google-fonts/lora";
 import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useState } from "react";
-import { StyleSheet } from "react-native";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
 import {
   SafeAreaProvider,
   SafeAreaView,
@@ -17,17 +23,27 @@ import {
   setSyncToken,
 } from "./src/lib/storage";
 import CaptureScreen from "./src/screens/CaptureScreen";
+import EntryDetailScreen from "./src/screens/EntryDetailScreen";
 import EntryListScreen from "./src/screens/EntryListScreen";
 import SettingsScreen from "./src/screens/SettingsScreen";
 
-type Screen = "list" | "settings" | "capture";
+type Screen = "list" | "settings" | "capture" | "detail";
 
 export default function App() {
+  const [fontsLoaded] = useFonts({
+    Lora_400Regular,
+    Lora_400Regular_Italic,
+    Lora_700Bold,
+  });
+
   const [screen, setScreen] = useState<Screen>("list");
   const [entries, setEntries] = useState<EntryData[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [config, setConfig] = useState<SyncConfig | null>(null);
   const [configured, setConfigured] = useState(false);
+  const [lastSyncAt, setLastSyncAt] = useState<Date | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [selectedEntry, setSelectedEntry] = useState<EntryData | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -66,8 +82,15 @@ export default function App() {
       }
       const cached = await getCachedEntries();
       setEntries(cached);
-    } catch (e) {
-      console.error("Sync failed:", e);
+      setLastSyncAt(new Date());
+      setSyncError(null);
+    } catch (e: any) {
+      const msg = e?.message ?? "Sync failed";
+      setSyncError(
+        msg.includes("Network") || msg.includes("fetch")
+          ? "Offline"
+          : msg
+      );
     } finally {
       setSyncing(false);
     }
@@ -94,6 +117,14 @@ export default function App() {
     [doSync]
   );
 
+  if (!fontsLoaded) {
+    return (
+      <View style={styles.container}>
+        <ActivityIndicator color="#00bcd4" />
+      </View>
+    );
+  }
+
   return (
     <SafeAreaProvider>
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
@@ -104,12 +135,25 @@ export default function App() {
       {screen === "capture" && config && (
         <CaptureScreen config={config} onDone={handleCaptureDone} />
       )}
+      {screen === "detail" && selectedEntry && (
+        <EntryDetailScreen
+          entry={selectedEntry}
+          onBack={() => setScreen("list")}
+        />
+      )}
       {screen === "list" && (
         <EntryListScreen
           entries={entries}
           syncing={syncing}
+          lastSyncAt={lastSyncAt}
+          syncError={syncError}
+          config={config}
           onSync={() => doSync()}
           onSettings={() => setScreen("settings")}
+          onEntryPress={(entry) => {
+            setSelectedEntry(entry);
+            setScreen("detail");
+          }}
           onCapture={() => {
             if (!configured) {
               setScreen("settings");
