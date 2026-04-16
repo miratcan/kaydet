@@ -965,6 +965,7 @@ def _handle_server_command(
 def _print_qr(conn, host: str, port: int) -> None:
     """Print ASCII QR code for mobile pairing."""
     import qrcode
+    import socket
 
     cursor = conn.cursor()
     cursor.execute("SELECT key FROM sync_keys LIMIT 1")
@@ -974,13 +975,25 @@ def _print_qr(conn, host: str, port: int) -> None:
         return
 
     api_key = row[0]
-    payload = f"kaydet://{api_key}@{host}:{port}"
+
+    # Resolve actual LAN IP when binding to all interfaces
+    qr_host = host
+    if host in ("0.0.0.0", "::"):
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            qr_host = s.getsockname()[0]
+            s.close()
+        except OSError:
+            qr_host = "127.0.0.1"
+
+    payload = f"kaydet://{api_key}@{qr_host}:{port}"
 
     qr = qrcode.QRCode(border=1)
     qr.add_data(payload)
     qr.make(fit=True)
     qr.print_ascii(invert=True)
-    print(f"\nServer: http://{host}:{port}")
+    print(f"\nServer: http://{qr_host}:{port}")
     print(f"Scan with the kaydet mobile app to connect.\n")
 
 
