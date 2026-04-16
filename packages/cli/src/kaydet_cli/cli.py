@@ -967,7 +967,7 @@ def _print_qr(conn, host: str, port: int) -> None:
     import qrcode
 
     cursor = conn.cursor()
-    cursor.execute("SELECT key FROM api_keys LIMIT 1")
+    cursor.execute("SELECT key FROM sync_keys LIMIT 1")
     row = cursor.fetchone()
     if not row:
         print("No API key found. Run: kaydet server generate-key --name <name>")
