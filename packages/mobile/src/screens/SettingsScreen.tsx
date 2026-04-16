@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { testConnection } from "../lib/api";
 import { loadConfig, saveConfig } from "../lib/storage";
+import QRScanScreen from "./QRScanScreen";
 
 interface Props {
   onDone: () => void;
@@ -18,6 +19,7 @@ export default function SettingsScreen({ onDone }: Props) {
   const [serverUrl, setServerUrl] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [testing, setTesting] = useState(false);
+  const [showQR, setShowQR] = useState(false);
   const [status, setStatus] = useState<{
     ok: boolean;
     message: string;
@@ -37,6 +39,14 @@ export default function SettingsScreen({ onDone }: Props) {
     setStatus(null);
   };
 
+  const handleQRScanned = async (scannedUrl: string, scannedKey: string) => {
+    setServerUrl(scannedUrl);
+    setApiKey(scannedKey);
+    await saveConfig(scannedUrl, scannedKey);
+    setShowQR(false);
+    setStatus({ ok: true, message: "Config loaded from QR" });
+  };
+
   const handleTest = async () => {
     setTesting(true);
     setStatus(null);
@@ -51,13 +61,27 @@ export default function SettingsScreen({ onDone }: Props) {
     }
   };
 
+  if (showQR) {
+    return (
+      <QRScanScreen
+        onScanned={handleQRScanned}
+        onCancel={() => setShowQR(false)}
+      />
+    );
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Settings</Text>
-        <TouchableOpacity onPress={onDone}>
-          <Text style={styles.doneBtn}>Done</Text>
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          <TouchableOpacity onPress={() => setShowQR(true)} style={styles.qrBtn}>
+            <Text style={styles.qrBtnText}>QR</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={onDone}>
+            <Text style={styles.doneBtn}>Done</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <Text style={styles.label}>Server URL</Text>
@@ -127,6 +151,24 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "bold",
     color: "#fff",
+  },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+  },
+  qrBtn: {
+    backgroundColor: "#2a2a2a",
+    borderWidth: 1,
+    borderColor: "#444",
+    borderRadius: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+  },
+  qrBtnText: {
+    color: "#00bcd4",
+    fontSize: 14,
+    fontWeight: "600",
   },
   doneBtn: {
     color: "#00bcd4",

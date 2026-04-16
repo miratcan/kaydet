@@ -1,6 +1,10 @@
 import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useState } from "react";
-import { SafeAreaView, StyleSheet } from "react-native";
+import { StyleSheet } from "react-native";
+import {
+  SafeAreaProvider,
+  SafeAreaView,
+} from "react-native-safe-area-context";
 import type { EntryData, SyncConfig } from "./src/lib/api";
 import { fullFetch, incrementalSync } from "./src/lib/api";
 import {
@@ -91,7 +95,8 @@ export default function App() {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaProvider>
+    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
       <StatusBar style="light" />
       {screen === "settings" && (
         <SettingsScreen onDone={handleSettingsDone} />
@@ -115,6 +120,7 @@ export default function App() {
         />
       )}
     </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
 

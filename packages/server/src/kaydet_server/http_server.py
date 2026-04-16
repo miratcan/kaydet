@@ -91,6 +91,10 @@ def start_http_server(
             self.end_headers()
 
         def do_GET(self):
+            if self.path == "/qr":
+                self._handle_qr()
+                return
+
             if not self.path.startswith("/files/"):
                 self.send_response(404)
                 self._cors_headers()
@@ -334,6 +338,55 @@ def start_http_server(
             resp = file_mgr.finish_upload(upload_id)
             code = 200 if resp.ok else 400
             self._json_response(code, asdict(resp))
+
+        def _handle_qr(self):
+            import io
+            import qrcode
+
+            # Pick the best API key from DB
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT key FROM api_keys LIMIT 1"
+            )
+            row = cursor.fetchone()
+            if not row:
+                self._json_response(
+                    503, {"error": "No API key configured"}
+                )
+                return
+
+            api_key = row[0]
+            scheme = "http"
+            server_host = self.headers.get(
+                "Host", f"{host}:{port}"
+            )
+            server_url = f"{scheme}://{server_host}"
+            payload = f"kaydet://{api_key}@{server_host}"
+
+            qr = qrcode.QRCode(
+                error_correction=qrcode.constants.ERROR_CORRECT_L,
+                box_size=10,
+                border=4,
+            )
+            qr.add_data(payload)
+            qr.make(fit=True)
+            img = qr.make_image(fill_color="black", back_color="white")
+
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+            png_bytes = buf.getvalue()
+
+            self.send_response(200)
+            self.send_header("Content-Type", "image/png")
+            self.send_header(
+                "Content-Length", str(len(png_bytes))
+            )
+            self.send_header(
+                "X-Server-Url", server_url
+            )
+            self._cors_headers()
+            self.end_headers()
+            self.wfile.write(png_bytes)
 
         def log_message(self, format, *a):
             print(
