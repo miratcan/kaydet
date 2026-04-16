@@ -908,6 +908,7 @@ def _handle_server_command(
 
     if action == "start":
         if args.transport == "http":
+            _print_qr(conn, args.host, args.port)
             _start_http_server(
                 conn,
                 storage_dir,
@@ -959,6 +960,28 @@ def _handle_server_command(
 
     print("Usage: kaydet server <start|generate-key"
           "|list-keys|revoke-key>")
+
+
+def _print_qr(conn, host: str, port: int) -> None:
+    """Print ASCII QR code for mobile pairing."""
+    import qrcode
+
+    cursor = conn.cursor()
+    cursor.execute("SELECT key FROM api_keys LIMIT 1")
+    row = cursor.fetchone()
+    if not row:
+        print("No API key found. Run: kaydet server generate-key --name <name>")
+        return
+
+    api_key = row[0]
+    payload = f"kaydet://{api_key}@{host}:{port}"
+
+    qr = qrcode.QRCode(border=1)
+    qr.add_data(payload)
+    qr.make(fit=True)
+    qr.print_ascii(invert=True)
+    print(f"\nServer: http://{host}:{port}")
+    print(f"Scan with the kaydet mobile app to connect.\n")
 
 
 def _start_http_server(
