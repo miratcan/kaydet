@@ -81,7 +81,7 @@ Entries are transported as `EntryData` objects:
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| entry_id | string | MUST | Unique entry identifier (e.g. `d1`, `c42`) |
+| entry_id | string | MUST | Unique entry identifier (e.g. `"d1"`, `"c42"`). MUST be serialized and parsed as a JSON string — never as a number. |
 | source_file | string | MUST | Day file name (e.g. `2026-04-15.txt`) |
 | timestamp | string | MUST | Entry time `HH:MM` |
 | text | string | MUST | Full entry text including inline tags and `key:value` pairs |
