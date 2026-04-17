@@ -13,7 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import type { EntryData, SyncConfig } from "../lib/api";
+import type { SyncConfig } from "../lib/api";
 import { colors, fontSize, font, radius, size, spacing } from "../lib/tokens";
 import { pushAttachment, pushEntries } from "../lib/api";
 import { cacheEntries } from "../lib/storage";
@@ -103,13 +103,11 @@ export default function CaptureScreen({ config, onDone }: Props) {
       ":" +
       String(now.getMinutes()).padStart(2, "0");
 
-    const entry: EntryData = {
+    const entry = {
       entry_id: "",
       source_file: sourceFile,
       timestamp,
       text: trimmed || "(attachment)",
-      tags: [],
-      metadata: {},
       attachments: attachments.map((a) => a.name),
       updated_at: now.toISOString(),
     };

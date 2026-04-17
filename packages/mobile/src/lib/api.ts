@@ -82,9 +82,18 @@ export async function fetchEntries(
   return (resp.body as any).entries ?? [];
 }
 
+interface PushEntry {
+  entry_id: string;
+  source_file: string;
+  timestamp: string;
+  text: string;
+  attachments: string[];
+  updated_at?: string | null;
+}
+
 export async function pushEntries(
   config: SyncConfig,
-  entries: EntryData[]
+  entries: PushEntry[]
 ): Promise<{ accepted: number; conflicts: number; errors: string[]; entries: EntryData[] }> {
   const resp = await send(config, {
     method: "push",

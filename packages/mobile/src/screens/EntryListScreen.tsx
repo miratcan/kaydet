@@ -1,7 +1,6 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useMemo } from "react";
 import { colors, fontSize, font, radius, size, spacing } from "../lib/tokens";
 import {
-  Image,
   RefreshControl,
   SectionList,
   StyleSheet,
@@ -11,13 +10,13 @@ import {
   View,
 } from "react-native";
 import type { EntryData, SyncConfig } from "../lib/api";
-import { getAttachmentCached } from "../lib/api";
 import {
   filterEntries,
   formatLastSync,
   groupByDate,
 } from "../lib/entryUtils";
 import TagText from "../components/TagText";
+import AttachmentViewer from "../components/AttachmentViewer";
 
 interface Props {
   entries: EntryData[];
@@ -30,87 +29,26 @@ interface Props {
   onSync: () => void;
   onSettings: () => void;
   onCapture: () => void;
-  onEntryPress: (entry: EntryData) => void;
-}
-
-const IMAGE_EXTS = /\.(jpg|jpeg|png|gif|webp)$/i;
-
-function AttachmentThumb({
-  filename,
-  config,
-}: {
-  filename: string;
-  config: SyncConfig | null;
-}) {
-  const [uri, setUri] = React.useState<string | null>(null);
-
-  useEffect(() => {
-    if (!config) return;
-    let cancelled = false;
-    getAttachmentCached(config, filename).then((b64) => {
-      if (!cancelled && b64) {
-        const ext = filename.split(".").pop()?.toLowerCase() ?? "jpeg";
-        const mime =
-          ext === "png"
-            ? "image/png"
-            : ext === "gif"
-            ? "image/gif"
-            : "image/jpeg";
-        setUri(`data:${mime};base64,${b64}`);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [filename, config]);
-
-  if (!uri) return <View style={styles.thumbPlaceholder} />;
-  return <Image source={{ uri }} style={styles.thumb} />;
 }
 
 function EntryCard({
   entry,
   config,
-  onPress,
   onTagPress,
 }: {
   entry: EntryData;
   config: SyncConfig | null;
-  onPress: () => void;
-  onTagPress: (tag: string) => void;
+  onTagPress: (query: string) => void;
 }) {
-  const lines = entry.text.split("\n");
-  const isLong = entry.text.length > 140 || lines.length > 3;
-  const preview = isLong
-    ? lines[0].length > 140
-      ? lines[0].slice(0, 140) + "…"
-      : lines[0]
-    : entry.text;
-
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
+    <View style={styles.card}>
       <View style={styles.cardHeader}>
         <Text style={styles.timestamp}>{entry.timestamp}</Text>
         <Text style={styles.entryId}>[{entry.entry_id}]</Text>
       </View>
-      <TagText text={preview} style={styles.text} onTagPress={onTagPress} />
-      {isLong && <Text style={styles.expandHint}>tap to read more</Text>}
-      {entry.attachments.length > 0 && (
-        <View style={styles.thumbRow}>
-          {entry.attachments
-            .filter((f) => IMAGE_EXTS.test(f))
-            .slice(0, 4)
-            .map((f) => (
-              <AttachmentThumb key={f} filename={f} config={config} />
-            ))}
-          {entry.attachments.some((f) => !IMAGE_EXTS.test(f)) && (
-            <Text style={styles.attachments}>
-              📎 {entry.attachments.filter((f) => !IMAGE_EXTS.test(f)).length}
-            </Text>
-          )}
-        </View>
-      )}
-    </TouchableOpacity>
+      <TagText text={entry.text} tags={entry.tags} metadata={entry.metadata} style={styles.text} onTokenPress={onTagPress} />
+      <AttachmentViewer filenames={entry.attachments} config={config} />
+    </View>
   );
 }
 
@@ -125,7 +63,6 @@ export default function EntryListScreen({
   onSync,
   onSettings,
   onCapture,
-  onEntryPress,
 }: Props) {
   const filtered = useMemo(
     () => filterEntries(entries, query),
@@ -136,14 +73,14 @@ export default function EntryListScreen({
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <View>
+        <TouchableOpacity onPress={() => onQueryChange("")}>
           <Text style={styles.title}>kaydet</Text>
           {lastSyncAt && (
             <Text style={styles.syncHint}>
               synced {formatLastSync(lastSyncAt)}
             </Text>
           )}
-        </View>
+        </TouchableOpacity>
         <View style={styles.headerButtons}>
           <TouchableOpacity
             onPress={onSync}
@@ -216,8 +153,7 @@ export default function EntryListScreen({
             <EntryCard
               entry={item}
               config={config}
-              onPress={() => onEntryPress(item)}
-              onTagPress={(tag) => onQueryChange(`#${tag}`)}
+              onTagPress={(query) => onQueryChange(query)}
             />
           )}
           renderSectionHeader={({ section }) => (
@@ -340,31 +276,6 @@ const styles = StyleSheet.create({
     fontSize: fontSize.md,
     lineHeight: fontSize.md * 1.6,
     fontFamily: font.serif,
-  },
-  expandHint: {
-    color: colors.text.faint,
-    fontSize: fontSize.sm,
-    marginTop: spacing.sm,
-  },
-  attachments: { color: colors.text.muted, fontSize: fontSize.sm, marginTop: spacing.sm },
-  thumbRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-    marginTop: spacing.sm,
-    alignItems: "center",
-  },
-  thumb: {
-    width: size.thumb,
-    height: size.thumb,
-    borderRadius: radius.sm,
-    backgroundColor: colors.surface.border,
-  },
-  thumbPlaceholder: {
-    width: size.thumb,
-    height: size.thumb,
-    borderRadius: radius.sm,
-    backgroundColor: colors.surface.base,
   },
   empty: {
     flex: 1,

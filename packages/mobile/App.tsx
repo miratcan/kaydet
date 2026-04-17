@@ -23,11 +23,10 @@ import {
   setSyncToken,
 } from "./src/lib/storage";
 import CaptureScreen from "./src/screens/CaptureScreen";
-import EntryDetailScreen from "./src/screens/EntryDetailScreen";
 import EntryListScreen from "./src/screens/EntryListScreen";
 import SettingsScreen from "./src/screens/SettingsScreen";
 
-type Screen = "list" | "settings" | "capture" | "detail";
+type Screen = "list" | "settings" | "capture";
 
 export default function App() {
   const [fontsLoaded] = useFonts({
@@ -43,7 +42,6 @@ export default function App() {
   const [configured, setConfigured] = useState(false);
   const [lastSyncAt, setLastSyncAt] = useState<Date | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
-  const [selectedEntry, setSelectedEntry] = useState<EntryData | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
@@ -136,17 +134,6 @@ export default function App() {
       {screen === "capture" && config && (
         <CaptureScreen config={config} onDone={handleCaptureDone} />
       )}
-      {screen === "detail" && selectedEntry && (
-        <EntryDetailScreen
-          entry={selectedEntry}
-          config={config}
-          onBack={() => setScreen("list")}
-          onTagPress={(tag) => {
-            setSearchQuery(`#${tag}`);
-            setScreen("list");
-          }}
-        />
-      )}
       {screen === "list" && (
         <EntryListScreen
           entries={entries}
@@ -158,10 +145,6 @@ export default function App() {
           onQueryChange={setSearchQuery}
           onSync={() => doSync()}
           onSettings={() => setScreen("settings")}
-          onEntryPress={(entry) => {
-            setSelectedEntry(entry);
-            setScreen("detail");
-          }}
           onCapture={() => {
             if (!configured) {
               setScreen("settings");

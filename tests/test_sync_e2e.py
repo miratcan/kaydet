@@ -168,6 +168,39 @@ class TestE2ESync:
         ]
         assert len(matching) == 1
 
+    def test_dumb_client_push_parses_tags_and_metadata(self, tmp_path):
+        """A dumb client sending tags=[] and metadata={} should get back
+        server-parsed tags and metadata in the push response."""
+        server_svc = _make_instance(tmp_path, "server")
+        server = SyncServer(server_svc)
+
+        from kaydet_core.sync_protocol import EntryData, PushEntriesRequest
+
+        req = PushEntriesRequest(
+            entries=[
+                EntryData(
+                    entry_id="",
+                    source_file="2026-04-17.txt",
+                    timestamp="10:00",
+                    text="meeting notes #work price:300",
+                    tags=[],
+                    metadata={},
+                    attachments=[],
+                    updated_at=None,
+                )
+            ],
+            device_id="mobile",
+        )
+
+        resp = server._handle_push(req)
+
+        assert resp.accepted == 1
+        assert len(resp.entries) == 1
+
+        entry = resp.entries[0]
+        assert "work" in entry.tags
+        assert entry.metadata.get("price") == "300"
+
     def test_secret_syncs(self, tmp_path):
         """Encrypted secrets should sync as opaque blobs."""
         from kaydet_core.secrets import (

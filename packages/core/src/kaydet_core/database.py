@@ -131,9 +131,9 @@ def log_sync_action(
     conn.execute(LOG_SYNC_ACTION_SQL, (entry_id, action, device_id))
 
 
-def get_db_connection(db_path: Path) -> sqlite3.Connection:
+def get_db_connection(db_path: Path, check_same_thread: bool = True) -> sqlite3.Connection:
     """Establishes a connection to the SQLite database."""
-    connection = sqlite3.connect(db_path, isolation_level=None)
+    connection = sqlite3.connect(db_path, isolation_level=None, check_same_thread=check_same_thread)
     connection.execute("PRAGMA foreign_keys = ON")
     return connection
 

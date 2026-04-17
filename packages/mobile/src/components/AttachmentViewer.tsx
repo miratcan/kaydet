@@ -165,7 +165,6 @@ export default function AttachmentViewer({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.sectionTitle}>Attachments</Text>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -194,13 +193,7 @@ export default function AttachmentViewer({
 const { width, height } = Dimensions.get("window");
 
 const styles = StyleSheet.create({
-  container: { marginTop: spacing.lg },
-  sectionTitle: {
-    color: colors.text.muted,
-    fontSize: fontSize.sm,
-    fontWeight: "600",
-    marginBottom: spacing.sm,
-  },
+  container: { marginTop: spacing.sm },
   strip: { gap: spacing.sm, paddingBottom: spacing.sm },
   item: { width: size.thumbLg + spacing.sm, alignItems: "center" },
   thumb: {
