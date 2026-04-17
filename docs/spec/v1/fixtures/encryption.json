@@ -1,15 +1,16 @@
 {
   "spec": "v1/encryption",
+  "scrypt_params": {"n": 65536, "r": 8, "p": 1},
   "vectors": [
     {
       "description": "ASCII plaintext, deterministic salt and nonce",
       "password": "test-password-123",
       "salt_hex": "00112233445566778899aabbccddeeff",
       "nonce_hex": "aabbccddeeff00112233aabb",
-      "derived_key_hex": "a455522e74d20e05ad8be58c6fd8c37e8532067f62e00ea17f35a0633236ce69",
+      "derived_key_hex": "7606122670a5ebbabab5061325c609b1640c49e9c055b8c17598c937fd1f9015",
       "plaintext": "Hello, world! This is a secret.",
       "plaintext_bytes": 31,
-      "wire_hex": "00112233445566778899aabbccddeeffaabbccddeeff00112233aabbc1c6939bd8a9a3694531874967e10ae42cf98cab7f3dade911c50c6b52682d26e269310fa70009ce3b12106fc7ae15",
+      "wire_hex": "00112233445566778899aabbccddeeffaabbccddeeff00112233aabb5c5e6912b2741a549b08a0f4c88392b9d6086d37668007d285a0fab0203f1dc835e9e5451f67077b911896cbae980d",
       "wire_length": 75
     }
   ],

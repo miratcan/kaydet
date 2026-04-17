@@ -164,7 +164,8 @@ def initialize_database(conn: sqlite3.Connection):
         for statement in CREATE_INDEX_STATEMENTS:
             cursor.execute(statement)
 
-        cursor.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+        # SCHEMA_VERSION is a module-level int constant — safe to interpolate.
+        cursor.execute(f"PRAGMA user_version = {int(SCHEMA_VERSION)}")
         conn.commit()
         return
 

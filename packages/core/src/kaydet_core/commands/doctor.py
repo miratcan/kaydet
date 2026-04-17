@@ -34,11 +34,16 @@ def doctor_command(
     """Rebuild the SQLite index while normalizing entry IDs."""
     results = []
 
-    for table in DELETE_INDEX_TABLES:
-        conn.execute(DELETE_TABLE_TEMPLATE.format(table=table))
-    conn.execute(DELETE_ENTRIES_SQL)
-    conn.execute(DELETE_SYNCED_FILES_SQL)
-    conn.commit()
+    conn.execute("BEGIN")
+    try:
+        for table in DELETE_INDEX_TABLES:
+            conn.execute(DELETE_TABLE_TEMPLATE.format(table=table))
+        conn.execute(DELETE_ENTRIES_SQL)
+        conn.execute(DELETE_SYNCED_FILES_SQL)
+        conn.execute("COMMIT")
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
 
     normalized = sync_modified_day_files(
         conn,
@@ -76,7 +81,13 @@ def doctor_command(
 
     if storage_dir.exists():
         for child in storage_dir.iterdir():
-            if child.is_dir() and TAG_PATTERN.fullmatch(child.name):
+            # Only delete directories that look like tag directories
+            # AND are not day-file directories (extra safety check).
+            if (
+                child.is_dir()
+                and TAG_PATTERN.fullmatch(child.name)
+                and not child.name[0].isdigit()  # day dirs start with year digits
+            ):
                 shutil.rmtree(child)
 
     cursor.execute(SELECT_TAG_STATS_SQL)

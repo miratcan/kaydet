@@ -28,7 +28,7 @@ def todo_command(
     storage_dir: Path,
     now: datetime,
     conn,
-) -> None:
+) -> dict:
     """Create a new todo entry with status:pending and #todo tag."""
     tokens = list(args.todo or [])
     message_tokens, metadata, explicit_tags = partition_entry_tokens(tokens)
@@ -179,7 +179,7 @@ def list_todos_command(
     config: SectionProxy,
     output_format: str = "text",
     console: Optional[Console] = None,
-) -> None:
+) -> list:
     """List all todos with their status."""
     # Find all pending entries with #todo tag (exclude done)
     cursor = conn.cursor()

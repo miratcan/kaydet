@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import logging
 import secrets as secrets_mod
 import sqlite3
 import sys
@@ -12,6 +13,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 from kaydet_core.parsers import partition_entry_tokens
 from kaydet_core.service import KaydetService
@@ -85,6 +88,7 @@ class FileTransferManager:
         self, filename: str, size: int, sha256: str
     ) -> UploadStartResponse:
         """Initiate or resume a chunked upload."""
+        self.cleanup_stale()
         if not validate_attachment_filename(filename):
             return UploadStartResponse(
                 upload_id=None, chunk_size=0, existing_offset=0
@@ -357,8 +361,11 @@ class SyncServer:
         for entry_data in req.entries:
             try:
                 self._upsert_entry(entry_data, req.device_id, now)
-            except Exception:
-                pass  # skip failed entries
+            except Exception as exc:
+                logger.warning(
+                    "Failed to apply entry %s during sync: %s",
+                    entry_data.entry_id, exc
+                )
 
         # 3. Find changes since client's token, excluding
         #    entries we just applied from the client.
@@ -633,13 +640,12 @@ class SyncServer:
 
         if existing:
             existing_id, server_updated_at = existing
-            # Reject if server copy is newer
-            if (
-                server_updated_at
-                and entry_data.updated_at
-                and server_updated_at > entry_data.updated_at
-            ):
-                return None  # server has newer data, skip
+            # Reject if server copy is newer.
+            # Truncate to 19 chars ("YYYY-MM-DDTHH:MM:SS") before comparing
+            # so trailing "Z" or "+HH:MM" suffixes don't skew ordering.
+            if server_updated_at and entry_data.updated_at:
+                if server_updated_at[:19] > entry_data.updated_at[:19]:
+                    return None  # server has newer data, skip
             self._update_existing_entry(
                 existing_id, entry_data, device_id
             )

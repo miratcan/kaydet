@@ -723,6 +723,11 @@ def format_todo_results(
     console: Optional[Console] = None,
 ) -> None:
     """Format and print todo results (backward compatible API)."""
+    from configparser import ConfigParser
     console = console or Console()
+    if config is None:
+        _parser = ConfigParser()
+        _parser["SETTINGS"] = {}
+        config = _parser["SETTINGS"]
     formatter = TodoFormatter(console, config)
     formatter.format(todos, output_format)

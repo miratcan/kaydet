@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import base64
+import logging
 import sqlite3
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 from kaydet_core.service import KaydetService
 from kaydet_core.sync_protocol import (
@@ -163,10 +166,19 @@ class SyncClient:
             )
 
     def _delete_local_entry(self, entry_id: str) -> None:
-        """Delete an entry from the local index."""
-        self.conn.execute(
-            "DELETE FROM entries WHERE id = ?", (entry_id,)
-        )
+        """Delete an entry from the local index (server-initiated deletion)."""
+        from kaydet_core.database import log_sync_action
+
+        # Use service.delete_entry when it exists on disk; fall back to
+        # direct DB cleanup for entries that are index-only (no day file).
+        result = self.service.delete_entry(entry_id)
+        if not result.get("success"):
+            # Entry may be index-only — clean up tables directly.
+            self.conn.execute(
+                "DELETE FROM entries WHERE id = ?", (entry_id,)
+            )
+        # Log the deletion so other devices pick it up on next sync.
+        log_sync_action(self.conn, entry_id, "deleted")
 
     def _load_local_entry(
         self, entry_id: str
@@ -245,8 +257,11 @@ class SyncClient:
                             att_name, local_path
                         )
                         downloaded += 1
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.warning(
+                            "Failed to download attachment %s: %s",
+                            att_name, exc
+                        )
 
         # Upload local attachments
         for entry in local_entries:
@@ -258,8 +273,11 @@ class SyncClient:
                             local_path, att_name
                         )
                         uploaded += 1
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.warning(
+                            "Failed to upload attachment %s: %s",
+                            att_name, exc
+                        )
 
         return {"downloaded": downloaded, "uploaded": uploaded}
 
@@ -296,8 +314,11 @@ class SyncClient:
                             )
                             local_path.write_bytes(data)
                             downloaded += 1
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.warning(
+                            "Failed to download attachment %s: %s",
+                            att_name, exc
+                        )
 
         # Upload local attachments
         for entry in local_entries:
@@ -327,8 +348,11 @@ class SyncClient:
                             )
                         )
                         uploaded += 1
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.warning(
+                            "Failed to upload attachment %s: %s",
+                            att_name, exc
+                        )
 
         return {"downloaded": downloaded, "uploaded": uploaded}
 

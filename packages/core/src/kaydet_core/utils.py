@@ -326,10 +326,20 @@ def get_secret_password(config_dir: Path) -> Optional[str]:
 
 def set_secret_password(config_dir: Path, password: str) -> None:
     """Store the secret password in the config directory."""
+    import os
+
     pw_file = config_dir / "secret_password"
-    pw_file.write_text(password, encoding="utf-8")
-    # Restrict permissions (owner-only read/write)
-    pw_file.chmod(0o600)
+    # Write via a temp file with correct permissions set before rename
+    # to avoid a TOCTOU window where the file exists but is world-readable.
+    tmp_file = config_dir / ".secret_password.tmp"
+    fd = os.open(str(tmp_file), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(password)
+    except Exception:
+        tmp_file.unlink(missing_ok=True)
+        raise
+    tmp_file.rename(pw_file)
 
 
 def prompt_secret_password(config_dir: Path) -> str:
@@ -378,7 +388,10 @@ def migrate_storage(old_path: Path, new_path: Path) -> None:
         if target.exists():
             print(f"  ⚠️  Skipping {txt_file.name} (already exists in target)")
         else:
-            txt_file.rename(target)
-            print(f"  ✓ Moved {txt_file.name}")
+            try:
+                txt_file.rename(target)
+                print(f"  ✓ Moved {txt_file.name}")
+            except OSError as err:
+                print(f"  ⚠️  Failed to move {txt_file.name}: {err}")
 
     print(f"\n✓ Migration complete: {old_path} → {new_path}")

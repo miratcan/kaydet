@@ -52,11 +52,20 @@ class StdinTransport(SyncTransport):
         return self._process
 
     def send(self, msg: ProtocolMessage) -> ProtocolMessage:
+        import select
+
         proc = self._ensure_process()
         line = serialize_message(msg) + "\n"
         proc.stdin.write(line)
         proc.stdin.flush()
 
+        # Use a 60-second timeout to avoid blocking forever if the server
+        # stops producing output (pipe buffer deadlock prevention).
+        ready, _, _ = select.select([proc.stdout], [], [], 60)
+        if not ready:
+            raise ConnectionError(
+                "Timed out waiting for server response"
+            )
         response_line = proc.stdout.readline()
         if not response_line:
             raise ConnectionError(
@@ -98,7 +107,7 @@ class HttpTransport(SyncTransport):
         )
 
         try:
-            with urllib.request.urlopen(req) as resp:
+            with urllib.request.urlopen(req, timeout=60) as resp:
                 body = resp.read().decode("utf-8")
                 return deserialize_message(body)
         except urllib.error.HTTPError as e:
@@ -143,7 +152,7 @@ class HttpTransport(SyncTransport):
             },
             method="POST",
         )
-        with urllib.request.urlopen(req) as resp:
+        with urllib.request.urlopen(req, timeout=60) as resp:
             start_resp = json.loads(resp.read().decode("utf-8"))
 
         if start_resp.get("already_exists"):
@@ -172,7 +181,7 @@ class HttpTransport(SyncTransport):
                     },
                     method="POST",
                 )
-                with urllib.request.urlopen(chunk_req) as resp:
+                with urllib.request.urlopen(chunk_req, timeout=60) as resp:
                     json.loads(resp.read().decode("utf-8"))
 
                 offset += len(chunk)
@@ -191,7 +200,7 @@ class HttpTransport(SyncTransport):
             },
             method="POST",
         )
-        with urllib.request.urlopen(req) as resp:
+        with urllib.request.urlopen(req, timeout=60) as resp:
             return json.loads(resp.read().decode("utf-8"))
 
     def download_file(
@@ -207,7 +216,7 @@ class HttpTransport(SyncTransport):
                 "Authorization": f"Bearer {self.api_key}",
             },
         )
-        with urllib.request.urlopen(req) as resp:
+        with urllib.request.urlopen(req, timeout=60) as resp:
             expected_sha256 = resp.headers.get("X-SHA256", "")
 
             dest.parent.mkdir(parents=True, exist_ok=True)

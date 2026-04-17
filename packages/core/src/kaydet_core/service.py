@@ -78,6 +78,12 @@ class KaydetService:
         metadata = metadata or {}
         tags = list(tags or [])
         if timestamp and not at:
+            import re as _re
+            if not _re.match(r"^\d{2}:\d{2}$", timestamp):
+                return {
+                    "success": False,
+                    "error": f"Invalid timestamp format '{timestamp}'. Expected HH:MM.",
+                }
             now = now.replace(
                 hour=int(timestamp[:2]),
                 minute=int(timestamp[3:]),
@@ -493,12 +499,16 @@ class KaydetService:
 
         todos = []
         for row in results:
-            # build_search_query returns (source_file, id),
-            # direct queries return (id, source_file)
+            # build_search_query SELECT returns (source_file, id) — see
+            # SELECT_MATCHES_TEMPLATE in commands/search.py.
+            # Direct queries here use (id, source_file).
+            # Unpack explicitly to avoid silent index errors on refactoring.
             if filter_query:
-                source_file, entry_id = row
+                source_file: str = row[0]
+                entry_id: str = str(row[1])
             else:
-                entry_id, source_file = row
+                entry_id = str(row[0])
+                source_file = row[1]
             day_file = self.storage_dir / source_file
             if not day_file.exists():
                 continue

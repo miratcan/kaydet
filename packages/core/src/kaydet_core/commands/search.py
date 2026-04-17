@@ -43,12 +43,16 @@ def build_search_query(
     # FTS text search (Inclusion and Exclusion combined)
     fts_query_parts = []
     for term in include_text:
-        # Simple escaping for FTS: wrap in quotes
+        # Wrap in double-quotes so FTS5 treats the term as a literal phrase.
+        # Internal double-quotes are escaped by doubling them.
         clean_term = term.replace('"', '""')
         fts_query_parts.append(f'"{clean_term}"')
     for term in exclude_text:
         clean_term = term.replace('"', '""')
         fts_query_parts.append(f'NOT "{clean_term}"')
+    # Note: wrapping every term in double-quotes neutralises all FTS5
+    # special operators (AND, OR, NOT, *, ?, NEAR, etc.) inside terms,
+    # which is the desired behaviour for user-supplied text tokens.
 
     if fts_query_parts:
         from_clauses.append("JOIN entries_fts fts ON e.id = fts.entry_id")

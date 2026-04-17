@@ -41,8 +41,27 @@ def start_http_server(
 
     class SyncHandler(BaseHTTPRequestHandler):
         def _cors_headers(self):
+            # Restrict CORS to a configured origin when set.
+            # Falls back to the request's Origin for localhost/127.0.0.1
+            # (development), and rejects all others.
+            allowed_origin = config.get(
+                "sync_cors_origin", ""
+            ) if config else ""
+            if allowed_origin:
+                origin_header = allowed_origin
+            else:
+                request_origin = self.headers.get("Origin", "")
+                # Allow localhost and loopback origins for local development.
+                import re as _re
+                if _re.match(
+                    r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
+                    request_origin,
+                ):
+                    origin_header = request_origin
+                else:
+                    origin_header = "null"
             self.send_header(
-                "Access-Control-Allow-Origin", "*"
+                "Access-Control-Allow-Origin", origin_header
             )
             self.send_header(
                 "Access-Control-Allow-Methods",
@@ -101,6 +120,8 @@ def start_http_server(
                 return
 
             filename = self.path[7:]  # strip "/files/"
+            # Strip query string if present
+            filename = filename.split("?")[0]
             if not validate_attachment_filename(filename):
                 self._json_response(
                     400, {"error": "Invalid filename"}
@@ -108,6 +129,14 @@ def start_http_server(
                 return
 
             filepath = file_mgr.get_file_path(filename)
+            # Extra safety: resolved path must be inside attachments dir
+            if filepath and not str(filepath.resolve()).startswith(
+                str(file_mgr.attachments_dir.resolve())
+            ):
+                self._json_response(
+                    400, {"error": "Invalid filename"}
+                )
+                return
             if not filepath:
                 self._json_response(
                     404, {"error": "File not found"}
@@ -199,9 +228,13 @@ def start_http_server(
             if not self._check_auth():
                 return
 
-            length = int(
-                self.headers.get("Content-Length", 0)
-            )
+            try:
+                length = int(
+                    self.headers.get("Content-Length", 0)
+                )
+            except (ValueError, TypeError):
+                self._json_response(400, {"error": "Invalid Content-Length"})
+                return
             body = self.rfile.read(length).decode("utf-8")
 
             try:
@@ -219,18 +252,19 @@ def start_http_server(
                 self.end_headers()
                 self.wfile.write(resp_json)
             except Exception as e:
-                self.send_response(500)
-                self._cors_headers()
-                self.end_headers()
-                self.wfile.write(str(e).encode("utf-8"))
+                self._json_response(500, {"error": str(e)})
 
         def _handle_upload_start(self):
             if not self._check_auth():
                 return
 
-            length = int(
-                self.headers.get("Content-Length", 0)
-            )
+            try:
+                length = int(
+                    self.headers.get("Content-Length", 0)
+                )
+            except (ValueError, TypeError):
+                self._json_response(400, {"error": "Invalid Content-Length"})
+                return
             body = _json.loads(
                 self.rfile.read(length).decode("utf-8")
             )
@@ -276,7 +310,11 @@ def start_http_server(
                 )
                 return
 
-            offset = int(offset_str)
+            try:
+                offset = int(offset_str)
+            except (ValueError, TypeError):
+                self._json_response(400, {"error": "Invalid X-Chunk-Offset"})
+                return
             expected = file_mgr.get_expected_offset(
                 upload_id
             )
@@ -290,9 +328,13 @@ def start_http_server(
                 )
                 return
 
-            length = int(
-                self.headers.get("Content-Length", 0)
-            )
+            try:
+                length = int(
+                    self.headers.get("Content-Length", 0)
+                )
+            except (ValueError, TypeError):
+                self._json_response(400, {"error": "Invalid Content-Length"})
+                return
             data = self.rfile.read(length)
 
             result = file_mgr.write_chunk(
@@ -317,9 +359,13 @@ def start_http_server(
             if not self._check_auth():
                 return
 
-            length = int(
-                self.headers.get("Content-Length", 0)
-            )
+            try:
+                length = int(
+                    self.headers.get("Content-Length", 0)
+                )
+            except (ValueError, TypeError):
+                self._json_response(400, {"error": "Invalid Content-Length"})
+                return
             body = _json.loads(
                 self.rfile.read(length).decode("utf-8")
             )

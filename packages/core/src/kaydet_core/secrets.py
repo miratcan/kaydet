@@ -8,10 +8,14 @@ from typing import Optional
 
 
 def _derive_key(password: str, salt: bytes) -> bytes:
-    """Derive a 256-bit key from a password using scrypt."""
+    """Derive a 256-bit key from a password using scrypt.
+
+    Parameters match OWASP recommendations for interactive use:
+    n=2**16, r=8, p=1 (doubles memory cost vs the previous n=2**14).
+    """
     from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 
-    kdf = Scrypt(salt=salt, length=32, n=2**14, r=8, p=1)
+    kdf = Scrypt(salt=salt, length=32, n=2**16, r=8, p=1)
     return kdf.derive(password.encode("utf-8"))
 
 
