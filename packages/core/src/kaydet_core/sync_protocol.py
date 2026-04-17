@@ -447,4 +447,8 @@ def _from_dict(cls: type, data: dict) -> Any:
             device_id=data.get("device_id", ""),
         )
     fields = cls.__dataclass_fields__
-    return cls(**{k: v for k, v in data.items() if k in fields})
+    filtered = {k: v for k, v in data.items() if k in fields}
+    # entry_id must always be a string — JSON may send it as int
+    if "entry_id" in filtered and not isinstance(filtered["entry_id"], str):
+        filtered["entry_id"] = str(filtered["entry_id"])
+    return cls(**filtered)
