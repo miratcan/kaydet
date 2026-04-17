@@ -159,10 +159,49 @@ def run_test():
             # Click on entry with #kaydet to open detail
             entry = page.locator("text=#kaydet").first
             if entry.is_visible():
-                # Check it has the tag color
                 color = entry.evaluate("el => getComputedStyle(el).color")
                 print(f"\n#kaydet color: {color}")
-                print("Expected: rgb(206, 147, 216) (colors.text.tag = #ce93d8)")
+
+            # ── Swipe debug ──
+            print("\n── Swipe debug ──")
+            # Find first card and simulate swipe left via mouse drag
+            card = page.locator("text=#kaydet").first
+            box = card.bounding_box()
+            print(f"Card bounding box: {box}")
+
+            if box:
+                cx = box["x"] + box["width"] / 2
+                cy = box["y"] + box["height"] / 2
+                # Drag from right side to left to reveal swipe actions
+                page.mouse.move(cx + 100, cy)
+                page.mouse.down()
+                page.mouse.move(cx - 80, cy, steps=20)
+                page.mouse.up()
+                time.sleep(1)
+
+                page.screenshot(path="/tmp/kaydet_e2e_3_swiped.png")
+                print("Screenshot after swipe: /tmp/kaydet_e2e_3_swiped.png")
+
+                # Check if Delete button is visible
+                delete_btn = page.locator("text=Delete").first
+                edit_btn = page.locator("text=Edit").first
+                print(f"Delete visible: {delete_btn.is_visible()}")
+                print(f"Edit visible: {edit_btn.is_visible()}")
+
+                if delete_btn.is_visible():
+                    print("Clicking Delete...")
+                    network_requests: list[str] = []
+                    page.on("request", lambda req: network_requests.append(f"{req.method} {req.url}"))
+                    delete_btn.click()
+                    time.sleep(2)
+                    print(f"Network requests after Delete click: {network_requests}")
+                    page.screenshot(path="/tmp/kaydet_e2e_4_after_delete.png")
+                    print("Screenshot after delete: /tmp/kaydet_e2e_4_after_delete.png")
+
+                    # Check console logs
+                    print("\n── Console logs after delete ──")
+                    for log in console_logs:
+                        print(log)
 
             browser.close()
 

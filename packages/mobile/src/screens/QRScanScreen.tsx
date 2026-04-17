@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { colors, fontSize, radius, spacing } from "../lib/tokens";
 
 interface Props {
   onScanned: (serverUrl: string, apiKey: string) => void;
@@ -21,7 +22,7 @@ export default function QRScanScreen({ onScanned, onCancel }: Props) {
   if (!permission) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator color="#00bcd4" />
+        <ActivityIndicator color={colors.primary.base} />
       </View>
     );
   }
@@ -93,37 +94,37 @@ export default function QRScanScreen({ onScanned, onCancel }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#000" },
+  container: { flex: 1, backgroundColor: colors.black },
   center: {
     flex: 1,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.bg.base,
     justifyContent: "center",
     alignItems: "center",
-    padding: 20,
+    padding: spacing.lg,
   },
   camera: { flex: 1 },
   overlay: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: "space-between",
-    paddingBottom: 40,
+    paddingBottom: spacing.xl,
   },
   topBar: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 10,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
     backgroundColor: "rgba(0,0,0,0.5)",
   },
   title: {
-    color: "#fff",
-    fontSize: 17,
+    color: colors.white,
+    fontSize: fontSize.lg,
     fontWeight: "600",
   },
   cancelText: {
-    color: "#00bcd4",
-    fontSize: 16,
+    color: colors.primary.base,
+    fontSize: fontSize.md,
     width: 60,
   },
   frame: {
@@ -131,32 +132,32 @@ const styles = StyleSheet.create({
     width: 240,
     height: 240,
     borderWidth: 2,
-    borderColor: "#00bcd4",
-    borderRadius: 12,
+    borderColor: colors.primary.base,
+    borderRadius: radius.sm,
     backgroundColor: "transparent",
   },
   hint: {
-    color: "#fff",
+    color: colors.white,
     textAlign: "center",
-    fontSize: 14,
-    paddingHorizontal: 32,
+    fontSize: fontSize.md,
+    paddingHorizontal: spacing.xl,
     backgroundColor: "rgba(0,0,0,0.5)",
-    paddingVertical: 10,
+    paddingVertical: spacing.sm,
   },
   error: {
-    color: "#ef5350",
+    color: colors.error.onAction,
     textAlign: "center",
-    fontSize: 13,
-    paddingHorizontal: 32,
+    fontSize: fontSize.sm,
+    paddingHorizontal: spacing.xl,
   },
-  message: { color: "#aaa", fontSize: 16, marginBottom: 20, textAlign: "center" },
+  message: { color: colors.text.muted, fontSize: fontSize.md, marginBottom: spacing.md, textAlign: "center" },
   btn: {
-    backgroundColor: "#00bcd4",
-    borderRadius: 8,
-    padding: 14,
-    paddingHorizontal: 24,
-    marginBottom: 12,
+    backgroundColor: colors.primary.base,
+    borderRadius: radius.sm,
+    padding: spacing.sm,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.sm,
   },
-  btnText: { color: "#1a1a1a", fontSize: 16, fontWeight: "600" },
-  cancelBtn: { padding: 12 },
+  btnText: { color: colors.primary.on, fontSize: fontSize.md, fontWeight: "600" },
+  cancelBtn: { padding: spacing.sm },
 });

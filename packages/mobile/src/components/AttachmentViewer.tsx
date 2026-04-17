@@ -57,7 +57,7 @@ function AttachmentItem({ filename, config, onPress }: AttachmentItemProps) {
     >
       <View style={styles.thumb}>
         {loading ? (
-          <ActivityIndicator color="#00bcd4" />
+          <ActivityIndicator color={colors.primary.base} />
         ) : isImage && dataUri ? (
           <Image source={{ uri: dataUri }} style={styles.thumbImage} />
         ) : isVideo ? (
@@ -70,9 +70,6 @@ function AttachmentItem({ filename, config, onPress }: AttachmentItemProps) {
           </View>
         )}
       </View>
-      <Text style={styles.filename} numberOfLines={2}>
-        {filename}
-      </Text>
     </TouchableOpacity>
   );
 }
@@ -195,7 +192,7 @@ const { width, height } = Dimensions.get("window");
 const styles = StyleSheet.create({
   container: { marginTop: spacing.sm },
   strip: { gap: spacing.sm, paddingBottom: spacing.sm },
-  item: { width: size.thumbLg + spacing.sm, alignItems: "center" },
+  item: { alignItems: "center" },
   thumb: {
     width: size.thumbLg,
     height: size.thumbLg,
@@ -224,13 +221,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   fileIcon: { color: colors.text.faint, fontSize: fontSize.xl, fontWeight: "bold" },
-  filename: {
-    color: colors.text.muted,
-    fontSize: fontSize.sm,
-    marginTop: spacing.sm,
-    textAlign: "center",
-    width: size.thumbLg,
-  },
   overlay: {
     flex: 1,
     backgroundColor: colors.overlay,

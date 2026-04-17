@@ -91,7 +91,7 @@ export default function SettingsScreen({ onDone }: Props) {
         value={serverUrl}
         onChangeText={setServerUrl}
         placeholder="https://example.com"
-        placeholderTextColor="#666"
+        placeholderTextColor={colors.text.faint}
         autoCapitalize="none"
         autoCorrect={false}
         keyboardType="url"
@@ -103,7 +103,7 @@ export default function SettingsScreen({ onDone }: Props) {
         value={apiKey}
         onChangeText={setApiKey}
         placeholder="kyd_..."
-        placeholderTextColor="#666"
+        placeholderTextColor={colors.text.faint}
         autoCapitalize="none"
         autoCorrect={false}
         secureTextEntry
@@ -115,7 +115,7 @@ export default function SettingsScreen({ onDone }: Props) {
         disabled={testing || !serverUrl || !apiKey}
       >
         {testing ? (
-          <ActivityIndicator color="#1a1a1a" />
+          <ActivityIndicator color={colors.primary.on} />
         ) : (
           <Text style={styles.testBtnText}>Test Connection</Text>
         )}
@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
   },
   doneBtn: {
     color: colors.primary.base,
-    fontSize: fontSize.lg,
+    fontSize: fontSize.md,
     fontWeight: "600",
   },
   label: {

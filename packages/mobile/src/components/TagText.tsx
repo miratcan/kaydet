@@ -49,5 +49,5 @@ export default function TagText({ text, tags, metadata, style, onTokenPress }: P
 
 const styles = StyleSheet.create({
   tag: { color: colors.text.tag },
-  kv:  { color: colors.text.muted },
+  kv:  { color: colors.text.tag },
 });

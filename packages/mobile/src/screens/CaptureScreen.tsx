@@ -171,7 +171,7 @@ export default function CaptureScreen({ config, onDone }: Props) {
         value={text}
         onChangeText={setText}
         placeholder="What's on your mind?"
-        placeholderTextColor="#555"
+        placeholderTextColor={colors.text.faint}
         multiline
         autoFocus
         textAlignVertical="top"

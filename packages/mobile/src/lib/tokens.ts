@@ -5,17 +5,17 @@
 
 export const colors = {
   // Neutral surfaces — no paired text tokens, use colors.text.*
-  bg: { base: "#1a1a1a" },
-  surface: { base: "#2a2a2a", border: "#333" },
+  bg: { base: "#121212" },
+  surface: { base: "#1e1e1e", border: "#2e2e2e" },
 
   // Global text hierarchy — works on all neutral surfaces
   text: {
     primary: "#e8e8e8",
     muted: "#888",
-    faint: "#555",
+    faint: "#666",
     tag: "#ce93d8",
-    date: "#4caf50",
-    entryId: "#ffeb3b",
+    date: "#666",
+    entryId: "#3a3a3a",
   },
 
   // Accent surfaces — each has its own paired text token(s)
