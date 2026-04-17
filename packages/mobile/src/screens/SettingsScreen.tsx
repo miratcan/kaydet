@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { testConnection } from "../lib/api";
 import { loadConfig, saveConfig } from "../lib/storage";
+import { colors, fontSize, radius, spacing } from "../lib/tokens";
 import QRScanScreen from "./QRScanScreen";
 
 interface Props {
@@ -137,80 +138,80 @@ export default function SettingsScreen({ onDone }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#1a1a1a",
-    padding: 20,
+    backgroundColor: colors.bg.base,
+    padding: spacing.md,
   },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 30,
-    paddingTop: 10,
+    marginBottom: spacing.lg,
+    paddingTop: spacing.sm,
   },
   title: {
-    fontSize: 24,
+    fontSize: fontSize.xl,
     fontWeight: "bold",
-    color: "#fff",
+    color: colors.white,
   },
   headerRight: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 16,
+    gap: spacing.md,
   },
   qrBtn: {
-    backgroundColor: "#2a2a2a",
+    backgroundColor: colors.surface.base,
     borderWidth: 1,
-    borderColor: "#444",
-    borderRadius: 6,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
+    borderColor: colors.surface.border,
+    borderRadius: radius.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
   },
   qrBtnText: {
-    color: "#00bcd4",
-    fontSize: 14,
+    color: colors.primary.base,
+    fontSize: fontSize.sm,
     fontWeight: "600",
   },
   doneBtn: {
-    color: "#00bcd4",
-    fontSize: 17,
+    color: colors.primary.base,
+    fontSize: fontSize.lg,
     fontWeight: "600",
   },
   label: {
-    color: "#aaa",
-    fontSize: 13,
-    marginBottom: 6,
-    marginTop: 16,
+    color: colors.text.muted,
+    fontSize: fontSize.sm,
+    marginBottom: spacing.sm,
+    marginTop: spacing.md,
   },
   input: {
-    backgroundColor: "#2a2a2a",
-    color: "#fff",
-    borderRadius: 8,
-    padding: 14,
-    fontSize: 16,
+    backgroundColor: colors.surface.base,
+    color: colors.white,
+    borderRadius: radius.sm,
+    padding: spacing.sm,
+    fontSize: fontSize.md,
     borderWidth: 1,
-    borderColor: "#333",
+    borderColor: colors.surface.border,
   },
   testBtn: {
-    backgroundColor: "#00bcd4",
-    borderRadius: 8,
-    padding: 14,
+    backgroundColor: colors.primary.base,
+    borderRadius: radius.sm,
+    padding: spacing.sm,
     alignItems: "center",
-    marginTop: 24,
+    marginTop: spacing.lg,
   },
   testBtnText: {
-    color: "#1a1a1a",
-    fontSize: 16,
+    color: colors.primary.on,
+    fontSize: fontSize.md,
     fontWeight: "600",
   },
   status: {
-    marginTop: 12,
-    fontSize: 14,
+    marginTop: spacing.sm,
+    fontSize: fontSize.sm,
     textAlign: "center",
   },
   statusOk: {
-    color: "#4caf50",
+    color: colors.text.date,
   },
   statusError: {
-    color: "#ef5350",
+    color: colors.error.onAction,
   },
 });

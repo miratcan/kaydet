@@ -14,7 +14,9 @@ import {
   View,
 } from "react-native";
 import type { EntryData, SyncConfig } from "../lib/api";
+import { colors, fontSize, font, radius, size, spacing } from "../lib/tokens";
 import { pushAttachment, pushEntries } from "../lib/api";
+import { cacheEntries } from "../lib/storage";
 
 interface Attachment {
   uri: string;
@@ -106,7 +108,7 @@ export default function CaptureScreen({ config, onDone }: Props) {
       source_file: sourceFile,
       timestamp,
       text: trimmed || "(attachment)",
-      tags: extractTags(trimmed),
+      tags: [],
       metadata: {},
       attachments: attachments.map((a) => a.name),
       updated_at: now.toISOString(),
@@ -115,6 +117,10 @@ export default function CaptureScreen({ config, onDone }: Props) {
     try {
       const result = await pushEntries(config, [entry]);
       if (result.accepted > 0) {
+        // Cache the server-resolved entry (with parsed tags, metadata, entry_id)
+        if (result.entries.length > 0) {
+          await cacheEntries(result.entries);
+        }
         // Upload attachments (best-effort)
         for (const att of attachments) {
           try {
@@ -242,36 +248,32 @@ async function uploadAttachment(
   await pushAttachment(config, att.name, base64);
 }
 
-function extractTags(text: string): string[] {
-  const matches = text.match(/#[a-z][a-z0-9_-]*/g);
-  return matches ? matches.map((t) => t.slice(1)) : [];
-}
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#1a1a1a",
-    padding: 20,
+    backgroundColor: colors.bg.base,
+    padding: spacing.md,
   },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 20,
-    paddingTop: 10,
+    marginBottom: spacing.md,
+    paddingTop: spacing.sm,
   },
   title: {
-    fontSize: 18,
+    fontSize: fontSize.lg,
     fontWeight: "600",
-    color: "#fff",
+    color: colors.white,
   },
   cancelBtn: {
-    color: "#888",
-    fontSize: 16,
+    color: colors.text.muted,
+    fontSize: fontSize.lg,
   },
   saveBtn: {
-    color: "#00bcd4",
-    fontSize: 16,
+    color: colors.primary.base,
+    fontSize: fontSize.lg,
     fontWeight: "600",
   },
   saveBtnDisabled: {
@@ -279,92 +281,92 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    backgroundColor: "#2a2a2a",
-    color: "#fff",
-    borderRadius: 8,
-    padding: 16,
-    fontSize: 16,
-    lineHeight: 26,
-    fontFamily: "Lora_400Regular",
+    backgroundColor: colors.surface.base,
+    color: colors.white,
+    borderRadius: radius.sm,
+    padding: spacing.md,
+    fontSize: fontSize.md,
+    lineHeight: fontSize.md * 1.6,
+    fontFamily: font.serif,
     borderWidth: 1,
-    borderColor: "#333",
+    borderColor: colors.surface.border,
   },
   attachmentStrip: {
     maxHeight: 100,
-    marginTop: 10,
+    marginTop: spacing.sm,
   },
   attachmentStripContent: {
-    gap: 10,
+    gap: spacing.sm,
   },
   attachmentThumb: {
-    width: 72,
+    width: size.thumb + spacing.sm,
     alignItems: "center",
   },
   thumbImage: {
-    width: 64,
-    height: 64,
-    borderRadius: 8,
-    backgroundColor: "#333",
+    width: size.thumb,
+    height: size.thumb,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surface.border,
   },
   thumbFile: {
-    width: 64,
-    height: 64,
-    borderRadius: 8,
-    backgroundColor: "#333",
+    width: size.thumb,
+    height: size.thumb,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surface.border,
     justifyContent: "center",
     alignItems: "center",
   },
   thumbFileIcon: {
-    color: "#888",
-    fontSize: 24,
+    color: colors.text.muted,
+    fontSize: fontSize.xl,
     fontWeight: "bold",
   },
   thumbRemove: {
     position: "absolute",
     top: -4,
     right: 0,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: "#ef5350",
+    width: spacing.lg,
+    height: spacing.lg,
+    borderRadius: radius.full,
+    backgroundColor: colors.error.onAction,
     justifyContent: "center",
     alignItems: "center",
   },
   thumbRemoveText: {
-    color: "#fff",
-    fontSize: 12,
+    color: colors.white,
+    fontSize: fontSize.sm,
     fontWeight: "bold",
   },
   thumbName: {
-    color: "#888",
-    fontSize: 10,
+    color: colors.text.muted,
+    fontSize: fontSize.sm,
     marginTop: 2,
-    width: 64,
+    width: size.thumb,
     textAlign: "center",
   },
   toolbar: {
     flexDirection: "row",
     justifyContent: "center",
-    gap: 12,
-    marginTop: 12,
-    paddingVertical: 8,
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+    paddingVertical: spacing.sm,
   },
   toolBtn: {
-    backgroundColor: "#2a2a2a",
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
+    backgroundColor: colors.surface.base,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: "#444",
+    borderColor: colors.surface.border,
   },
   toolBtnText: {
-    color: "#00bcd4",
-    fontSize: 14,
+    color: colors.primary.base,
+    fontSize: fontSize.md,
   },
   hint: {
-    color: "#555",
-    fontSize: 12,
-    marginTop: 8,
+    color: colors.text.faint,
+    fontSize: fontSize.sm,
+    marginTop: spacing.sm,
     textAlign: "center",
   },
 });

@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo } from "react";
+import { colors, fontSize, font, radius, size, spacing } from "../lib/tokens";
 import {
   Image,
   RefreshControl,
@@ -16,6 +17,7 @@ import {
   formatLastSync,
   groupByDate,
 } from "../lib/entryUtils";
+import TagText from "../components/TagText";
 
 interface Props {
   entries: EntryData[];
@@ -23,6 +25,8 @@ interface Props {
   lastSyncAt: Date | null;
   syncError: string | null;
   config: SyncConfig | null;
+  query: string;
+  onQueryChange: (q: string) => void;
   onSync: () => void;
   onSettings: () => void;
   onCapture: () => void;
@@ -38,7 +42,7 @@ function AttachmentThumb({
   filename: string;
   config: SyncConfig | null;
 }) {
-  const [uri, setUri] = useState<string | null>(null);
+  const [uri, setUri] = React.useState<string | null>(null);
 
   useEffect(() => {
     if (!config) return;
@@ -64,18 +68,16 @@ function AttachmentThumb({
   return <Image source={{ uri }} style={styles.thumb} />;
 }
 
-function formatTags(tags: string[]): string {
-  return tags.map((t) => `#${t}`).join(" ");
-}
-
 function EntryCard({
   entry,
   config,
   onPress,
+  onTagPress,
 }: {
   entry: EntryData;
   config: SyncConfig | null;
   onPress: () => void;
+  onTagPress: (tag: string) => void;
 }) {
   const lines = entry.text.split("\n");
   const isLong = entry.text.length > 140 || lines.length > 3;
@@ -91,11 +93,8 @@ function EntryCard({
         <Text style={styles.timestamp}>{entry.timestamp}</Text>
         <Text style={styles.entryId}>[{entry.entry_id}]</Text>
       </View>
-      <Text style={styles.text}>{preview}</Text>
+      <TagText text={preview} style={styles.text} onTagPress={onTagPress} />
       {isLong && <Text style={styles.expandHint}>tap to read more</Text>}
-      {entry.tags.length > 0 && (
-        <Text style={styles.tags}>{formatTags(entry.tags)}</Text>
-      )}
       {entry.attachments.length > 0 && (
         <View style={styles.thumbRow}>
           {entry.attachments
@@ -121,13 +120,13 @@ export default function EntryListScreen({
   lastSyncAt,
   syncError,
   config,
+  query,
+  onQueryChange,
   onSync,
   onSettings,
   onCapture,
   onEntryPress,
 }: Props) {
-  const [query, setQuery] = useState("");
-
   const filtered = useMemo(
     () => filterEntries(entries, query),
     [entries, query]
@@ -176,7 +175,7 @@ export default function EntryListScreen({
         <TextInput
           style={styles.searchInput}
           value={query}
-          onChangeText={setQuery}
+          onChangeText={onQueryChange}
           placeholder="Search entries, #tags…"
           placeholderTextColor="#555"
           autoCapitalize="none"
@@ -184,7 +183,7 @@ export default function EntryListScreen({
           clearButtonMode="while-editing"
         />
         {query.length > 0 && (
-          <TouchableOpacity onPress={() => setQuery("")} style={styles.clearBtn}>
+          <TouchableOpacity onPress={() => onQueryChange("")} style={styles.clearBtn}>
             <Text style={styles.clearBtnText}>✕</Text>
           </TouchableOpacity>
         )}
@@ -218,6 +217,7 @@ export default function EntryListScreen({
               entry={item}
               config={config}
               onPress={() => onEntryPress(item)}
+              onTagPress={(tag) => onQueryChange(`#${tag}`)}
             />
           )}
           renderSectionHeader={({ section }) => (
@@ -246,155 +246,153 @@ export default function EntryListScreen({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#1a1a1a" },
+  container: { flex: 1, backgroundColor: colors.bg.base },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 8,
-    backgroundColor: "#1a1a1a",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.bg.base,
     borderBottomWidth: 1,
-    borderBottomColor: "#333",
+    borderBottomColor: colors.surface.border,
   },
   title: {
-    fontSize: 22,
-    fontFamily: "Lora_700Bold",
-    color: "#00bcd4",
+    fontSize: fontSize.xl,
+    fontFamily: font.serifBold,
+    color: colors.primary.base,
   },
   syncHint: {
-    fontSize: 11,
-    color: "#555",
+    fontSize: fontSize.sm,
+    color: colors.text.faint,
     marginTop: 1,
   },
-  headerButtons: { flexDirection: "row", gap: 12 },
-  headerBtn: { paddingVertical: 6, paddingHorizontal: 12 },
-  headerBtnText: { color: "#00bcd4", fontSize: 15 },
+  headerButtons: { flexDirection: "row", gap: spacing.sm },
+  headerBtn: { paddingVertical: spacing.sm, paddingHorizontal: spacing.sm },
+  headerBtnText: { color: colors.primary.base, fontSize: fontSize.md },
   errorBanner: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#3a1a1a",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    backgroundColor: colors.error.base,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: "#5a2a2a",
+    borderBottomColor: colors.error.border,
   },
   errorBannerText: {
-    color: "#ef9a9a",
-    fontSize: 13,
+    color: colors.error.on,
+    fontSize: fontSize.sm,
   },
   errorBannerRetry: {
-    color: "#ef5350",
-    fontSize: 13,
+    color: colors.error.onAction,
+    fontSize: fontSize.sm,
     fontWeight: "600",
   },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
-    marginHorizontal: 12,
-    marginVertical: 8,
-    backgroundColor: "#2a2a2a",
-    borderRadius: 10,
+    marginHorizontal: spacing.sm,
+    marginVertical: spacing.sm,
+    backgroundColor: colors.surface.base,
+    borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: "#333",
-    paddingHorizontal: 12,
+    borderColor: colors.surface.border,
+    paddingHorizontal: spacing.sm,
   },
   searchInput: {
     flex: 1,
-    color: "#fff",
-    fontSize: 15,
-    paddingVertical: 8,
+    color: colors.white,
+    fontSize: fontSize.md,
+    paddingVertical: spacing.sm,
   },
-  clearBtn: { padding: 4 },
-  clearBtnText: { color: "#555", fontSize: 14 },
+  clearBtn: { padding: spacing.sm },
+  clearBtnText: { color: colors.text.faint, fontSize: fontSize.sm },
   resultCount: {
-    color: "#555",
-    fontSize: 12,
-    paddingHorizontal: 16,
-    marginBottom: 4,
+    color: colors.text.faint,
+    fontSize: fontSize.sm,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.sm,
   },
-  list: { paddingBottom: 80 },
+  list: { paddingBottom: size.fab + spacing.lg },
   sectionHeader: {
-    backgroundColor: "#222",
-    paddingHorizontal: 16,
-    paddingVertical: 6,
+    backgroundColor: colors.bg.base,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
-  sectionTitle: { color: "#4caf50", fontSize: 13, fontWeight: "600" },
+  sectionTitle: { color: colors.text.date, fontSize: fontSize.sm, fontWeight: "600" },
   card: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: "#2a2a2a",
+    borderBottomColor: colors.surface.base,
   },
   cardHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    marginBottom: 4,
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
   },
-  timestamp: { color: "#aaa", fontSize: 13, fontWeight: "600" },
-  entryId: { color: "#ffeb3b", fontSize: 12 },
+  timestamp: { color: colors.text.muted, fontSize: fontSize.sm, fontWeight: "600" },
+  entryId: { color: colors.text.entryId, fontSize: fontSize.sm },
   text: {
-    color: "#e0e0e0",
-    fontSize: 15,
-    lineHeight: 24,
-    fontFamily: "Lora_400Regular",
+    color: colors.text.primary,
+    fontSize: fontSize.md,
+    lineHeight: fontSize.md * 1.6,
+    fontFamily: font.serif,
   },
   expandHint: {
-    color: "#555",
-    fontSize: 12,
-    marginTop: 4,
+    color: colors.text.faint,
+    fontSize: fontSize.sm,
+    marginTop: spacing.sm,
   },
-  tags: { color: "#ce93d8", fontSize: 13, marginTop: 4 },
-  attachments: { color: "#888", fontSize: 12, marginTop: 4 },
+  attachments: { color: colors.text.muted, fontSize: fontSize.sm, marginTop: spacing.sm },
   thumbRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 6,
-    marginTop: 8,
+    gap: spacing.sm,
+    marginTop: spacing.sm,
     alignItems: "center",
   },
   thumb: {
-    width: 64,
-    height: 64,
-    borderRadius: 6,
-    backgroundColor: "#333",
+    width: size.thumb,
+    height: size.thumb,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surface.border,
   },
   thumbPlaceholder: {
-    width: 64,
-    height: 64,
-    borderRadius: 6,
-    backgroundColor: "#2a2a2a",
+    width: size.thumb,
+    height: size.thumb,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surface.base,
   },
   empty: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: 40,
+    padding: spacing.xl,
   },
-  emptyText: { color: "#888", fontSize: 18, marginBottom: 8 },
-  emptyHint: { color: "#555", fontSize: 14, textAlign: "center" },
+  emptyText: { color: colors.text.muted, fontSize: fontSize.lg, marginBottom: spacing.sm },
+  emptyHint: { color: colors.text.faint, fontSize: fontSize.md, textAlign: "center" },
   fab: {
     position: "absolute",
-    right: 20,
-    bottom: 30,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: "#00bcd4",
+    right: spacing.md,
+    bottom: spacing.lg,
+    width: size.fab,
+    height: size.fab,
+    borderRadius: size.fabRadius,
+    backgroundColor: colors.primary.base,
     justifyContent: "center",
     alignItems: "center",
     elevation: 5,
-    shadowColor: "#000",
+    shadowColor: colors.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
   },
   fabText: {
-    color: "#1a1a1a",
-    fontSize: 28,
+    color: colors.primary.on,
+    fontSize: fontSize.xl,
     fontWeight: "300",
     marginTop: -2,
   },

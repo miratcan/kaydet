@@ -85,12 +85,18 @@ export async function fetchEntries(
 export async function pushEntries(
   config: SyncConfig,
   entries: EntryData[]
-): Promise<{ accepted: number; conflicts: number; errors: string[] }> {
+): Promise<{ accepted: number; conflicts: number; errors: string[]; entries: EntryData[] }> {
   const resp = await send(config, {
     method: "push",
     body: { entries, device_id: config.deviceId },
   });
-  return resp.body as any;
+  const body = resp.body as any;
+  return {
+    accepted: body.accepted ?? 0,
+    conflicts: body.conflicts ?? 0,
+    errors: body.errors ?? [],
+    entries: body.entries ?? [],
+  };
 }
 
 export async function deleteEntry(

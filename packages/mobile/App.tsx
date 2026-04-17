@@ -44,6 +44,7 @@ export default function App() {
   const [lastSyncAt, setLastSyncAt] = useState<Date | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [selectedEntry, setSelectedEntry] = useState<EntryData | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -138,7 +139,12 @@ export default function App() {
       {screen === "detail" && selectedEntry && (
         <EntryDetailScreen
           entry={selectedEntry}
+          config={config}
           onBack={() => setScreen("list")}
+          onTagPress={(tag) => {
+            setSearchQuery(`#${tag}`);
+            setScreen("list");
+          }}
         />
       )}
       {screen === "list" && (
@@ -148,6 +154,8 @@ export default function App() {
           lastSyncAt={lastSyncAt}
           syncError={syncError}
           config={config}
+          query={searchQuery}
+          onQueryChange={setSearchQuery}
           onSync={() => doSync()}
           onSettings={() => setScreen("settings")}
           onEntryPress={(entry) => {

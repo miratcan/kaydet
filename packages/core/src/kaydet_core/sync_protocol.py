@@ -92,6 +92,7 @@ class PushEntriesResponse:
     accepted: int = 0
     conflicts: int = 0
     errors: List[str] = field(default_factory=list)
+    entries: List[EntryData] = field(default_factory=list)
 
 
 # -- Attachments --

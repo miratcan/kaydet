@@ -84,9 +84,9 @@ Entries are transported as `EntryData` objects:
 | entry_id | string | MUST | Unique entry identifier (e.g. `d1`, `c42`) |
 | source_file | string | MUST | Day file name (e.g. `2026-04-15.txt`) |
 | timestamp | string | MUST | Entry time `HH:MM` |
-| text | string | MUST | Full entry text including inline tags |
-| tags | string[] | MAY | Extracted tags |
-| metadata | object | MAY | Key-value metadata pairs |
+| text | string | MUST | Full entry text including inline tags and `key:value` pairs |
+| tags | string[] | MAY | Extracted tags — dumb clients SHOULD send `[]` and let the server parse from `text` |
+| metadata | object | MAY | Key-value metadata pairs — dumb clients SHOULD send `{}` and let the server parse from `text` |
 | attachments | string[] | MAY | Attachment filenames |
 | encrypted_secret | string\|null | MAY | Base64-encoded encrypted secret (see encryption spec) |
 | updated_at | string\|null | MAY | ISO 8601 timestamp of last modification |
@@ -230,11 +230,18 @@ Fetch full entry data by ID list.
 
 ### `push`
 
-Push entries to server.
+Push entries to server. Dumb clients SHOULD omit `tags` and `metadata` —
+the server parses them from `text` and returns the resolved entry in the
+response. Clients MUST use the returned entry (with server-assigned
+`entry_id`, parsed `tags`, `metadata`) instead of their local copy.
 
 **Request:** `{"entries": [ ...EntryData... ], "device_id": "laptop"}`
 
-**Response:** `{"accepted": 1, "conflicts": 0, "errors": []}`
+**Response:** `{"accepted": 1, "conflicts": 0, "errors": [], "entries": [ ...EntryData... ]}`
+
+The `entries` field contains the fully resolved server copy of each
+accepted entry, in the same order as the request. Clients MUST upsert
+these into their local store.
 
 ## Auxiliary Methods
 

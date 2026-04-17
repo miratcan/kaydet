@@ -1,4 +1,5 @@
 import React from "react";
+import { colors, fontSize, font, radius, spacing } from "../lib/tokens";
 import {
   ScrollView,
   StyleSheet,
@@ -6,14 +7,18 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import type { EntryData } from "../lib/api";
+import AttachmentViewer from "../components/AttachmentViewer";
+import TagText from "../components/TagText";
+import type { EntryData, SyncConfig } from "../lib/api";
 
 interface Props {
   entry: EntryData;
+  config: SyncConfig | null;
   onBack: () => void;
+  onTagPress: (tag: string) => void;
 }
 
-export default function EntryDetailScreen({ entry, onBack }: Props) {
+export default function EntryDetailScreen({ entry, config, onBack, onTagPress }: Props) {
   const date = entry.source_file.replace(/\.txt$/, "");
 
   return (
@@ -35,17 +40,11 @@ export default function EntryDetailScreen({ entry, onBack }: Props) {
           <Text style={styles.entryId}>[{entry.entry_id}]</Text>
         </View>
 
-        <Text style={styles.text}>{entry.text}</Text>
-
-        {entry.tags.length > 0 && (
-          <View style={styles.tagsRow}>
-            {entry.tags.map((tag) => (
-              <View key={tag} style={styles.tagChip}>
-                <Text style={styles.tagChipText}>#{tag}</Text>
-              </View>
-            ))}
-          </View>
-        )}
+        <TagText
+          text={entry.text}
+          style={styles.text}
+          onTagPress={onTagPress}
+        />
 
         {Object.keys(entry.metadata).length > 0 && (
           <View style={styles.metadataBox}>
@@ -57,81 +56,49 @@ export default function EntryDetailScreen({ entry, onBack }: Props) {
           </View>
         )}
 
-        {entry.attachments.length > 0 && (
-          <View style={styles.attachmentsBox}>
-            <Text style={styles.attachmentsTitle}>Attachments</Text>
-            {entry.attachments.map((name) => (
-              <Text key={name} style={styles.attachmentName}>
-                📎 {name}
-              </Text>
-            ))}
-          </View>
-        )}
+        <AttachmentViewer filenames={entry.attachments} config={config} />
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#1a1a1a" },
+  container: { flex: 1, backgroundColor: colors.bg.base },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: "#333",
+    borderBottomColor: colors.surface.border,
   },
   backBtn: { width: 60 },
-  backBtnText: { color: "#00bcd4", fontSize: 17 },
-  headerDate: { color: "#4caf50", fontSize: 14, fontWeight: "600" },
+  backBtnText: { color: colors.primary.base, fontSize: fontSize.lg },
+  headerDate: { color: colors.text.date, fontSize: fontSize.sm, fontWeight: "600" },
   scroll: { flex: 1 },
-  content: { padding: 20, paddingBottom: 60 },
+  content: { padding: spacing.md, paddingBottom: spacing.xl },
   meta: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    marginBottom: 16,
+    gap: spacing.sm,
+    marginBottom: spacing.md,
   },
-  timestamp: { color: "#aaa", fontSize: 14, fontWeight: "600" },
-  entryId: { color: "#ffeb3b", fontSize: 12 },
+  timestamp: { color: colors.text.muted, fontSize: fontSize.md, fontWeight: "600" },
+  entryId: { color: colors.text.entryId, fontSize: fontSize.sm },
   text: {
-    color: "#e8e8e8",
-    fontSize: 17,
-    lineHeight: 28,
-    fontFamily: "Lora_400Regular",
+    color: colors.text.primary,
+    fontSize: fontSize.lg,
+    lineHeight: fontSize.lg * 1.65,
+    fontFamily: font.serif,
   },
-  tagsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginTop: 20,
-  },
-  tagChip: {
-    backgroundColor: "#2a1a3a",
-    borderRadius: 12,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderWidth: 1,
-    borderColor: "#ce93d8",
-  },
-  tagChipText: { color: "#ce93d8", fontSize: 13 },
   metadataBox: {
-    marginTop: 20,
-    backgroundColor: "#222",
-    borderRadius: 8,
-    padding: 12,
-    gap: 4,
+    marginTop: spacing.lg,
+    backgroundColor: colors.surface.base,
+    borderRadius: radius.sm,
+    padding: spacing.sm,
+    gap: spacing.sm,
   },
-  metadataItem: { color: "#aaa", fontSize: 13 },
-  metadataKey: { color: "#888", fontWeight: "600" },
-  attachmentsBox: { marginTop: 20 },
-  attachmentsTitle: {
-    color: "#888",
-    fontSize: 13,
-    fontWeight: "600",
-    marginBottom: 8,
-  },
-  attachmentName: { color: "#aaa", fontSize: 14, marginBottom: 4 },
+  metadataItem: { color: colors.text.muted, fontSize: fontSize.sm },
+  metadataKey: { color: colors.text.primary, fontWeight: "600" },
 });

@@ -13,6 +13,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from kaydet_core.parsers import partition_entry_tokens
 from kaydet_core.service import KaydetService
 from kaydet_core.sync_protocol import (
     AttachmentGetRequest,
@@ -458,13 +459,18 @@ class SyncServer:
         accepted = 0
         conflicts = 0
         errors: List[str] = []
+        resolved_entries: List[EntryData] = []
 
         for entry_data in req.entries:
             try:
-                self._upsert_entry(
+                entry_id = self._upsert_entry(
                     entry_data, req.device_id, now
                 )
-                accepted += 1
+                if entry_id:
+                    accepted += 1
+                    loaded = self._load_entry(entry_id)
+                    if loaded:
+                        resolved_entries.append(loaded)
             except Exception as e:
                 errors.append(
                     f"Entry {entry_data.entry_id}: {e}"
@@ -474,6 +480,7 @@ class SyncServer:
             accepted=accepted,
             conflicts=conflicts,
             errors=errors,
+            entries=resolved_entries,
         )
 
     def _handle_attachment_get(
@@ -613,8 +620,8 @@ class SyncServer:
         entry_data: EntryData,
         device_id: str,
         now: datetime,
-    ) -> None:
-        """Insert or update an entry on the server."""
+    ) -> Optional[str]:
+        """Insert or update an entry on the server. Returns the entry_id or None if skipped."""
         # Check if entry already exists by ID
         cursor = self.conn.cursor()
         cursor.execute(
@@ -631,12 +638,13 @@ class SyncServer:
                 and entry_data.updated_at
                 and server_updated_at > entry_data.updated_at
             ):
-                return  # server has newer data, skip
+                return None  # server has newer data, skip
             self._update_existing_entry(
                 existing_id, entry_data, device_id
             )
+            return existing_id
         else:
-            self._create_new_entry(entry_data, device_id, now)
+            return self._create_new_entry(entry_data, device_id, now)
 
     def _update_existing_entry(
         self,
@@ -672,7 +680,7 @@ class SyncServer:
         entry_data: EntryData,
         device_id: str,
         now: datetime,
-    ) -> None:
+    ) -> Optional[str]:
         """Create a new entry on the server via KaydetService."""
         # Derive entry datetime from source_file + timestamp
         # so the entry lands in the correct day file.
@@ -701,16 +709,24 @@ class SyncServer:
             )
             text = f"{text} {att_refs}"
 
+        # If client sent no metadata/tags, parse them from text
+        metadata = entry_data.metadata or None
+        tags = entry_data.tags or None
+        if not metadata and not tags:
+            _, parsed_meta, parsed_tags = partition_entry_tokens(text.split())
+            metadata = parsed_meta or None
+            tags = list(parsed_tags) or None
+
         result = self.service.add_entry(
             text=text,
-            metadata=entry_data.metadata or None,
-            tags=entry_data.tags or None,
+            metadata=metadata,
+            tags=tags,
             at=entry_at,
             entry_id=entry_data.entry_id,
         )
 
         if not result.get("success"):
-            return
+            return None
 
         new_id = result["entry_id"]
 
@@ -721,6 +737,8 @@ class SyncServer:
                 entry_data.encrypted_secret
             )
             store_secret(new_id, encrypted, self.storage_dir)
+
+        return new_id
 
 
 def validate_api_key(
