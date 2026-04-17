@@ -1,4 +1,5 @@
 import * as DocumentPicker from "expo-document-picker";
+import * as FileSystem from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
 import React, { useState } from "react";
 import {
@@ -15,13 +16,15 @@ import {
 } from "react-native";
 import type { SyncConfig } from "../lib/api";
 import { colors, fontSize, font, radius, size, spacing } from "../lib/tokens";
-import { pushAttachment, pushEntries } from "../lib/api";
+import { uploadAttachmentChunked, pushEntries } from "../lib/api";
 import { cacheEntries } from "../lib/storage";
 
 interface Attachment {
   uri: string;
   name: string;
   type: string;
+  size: number;
+  sha256: string;
 }
 
 interface Props {
@@ -34,22 +37,28 @@ export default function CaptureScreen({ config, onDone }: Props) {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [saving, setSaving] = useState(false);
 
+  const buildAttachment = async (
+    uri: string,
+    name: string,
+    type: string
+  ): Promise<Attachment> => {
+    const info = await FileSystem.getInfoAsync(uri, { size: true } as any);
+    const size = info.exists && "size" in info ? (info as any).size as number : 0;
+    return { uri, name, type, size, sha256: "" };
+  };
+
   const pickFromCamera = async () => {
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) {
       Alert.alert("Permission required", "Camera access is needed.");
       return;
     }
-    const result = await ImagePicker.launchCameraAsync({
-      quality: 0.8,
-    });
+    const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
     if (!result.canceled && result.assets[0]) {
       const asset = result.assets[0];
       const name = asset.fileName ?? `photo_${Date.now()}.jpg`;
-      setAttachments((prev) => [
-        ...prev,
-        { uri: asset.uri, name, type: asset.mimeType ?? "image/jpeg" },
-      ]);
+      const att = await buildAttachment(asset.uri, name, asset.mimeType ?? "image/jpeg");
+      setAttachments((prev) => [...prev, att]);
     }
   };
 
@@ -64,25 +73,31 @@ export default function CaptureScreen({ config, onDone }: Props) {
       allowsMultipleSelection: true,
     });
     if (!result.canceled) {
-      const newAtts = result.assets.map((asset) => ({
-        uri: asset.uri,
-        name: asset.fileName ?? `image_${Date.now()}.jpg`,
-        type: asset.mimeType ?? "image/jpeg",
-      }));
+      const newAtts = await Promise.all(
+        result.assets.map((asset) =>
+          buildAttachment(
+            asset.uri,
+            asset.fileName ?? `image_${Date.now()}.jpg`,
+            asset.mimeType ?? "image/jpeg"
+          )
+        )
+      );
       setAttachments((prev) => [...prev, ...newAtts]);
     }
   };
 
   const pickFile = async () => {
-    const result = await DocumentPicker.getDocumentAsync({
-      multiple: true,
-    });
+    const result = await DocumentPicker.getDocumentAsync({ multiple: true });
     if (!result.canceled) {
-      const newAtts = result.assets.map((asset) => ({
-        uri: asset.uri,
-        name: asset.name,
-        type: asset.mimeType ?? "application/octet-stream",
-      }));
+      const newAtts = await Promise.all(
+        result.assets.map((asset) =>
+          buildAttachment(
+            asset.uri,
+            asset.name,
+            asset.mimeType ?? "application/octet-stream"
+          )
+        )
+      );
       setAttachments((prev) => [...prev, ...newAtts]);
     }
   };
@@ -120,11 +135,20 @@ export default function CaptureScreen({ config, onDone }: Props) {
           await cacheEntries(result.entries);
         }
         // Upload attachments (best-effort)
-        for (const att of attachments) {
-          try {
-            await uploadAttachment(config, att);
-          } catch {
-            // Attachment upload failure is non-fatal
+        if (result.entries.length > 0) {
+          const entryId = result.entries[0].entry_id;
+          for (const att of attachments) {
+            try {
+              await uploadAttachmentChunked(
+                config,
+                `${entryId}_${att.name}`,
+                att.uri,
+                att.size,
+                att.sha256,
+              );
+            } catch {
+              // Attachment upload failure is non-fatal
+            }
           }
         }
         setSaving(false);
@@ -229,22 +253,6 @@ export default function CaptureScreen({ config, onDone }: Props) {
   );
 }
 
-async function uploadAttachment(
-  config: SyncConfig,
-  att: Attachment
-): Promise<void> {
-  const response = await fetch(att.uri);
-  const blob = await response.blob();
-  const reader = new FileReader();
-  const base64 = await new Promise<string>((resolve) => {
-    reader.onloadend = () => {
-      const result = reader.result as string;
-      resolve(result.split(",")[1] ?? "");
-    };
-    reader.readAsDataURL(blob);
-  });
-  await pushAttachment(config, att.name, base64);
-}
 
 
 const styles = StyleSheet.create({

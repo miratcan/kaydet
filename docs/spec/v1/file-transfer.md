@@ -50,6 +50,21 @@ in the existing `attachment_get`/`attachment_put` protocol messages.
 This is acceptable because stdin is local-only (no network, no
 interruption risk).
 
+**Mobile clients (React Native) MUST use the HTTP binary endpoints.**
+Files are stored locally using the platform filesystem (e.g.
+`expo-file-system`) and downloaded via `GET /files/{filename}`.
+Base64 transport (`attachment_get`/`attachment_put`) is NOT used by
+mobile clients — it is inefficient and unreliable for large files on
+native platforms.
+
+## SHA-256 Verification
+
+The `sha256` field in `upload-start` is OPTIONAL. If omitted or empty,
+the server skips hash verification and accepts the upload as-is.
+Clients SHOULD provide the hash when they can compute it for integrity
+guarantees. The server always returns the actual hash in `upload-finish`
+via the `sha256_match` field.
+
 ## Upload Protocol (HTTP)
 
 ### Step 1: Initiate Upload

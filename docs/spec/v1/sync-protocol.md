@@ -280,17 +280,23 @@ Update an entry by ID.
 
 **Response:** `{"entry_id": "d5", "updated": true, "error": ""}`
 
-### `attachment_get`
+### `attachment_get` *(deprecated)*
 
-Download an attachment by filename.
+> **Deprecated for HTTP clients.** Use `GET /files/{filename}` instead (see file-transfer spec).
+> This method remains for stdin/local transport only.
+
+Download an attachment by filename (base64-encoded).
 
 **Request:** `{"filename": "d1_photo.jpg"}`
 
 **Response:** `{"filename": "d1_photo.jpg", "data": "<base64>", "found": true}`
 
-### `attachment_put`
+### `attachment_put` *(deprecated)*
 
-Upload an attachment.
+> **Deprecated for HTTP clients.** Use `POST /files/upload-start`, `upload-chunk`, `upload-finish` instead (see file-transfer spec).
+> This method remains for stdin/local transport only.
+
+Upload an attachment (base64-encoded).
 
 **Request:** `{"filename": "d1_photo.jpg", "data": "<base64>"}`
 

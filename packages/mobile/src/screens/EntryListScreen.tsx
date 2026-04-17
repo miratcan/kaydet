@@ -1,5 +1,4 @@
-import React, { useRef, useState, useMemo, useEffect } from "react";
-import type { SectionList as SectionListType } from "react-native";
+import React, { useRef, useState, useMemo } from "react";
 import { colors, fontSize, font, radius, size, spacing } from "../lib/tokens";
 import {
   Animated,
@@ -12,8 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { RectButton, Swipeable } from "react-native-gesture-handler";
-import ViewShot from "react-native-view-shot";
+import { Swipeable } from "react-native-gesture-handler";
 import type { EntryData, SyncConfig } from "../lib/api";
 import {
   filterEntries,
@@ -22,7 +20,13 @@ import {
 } from "../lib/entryUtils";
 import TagText from "../components/TagText";
 import AttachmentViewer from "../components/AttachmentViewer";
-import ShardExplosion from "../components/ShardExplosion";
+
+function truncateText(text: string): string {
+  const newline = text.indexOf("\n");
+  const cutAt = newline !== -1 && newline < 144 ? newline : 144;
+  if (text.length <= cutAt) return text;
+  return text.slice(0, cutAt) + "…";
+}
 
 interface Props {
   entries: EntryData[];
@@ -52,100 +56,55 @@ function EntryCard({
   onEdit: () => void;
   onDelete: () => void;
 }) {
-  const viewShotRef = useRef<ViewShot>(null);
-  const cardRef = useRef<View>(null);
-  const [shardUri, setShardUri] = useState<string | null>(null);
-  const [shardLayout, setShardLayout] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const collapseAnim = useRef(new Animated.Value(1)).current;
   const [collapsing, setCollapsing] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
-  const handleDelete = async () => {
-    // 1. Capture screenshot of card
-    let uri: string | null = null;
-    try { uri = await (viewShotRef.current as any)?.capture?.(); } catch {}
-    if (!uri) {
-      // Web fallback: just collapse
-      setCollapsing(true);
-      Animated.timing(collapseAnim, {
-        toValue: 0,
-        duration: 280,
-        easing: Easing.in(Easing.cubic),
-        useNativeDriver: false,
-      }).start(() => onDelete());
-      return;
-    }
-
-    // 2. Measure card position on screen
-    cardRef.current?.measureInWindow((x, y, w, h) => {
-      setShardLayout({ x, y, w, h });
-      setShardUri(uri);
-    });
-  };
-
-  const handleShardDone = () => {
-    // 3. Shards done → collapse card height
-    setShardUri(null);
+  const handleDelete = () => {
     setCollapsing(true);
     Animated.timing(collapseAnim, {
       toValue: 0,
       duration: 280,
       easing: Easing.in(Easing.cubic),
       useNativeDriver: false,
-    }).start(() => {
-      onDelete();
-    });
+    }).start(() => onDelete());
   };
 
   const renderRightActions = () => (
     <View style={styles.swipeActions}>
-      <RectButton style={styles.swipeEdit} onPress={onEdit}>
+      <TouchableOpacity style={styles.swipeEdit} onPress={onEdit}>
         <Text style={styles.swipeEditText}>Edit</Text>
-      </RectButton>
-      <RectButton style={styles.swipeDelete} onPress={handleDelete}>
+      </TouchableOpacity>
+      <TouchableOpacity style={styles.swipeDelete} onPress={handleDelete}>
         <Text style={styles.swipeDeleteText}>Delete</Text>
-      </RectButton>
+      </TouchableOpacity>
     </View>
   );
 
   return (
-    <>
-      <Animated.View
-        style={[
-          collapsing && {
-            overflow: "hidden",
-            maxHeight: collapseAnim.interpolate({
-              inputRange: [0, 1],
-              outputRange: [0, 500],
-            }),
-            opacity: collapseAnim,
-          },
-        ]}
-      >
-        <Swipeable renderRightActions={renderRightActions} overshootRight={false}>
-          <ViewShot ref={viewShotRef} options={{ format: "png", quality: 0.8 }}>
-            <View ref={cardRef} style={styles.card}>
-              <View style={styles.cardHeader}>
-                <Text style={styles.timestamp}>{entry.timestamp}</Text>
-                <Text style={styles.entryId}>[{entry.entry_id}]</Text>
-              </View>
-              <TagText text={entry.text} tags={entry.tags} metadata={entry.metadata} style={styles.text} onTokenPress={onTagPress} />
-              <AttachmentViewer filenames={entry.attachments} config={config} />
-            </View>
-          </ViewShot>
-        </Swipeable>
-      </Animated.View>
-
-      {shardUri && shardLayout && (
-        <ShardExplosion
-          imageUri={shardUri}
-          entryWidth={shardLayout.w}
-          entryHeight={shardLayout.h}
-          originX={shardLayout.x}
-          originY={shardLayout.y}
-          onDone={handleShardDone}
-        />
-      )}
-    </>
+    <Animated.View
+      style={[
+        collapsing && {
+          overflow: "hidden",
+          maxHeight: collapseAnim.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0, 500],
+          }),
+          opacity: collapseAnim,
+        },
+      ]}
+    >
+      <Swipeable renderRightActions={renderRightActions} overshootRight={false}>
+        <TouchableOpacity activeOpacity={0.8} onPress={() => setExpanded(e => !e)} style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.timestamp}>{entry.timestamp}</Text>
+            <Text style={styles.entryId}>[{entry.entry_id}]</Text>
+          </View>
+          <TagText text={expanded ? entry.text : truncateText(entry.text)} tags={entry.tags} metadata={entry.metadata} style={styles.text} onTokenPress={onTagPress} />
+          <AttachmentViewer filenames={entry.attachments} config={config} />
+        </TouchableOpacity>
+      </Swipeable>
+    </Animated.View>
   );
 }
 
@@ -163,18 +122,12 @@ export default function EntryListScreen({
   onEditEntry,
   onDeleteEntry,
 }: Props) {
-  const listRef = useRef<SectionListType<any>>(null);
   const filtered = useMemo(
     () => filterEntries(entries, query),
     [entries, query]
   );
   const sections = useMemo(() => groupByDate(filtered), [filtered]);
 
-  useEffect(() => {
-    if (sections.length > 0) {
-      listRef.current?.scrollToLocation({ sectionIndex: 0, itemIndex: 0, animated: false });
-    }
-  }, [query]);
 
   return (
     <View style={styles.container}>
@@ -253,7 +206,6 @@ export default function EntryListScreen({
         </View>
       ) : (
         <SectionList
-          ref={listRef}
           sections={sections}
           keyExtractor={(item) => item.entry_id}
           renderItem={({ item }) => (
@@ -272,6 +224,10 @@ export default function EntryListScreen({
           )}
           contentContainerStyle={styles.list}
           stickySectionHeadersEnabled
+          initialNumToRender={30}
+          maxToRenderPerBatch={20}
+          windowSize={21}
+          updateCellsBatchingPeriod={30}
           refreshControl={
             <RefreshControl
               refreshing={syncing}

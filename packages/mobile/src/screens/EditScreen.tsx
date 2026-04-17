@@ -39,7 +39,7 @@ export default function EditScreen({ config, entry, onDone }: Props) {
       const result = await updateEntry(config, entry.entry_id, trimmed);
       if (result.updated) {
         // Re-fetch the updated entry by syncing; for now patch local cache
-        await cacheEntries([{ ...entry, text: trimmed, tags: [], metadata: {} }]);
+        await cacheEntries([{ ...entry, text: trimmed }]);
         onDone(true);
       } else {
         Alert.alert("Error", result.error ?? "Failed to update");

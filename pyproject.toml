@@ -20,6 +20,7 @@ dev-dependencies = [
     "kaydet-cli",
     "kaydet-server",
     "pytest-playwright>=0.7.2",
+    "pytest-asyncio>=1.3.0",
 ]
 
 [tool.ruff]
@@ -35,3 +36,4 @@ known-first-party = ["kaydet_core", "kaydet_cli", "kaydet_server"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "function"

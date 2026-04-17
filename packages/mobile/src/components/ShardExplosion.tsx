@@ -14,7 +14,7 @@
  */
 
 import React, { useEffect, useRef } from "react";
-import { Animated, Dimensions, Easing, Image, StyleSheet, View } from "react-native";
+import { Animated, Dimensions, Easing, Image, Modal, StyleSheet, View } from "react-native";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 
@@ -73,6 +73,7 @@ export default function ShardExplosion({
         const spread = (Math.random() - 0.5) * 1.2;
         const angle = Math.atan2(dy, dx) + spread;
 
+        const rotVal = new Animated.Value(0);
         shards.current.push({
           col: c,
           row: r,
@@ -81,7 +82,7 @@ export default function ShardExplosion({
           vr: (Math.random() - 0.5) * 360,
           translateX: new Animated.Value(0),
           translateY: new Animated.Value(0),
-          rotate: new Animated.Value(0),
+          rotate: rotVal.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "0deg"] }),
           opacity: new Animated.Value(1),
         });
       }
@@ -89,6 +90,7 @@ export default function ShardExplosion({
   }
 
   useEffect(() => {
+    console.log("[ShardExplosion] useEffect fired, shards:", shards.current.length);
     // Simulate physics frame-by-frame and map to Animated values
     const totalFrames = Math.round((DURATION / 1000) * 60);
     const frameMs = DURATION / totalFrames;
@@ -132,16 +134,17 @@ export default function ShardExplosion({
         toValue: 1,
         duration: DURATION,
         easing: Easing.linear,
-        useNativeDriver: true,
+        useNativeDriver: false,
       }).start();
     });
 
-    const timer = setTimeout(onDone, DURATION + 50);
+    const timer = setTimeout(() => { console.log("[ShardExplosion] onDone called"); onDone(); }, DURATION + 50);
     return () => clearTimeout(timer);
   }, []);
 
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+    <Modal transparent visible animationType="none" statusBarTranslucent>
+    <View style={[StyleSheet.absoluteFill, { zIndex: 9999 }]} pointerEvents="none">
       {shards.current.map((s, i) => {
         const left = originX + s.col * sw;
         const top = originY + s.row * sh;
@@ -165,21 +168,12 @@ export default function ShardExplosion({
               },
             ]}
           >
-            <Image
-              source={{ uri: imageUri }}
-              style={{
-                width: entryWidth,
-                height: entryHeight,
-                transform: [
-                  { translateX: -s.col * sw },
-                  { translateY: -s.row * sh },
-                ],
-              }}
-            />
+            <View style={{ width: sw, height: sh, backgroundColor: `hsl(${i * 7}, 80%, 60%)` }} />
           </Animated.View>
         );
       })}
     </View>
+    </Modal>
   );
 }
 

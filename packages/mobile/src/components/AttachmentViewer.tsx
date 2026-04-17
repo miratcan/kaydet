@@ -21,11 +21,11 @@ const VIDEO_EXTS = /\.(mp4|mov|m4v|webm|mkv)$/i;
 interface AttachmentItemProps {
   filename: string;
   config: SyncConfig | null;
-  onPress: (filename: string, b64: string | null, isVideo: boolean) => void;
+  onPress: (filename: string, localUri: string | null, isVideo: boolean) => void;
 }
 
 function AttachmentItem({ filename, config, onPress }: AttachmentItemProps) {
-  const [b64, setB64] = useState<string | null>(null);
+  const [localUri, setLocalUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const isImage = IMAGE_EXTS.test(filename);
   const isVideo = VIDEO_EXTS.test(filename);
@@ -35,31 +35,21 @@ function AttachmentItem({ filename, config, onPress }: AttachmentItemProps) {
     if (!config || !isMedia) return;
     setLoading(true);
     getAttachmentCached(config, filename)
-      .then(setB64)
+      .then(setLocalUri)
       .finally(() => setLoading(false));
   }, [filename, config]);
-
-  const ext = filename.split(".").pop()?.toLowerCase() ?? "";
-  const mime = isImage
-    ? ext === "png"
-      ? "image/png"
-      : ext === "gif"
-      ? "image/gif"
-      : "image/jpeg"
-    : `video/${ext}`;
-  const dataUri = b64 ? `data:${mime};base64,${b64}` : null;
 
   return (
     <TouchableOpacity
       style={styles.item}
-      onPress={() => onPress(filename, b64, isVideo)}
+      onPress={() => onPress(filename, localUri, isVideo)}
       activeOpacity={0.7}
     >
       <View style={styles.thumb}>
         {loading ? (
           <ActivityIndicator color={colors.primary.base} />
-        ) : isImage && dataUri ? (
-          <Image source={{ uri: dataUri }} style={styles.thumbImage} />
+        ) : isImage && localUri ? (
+          <Image source={{ uri: localUri }} style={styles.thumbImage} />
         ) : isVideo ? (
           <View style={styles.thumbVideo}>
             <Text style={styles.playIcon}>▶</Text>
@@ -143,19 +133,11 @@ export default function AttachmentViewer({
 
   const handlePress = (
     filename: string,
-    b64: string | null,
+    localUri: string | null,
     isVideo: boolean
   ) => {
-    if (!b64) return; // not loaded yet or non-media
-    const ext = filename.split(".").pop()?.toLowerCase() ?? "";
-    const mime = isVideo
-      ? `video/${ext}`
-      : ext === "png"
-      ? "image/png"
-      : ext === "gif"
-      ? "image/gif"
-      : "image/jpeg";
-    setLightbox({ uri: `data:${mime};base64,${b64}`, isVideo });
+    if (!localUri) return; // not loaded yet or non-media
+    setLightbox({ uri: localUri, isVideo });
   };
 
   if (filenames.length === 0) return null;
@@ -167,9 +149,9 @@ export default function AttachmentViewer({
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.strip}
       >
-        {filenames.map((f) => (
+        {filenames.map((f, i) => (
           <AttachmentItem
-            key={f}
+            key={`${i}-${f}`}
             filename={f}
             config={config}
             onPress={handlePress}

@@ -182,7 +182,8 @@ class FileTransferManager:
         actual_hash = self.compute_sha256(part_file)
         actual_size = part_file.stat().st_size
 
-        if actual_hash != state.expected_sha256:
+        # Skip hash check if client didn't provide one
+        if state.expected_sha256 and actual_hash != state.expected_sha256:
             part_file.unlink()
             del self._uploads[upload_id]
             return UploadFinishResponse(

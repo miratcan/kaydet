@@ -298,32 +298,34 @@ def test_serve_registers_tools(monkeypatch, mcp_env):
     monkeypatch.setattr(mcp_server, "Server", FakeServer(), raising=False)
     monkeypatch.setattr(mcp_server, "stdio_server", FakeStdio, raising=False)
 
-    asyncio.run(mcp_server.serve())
+    import concurrent.futures
 
-    tools = asyncio.run(recorded["list_tools"]())
-    names = {tool.name for tool in tools}
-    required_tools = {
-        "add_entry",
-        "update_entry",
-        "delete_entry",
-        "get_entry",
-        "search_entries",
-        "create_todo",
-        "mark_todo_done",
-        "list_todos",
-        "suggest_kaydet_tags",
-    }
-    assert required_tools <= names
+    async def _run():
+        await mcp_server.serve()
+        tools = await recorded["list_tools"]()
+        names = {tool.name for tool in tools}
+        required_tools = {
+            "add_entry",
+            "update_entry",
+            "delete_entry",
+            "get_entry",
+            "search_entries",
+            "create_todo",
+            "mark_todo_done",
+            "list_todos",
+            "suggest_kaydet_tags",
+        }
+        assert required_tools <= names
 
-    response = asyncio.run(
-        recorded["call_tool"]("add_entry", {"text": "from mcp"})
-    )
-    assert isinstance(response[0], FakeTextContent)
+        response = await recorded["call_tool"]("add_entry", {"text": "from mcp"})
+        assert isinstance(response[0], FakeTextContent)
 
-    suggestion_response = asyncio.run(
-        recorded["call_tool"](
+        suggestion_response = await recorded["call_tool"](
             "suggest_kaydet_tags",
             {"path": str(mcp_env["storage_dir"])},
         )
-    )
-    assert isinstance(suggestion_response[0], FakeTextContent)
+        assert isinstance(suggestion_response[0], FakeTextContent)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(asyncio.run, _run())
+        future.result()

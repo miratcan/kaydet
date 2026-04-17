@@ -139,26 +139,96 @@ export async function updateEntry(
   return resp.body as any;
 }
 
-export async function pushAttachment(
+/**
+ * Download an attachment to a local file path using binary HTTP.
+ * Returns the local file:// URI on success, null on failure.
+ */
+export async function downloadAttachment(
   config: SyncConfig,
   filename: string,
-  data: string // base64-encoded
-): Promise<void> {
-  await send(config, {
-    method: "attachment_put",
-    body: { filename, data },
+  localPath: string
+): Promise<string | null> {
+  const FileSystem = await import("expo-file-system");
+  const url = `${config.serverUrl}/files/${encodeURIComponent(filename)}`;
+  const result = await FileSystem.downloadAsync(url, localPath, {
+    headers: { Authorization: `Bearer ${config.apiKey}` },
   });
+  if (result.status === 200) return result.uri;
+  return null;
 }
 
-export async function getAttachment(
+/**
+ * Upload an attachment using chunked binary HTTP.
+ * sha256 and size must be computed by the caller.
+ */
+export async function uploadAttachmentChunked(
   config: SyncConfig,
-  filename: string
-): Promise<{ found: boolean; data?: string }> {
-  const resp = await send(config, {
-    method: "attachment_get",
-    body: { filename },
+  filename: string,
+  fileUri: string,
+  size: number,
+  sha256: string,
+  onProgress?: (received: number, total: number) => void
+): Promise<void> {
+  const FileSystem = await import("expo-file-system");
+
+  // Step 1: start
+  const startResp = await fetch(`${config.serverUrl}/files/upload-start`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${config.apiKey}`,
+    },
+    body: JSON.stringify({ filename, size, sha256 }),
   });
-  return resp.body as any;
+  if (!startResp.ok) throw new Error(`Upload start failed: ${startResp.status}`);
+  const startBody = await startResp.json();
+  if (startBody.already_exists) return; // server already has it
+  const { upload_id, chunk_size, existing_offset } = startBody;
+
+  // Step 2: upload chunks
+  let offset: number = existing_offset ?? 0;
+  while (offset < size) {
+    const length = Math.min(chunk_size, size - offset);
+    // Read chunk as base64, then send as binary
+    const b64 = await FileSystem.readAsStringAsync(fileUri, {
+      encoding: "base64",
+      position: offset,
+      length,
+    } as any);
+    // Decode base64 → binary string → Uint8Array
+    const binary = atob(b64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+    const chunkResp = await fetch(`${config.serverUrl}/files/upload-chunk`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${config.apiKey}`,
+        "Content-Type": "application/octet-stream",
+        "X-Upload-Id": upload_id,
+        "X-Chunk-Offset": String(offset),
+        "Content-Length": String(bytes.length),
+      },
+      body: bytes,
+    });
+    if (!chunkResp.ok) throw new Error(`Chunk upload failed at offset ${offset}`);
+    const chunkBody = await chunkResp.json();
+    offset += length;
+    onProgress?.(offset, size);
+  }
+
+  // Step 3: finish
+  const finishResp = await fetch(`${config.serverUrl}/files/upload-finish`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${config.apiKey}`,
+    },
+    body: JSON.stringify({ upload_id }),
+  });
+  if (!finishResp.ok) throw new Error(`Upload finish failed: ${finishResp.status}`);
+  const finishBody = await finishResp.json();
+  if (!finishBody.ok) throw new Error(finishBody.error ?? "Upload verification failed");
 }
 
 export async function fullFetch(
@@ -220,22 +290,23 @@ export async function incrementalSync(
   return { entries, deleted, token: result.new_token };
 }
 
+/**
+ * Download an attachment to the local cache directory.
+ * Returns the local file:// URI (cached or freshly downloaded).
+ */
 export async function getAttachmentCached(
   config: SyncConfig,
   filename: string
 ): Promise<string | null> {
-  const { getCachedAttachment, setCachedAttachment } = await import(
-    "./storage"
-  );
-  const cached = await getCachedAttachment(filename);
-  if (cached) return cached;
+  const FileSystem = await import("expo-file-system");
+  const cacheDir = ((FileSystem as any).cacheDirectory ?? "") + "attachments/";
+  const localPath = cacheDir + filename;
 
-  const result = await getAttachment(config, filename);
-  if (result.found && result.data) {
-    await setCachedAttachment(filename, result.data);
-    return result.data;
-  }
-  return null;
+  const info = await FileSystem.getInfoAsync(localPath);
+  if (info.exists) return (info as any).uri ?? localPath;
+
+  await (FileSystem as any).makeDirectoryAsync(cacheDir, { intermediates: true });
+  return downloadAttachment(config, filename, localPath);
 }
 
 export async function testConnection(

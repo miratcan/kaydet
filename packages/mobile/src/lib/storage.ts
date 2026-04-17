@@ -97,20 +97,3 @@ export async function clearAllData(): Promise<void> {
   await AsyncStorage.multiRemove(Object.values(KEYS));
 }
 
-// -- Attachment cache --
-// Backed by IndexedDB (no localStorage quota issues with binary blobs).
-
-export async function getCachedAttachment(
-  filename: string
-): Promise<string | null> {
-  const { getAttachmentCache } = await import("./attachmentCache");
-  return getAttachmentCache(filename);
-}
-
-export async function setCachedAttachment(
-  filename: string,
-  base64: string
-): Promise<void> {
-  const { setAttachmentCache } = await import("./attachmentCache");
-  await setAttachmentCache(filename, base64);
-}
