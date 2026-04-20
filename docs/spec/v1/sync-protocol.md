@@ -26,6 +26,8 @@ server-side.
 - **ZEN-SELF-HEAL:** Conflicts are resolved automatically
 - **ZEN-AGNOSTIC:** Any language can implement a client — the protocol
   is simple JSON over any transport
+- **ZEN-DOOM:** If Doom runs on it, kaydet runs on it. No parser libraries,
+  no runtimes, no magic. Just bytes, integers, and CRC32.
 
 ## Transport
 
