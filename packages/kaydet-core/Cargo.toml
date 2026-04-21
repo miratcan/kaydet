@@ -1,6 +1,18 @@
 [package]
 name = "kaydet-core"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
+
+[lib]
+name = "kaydet_core_rs"
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+uuid = { version = "1", features = ["v4"] }
+crc32fast = "1"
+regex = "1"
+chrono = "0.4"
+pyo3 = { version = "0.22", features = ["extension-module"] }
+
+[dev-dependencies]
+pyo3 = { version = "0.22", features = ["extension-module"] }
