@@ -15,6 +15,7 @@ pub use packet::{serialize, deserialize, PacketError};
 pub mod storage;
 pub use storage::Storage;
 
+#[cfg(feature = "python")]
 pub mod python;
 
 // ---------------------------------------------------------------------------

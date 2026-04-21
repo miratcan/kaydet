@@ -7,12 +7,22 @@ edition = "2021"
 name = "kaydet_core_rs"
 crate-type = ["cdylib", "rlib"]
 
+[[bin]]
+name = "kaydet"
+path = "src/main.rs"
+
 [dependencies]
 uuid = { version = "1", features = ["v4"] }
 crc32fast = "1"
 regex = "1"
 chrono = "0.4"
-pyo3 = { version = "0.22", features = ["extension-module"] }
+pyo3 = { version = "0.22", features = ["extension-module"], optional = true }
+clap = { version = "4", features = ["derive"] }
+dirs = "5"
+
+[features]
+python = ["pyo3"]
+default = ["python"]
 
 [dev-dependencies]
 pyo3 = { version = "0.22", features = ["extension-module"] }

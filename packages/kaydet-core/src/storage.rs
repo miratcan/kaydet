@@ -50,12 +50,30 @@ impl Storage {
     fn parse_day(content: &str) -> HashMap<String, String> {
         let mut entries = HashMap::new();
         for line in content.lines() {
-            // "HH:MM [id]: text" formatı
-            if let Some((id, text)) = parse_entry_line(line) {
+            if let Some((_ts, id, text)) = parse_entry_line(line) {
                 entries.insert(id, text);
             }
         }
         entries
+    }
+
+    /// Gün dosyasını parse eder: entry_id -> (timestamp, text)
+    pub fn parse_day_full(content: &str) -> HashMap<String, (String, String)> {
+        let mut entries = HashMap::new();
+        for line in content.lines() {
+            if let Some((ts, id, text)) = parse_entry_line(line) {
+                entries.insert(id, (ts, text));
+            }
+        }
+        entries
+    }
+
+    pub fn list_days(&self) -> FsResult<Vec<String>> {
+        self.fs.list_days()
+    }
+
+    pub fn read_day(&self, date: &str) -> FsResult<String> {
+        self.fs.read_day(date)
     }
 
     /// Tüm storage'ı okur: date -> { entry_id -> text }
@@ -82,14 +100,16 @@ impl Storage {
 
     /// Entry'yi diske yaz — mevcut günlük dosyasına ekle
     fn write_entry(&self, entry: &Entry) -> FsResult<()> {
-        let date = if entry.timestamp.len() >= 5 {
-            Self::today() // şimdilik bugün, ileride entry'den alınacak
-        } else {
-            Self::today()
-        };
+        let date = Self::today();
+
+        // timestamp boşsa şu anki saati kullan
+        let mut entry_to_write = entry.clone();
+        if entry_to_write.timestamp.is_empty() {
+            entry_to_write.timestamp = Local::now().format("%H:%M").to_string();
+        }
 
         let existing = self.fs.read_day(&date).unwrap_or_default();
-        let new_content = existing + &Self::format_entry(entry);
+        let new_content = existing + &Self::format_entry(&entry_to_write);
         self.fs.write_day(&date, &new_content)
     }
 }
@@ -120,9 +140,8 @@ impl EventListener for Storage {
 // Entry line parser
 // ---------------------------------------------------------------------------
 
-fn parse_entry_line(line: &str) -> Option<(String, String)> {
-    // "HH:MM [id]: text"
-    // timestamp: 5 chars, boşluk, [, id, ], :, boşluk, text
+/// "HH:MM [id]: text" → (timestamp, id, text)
+pub fn parse_entry_line(line: &str) -> Option<(String, String, String)> {
     let line = line.trim();
     if line.len() < 8 {
         return None;
@@ -132,6 +151,7 @@ fn parse_entry_line(line: &str) -> Option<(String, String)> {
     if !line.chars().nth(2).map(|c| c == ':').unwrap_or(false) {
         return None;
     }
+    let timestamp = line[..5].to_string();
 
     // "[id]:" kısmını bul
     let bracket_start = line.find('[')?;
@@ -148,7 +168,7 @@ fn parse_entry_line(line: &str) -> Option<(String, String)> {
         .trim_start_matches(|c| c == ':' || c == ' ')
         .to_string();
 
-    Some((entry_id, text))
+    Some((timestamp, entry_id, text))
 }
 
 // ---------------------------------------------------------------------------
@@ -163,7 +183,8 @@ mod tests {
 
     #[test]
     fn test_parse_entry_line() {
-        let (id, text) = parse_entry_line("14:25 [d1]: yolda not aldım #mirat").unwrap();
+        let (ts, id, text) = parse_entry_line("14:25 [d1]: yolda not aldım #mirat").unwrap();
+        assert_eq!(ts, "14:25");
         assert_eq!(id, "d1");
         assert_eq!(text, "yolda not aldım #mirat");
     }

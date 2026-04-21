@@ -6,6 +6,7 @@
 //   entry = core.add_entry("bugün #mirat")
 //   print(entry.entry_id, entry.tags)
 
+#![cfg(feature = "python")]
 use pyo3::prelude::*;
 use pyo3::exceptions::PyValueError;
 use std::collections::HashMap;
