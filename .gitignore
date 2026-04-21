@@ -17,3 +17,4 @@ UNKNOWN.egg-info/
 node_modules/
 .expo/
 *.egg-info/
+tmp/
