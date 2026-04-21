@@ -295,7 +295,16 @@ def sync_modified_day_files(
     config_dir: Path | None = None,
     force: bool = False,
 ) -> List[Path]:
-    """Incrementally synchronize modified day files with the SQLite index."""
+    """Incrementally synchronize modified day files with the SQLite index.
+
+    No-op when the Rust core is active (it maintains its own in-memory index).
+    """
+    try:
+        import kaydet_core_rs  # noqa: F401
+        return []
+    except ImportError:
+        pass
+
     if not storage_dir.exists():
         return []
 

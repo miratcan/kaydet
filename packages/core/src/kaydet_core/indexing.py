@@ -19,7 +19,16 @@ def rebuild_index_if_empty(
     config: SectionProxy,
     current_time: datetime | None = None,
 ) -> None:
-    """Trigger a doctor rebuild when the index tables are empty."""
+    """Trigger a doctor rebuild when the index tables are empty.
+
+    No-op when the Rust core is active.
+    """
+    try:
+        import kaydet_core_rs  # noqa: F401
+        return
+    except ImportError:
+        pass
+
     day_pattern = config.get(
         "DAY_FILE_PATTERN", DEFAULT_SETTINGS["DAY_FILE_PATTERN"]
     )

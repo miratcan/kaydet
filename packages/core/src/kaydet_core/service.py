@@ -25,6 +25,14 @@ from .parsers import parse_day_entries, resolve_entry_date
 from .sync import sync_modified_day_files
 from .utils import entry_id_sort_key, load_config
 
+# Rust core — paralel olarak çalışır, zamanla Python'un yerini alacak
+try:
+    import kaydet_core_rs as _rust_core
+    _RUST_AVAILABLE = True
+except ImportError:
+    _rust_core = None
+    _RUST_AVAILABLE = False
+
 
 @dataclass
 class KaydetService:
@@ -34,6 +42,7 @@ class KaydetService:
     config_dir: Path
     storage_dir: Path
     conn: Any
+    _rust: Any = None  # kaydet_core_rs.KaydetCore instance
 
     @classmethod
     def initialize(cls) -> KaydetService:
@@ -44,14 +53,25 @@ class KaydetService:
             storage_dir,
             index_dir,
         ) = load_config()
+        rust = None
+        if _RUST_AVAILABLE:
+            try:
+                rust = _rust_core.KaydetCore(str(storage_dir))
+            except Exception:
+                pass  # Rust core başlatılamazsa Python devam eder
+
+        # SQLite: Rust varken sadece sync_log için lazım (sync_client/server).
+        # Rust yoksa index cache olarak da kullanılıyor.
         db_path = index_dir / INDEX_FILENAME
         conn = database.get_db_connection(db_path)
         database.initialize_database(conn)
+
         return cls(
             config=config,
             config_dir=config_dir,
             storage_dir=storage_dir,
             conn=conn,
+            _rust=rust,
         )
 
     def _ensure_index(self, now: datetime) -> None:
@@ -72,7 +92,45 @@ class KaydetService:
         secret: str | None = None,
         at: datetime | None = None,
         entry_id: str | None = None,
-        log_sync: bool = True,
+    ) -> dict[str, Any]:
+        # TODO: at, secret henüz Rust'ta yok
+        if secret:
+            # secrets Python'da kalıyor şimdilik
+            return self._add_entry_python(
+                text=text, metadata=metadata, tags=tags,
+                timestamp=timestamp, secret=secret, at=at,
+                entry_id=entry_id,
+            )
+
+        if self._rust:
+            try:
+                entry = self._rust.add_entry(text)
+                return {
+                    "success": True,
+                    "entry_id": entry.entry_id,
+                    "timestamp": entry.timestamp,
+                    "day_file": str(self.storage_dir / f"{entry.date}.txt"),
+                    "attachments": [],
+                }
+            except Exception as error:
+                return {"success": False, "error": str(error)}
+
+        return self._add_entry_python(
+            text=text, metadata=metadata, tags=tags,
+            timestamp=timestamp, secret=secret, at=at,
+            entry_id=entry_id,
+        )
+
+    def _add_entry_python(
+        self,
+        *,
+        text: str,
+        metadata: dict[str, str] | None = None,
+        tags: Iterable[str] | None = None,
+        timestamp: str | None = None,
+        secret: str | None = None,
+        at: datetime | None = None,
+        entry_id: str | None = None,
     ) -> dict[str, Any]:
         now = at or datetime.now()
         metadata = metadata or {}
@@ -89,11 +147,9 @@ class KaydetService:
                 minute=int(timestamp[3:]),
             )
 
-        # Resolve secret password if a secret is provided
         secret_password = None
         if secret:
             from .utils import get_secret_password
-
             secret_password = get_secret_password(self.config_dir)
             if not secret_password:
                 return {
@@ -121,21 +177,19 @@ class KaydetService:
             )
         except EmptyEntryError as error:
             return {"success": False, "error": str(error)}
-        if log_sync:
-            database.log_sync_action(
-                self.conn, result["entry_id"], "created"
-            )
         return {"success": True, **result}
 
     def delete_entry(self, entry_id: str) -> dict[str, Any]:
+        if self._rust:
+            try:
+                self._rust.delete_entry(entry_id)
+                return {"success": True, "entry_id": entry_id}
+            except Exception as error:
+                return {"success": False, "error": str(error)}
         now = datetime.now()
         result = delete_entry_command(
-            self.conn,
-            self.storage_dir,
-            self.config,
-            entry_id,
-            assume_yes=True,
-            now=now,
+            self.conn, self.storage_dir, self.config,
+            entry_id, assume_yes=True, now=now,
         )
         if result is None:
             return {"success": False, "error": "Entry not deleted."}
@@ -149,147 +203,132 @@ class KaydetService:
         metadata: dict[str, str] | None = None,
         tags: Iterable[str] | None = None,
         timestamp: str | None = None,
-        log_sync: bool = True,
     ) -> dict[str, Any]:
+        if self._rust and text is not None:
+            try:
+                self._rust.update_entry(entry_id, text)
+                return {"success": True, "entry_id": entry_id}
+            except Exception as error:
+                return {"success": False, "error": str(error)}
         now = datetime.now()
         result = update_entry_inline(
-            self.conn,
-            self.storage_dir,
-            self.config,
-            entry_id,
-            text=text,
-            metadata=metadata,
-            tags=tags,
-            timestamp=timestamp,
-            now=now,
+            self.conn, self.storage_dir, self.config,
+            entry_id, text=text, metadata=metadata,
+            tags=tags, timestamp=timestamp, now=now,
         )
         if result is None:
             return {"success": False, "error": "Entry not updated."}
-        if log_sync:
-            database.log_sync_action(
-                self.conn, entry_id, "updated"
-            )
         return {"success": True, **result}
 
     def search_entries(
         self, query: str = "", *, limit: int = 0
     ) -> dict[str, Any]:
+        if self._rust:
+            entries = self._rust.search_entries(query, limit=limit)
+            matches = [
+                {
+                    "entry_id": e.entry_id,
+                    "date": e.date,
+                    "timestamp": e.timestamp,
+                    "text": e.text,
+                    "tags": e.tags,
+                    "metadata": e.metadata,
+                }
+                for e in entries
+            ]
+            return {"success": True, "query": query, "matches": matches, "total": len(matches)}
         now = datetime.now()
         self._ensure_index(now)
-
         (
-            include_text,
-            exclude_text,
-            include_meta,
-            exclude_meta,
-            include_tags,
-            exclude_tags,
+            include_text, exclude_text,
+            include_meta, exclude_meta,
+            include_tags, exclude_tags,
         ) = tokenize_query(query) if query else ([], [], [], [], [], [])
-
-        has_filters = any(
-            [
-                include_text,
-                exclude_text,
-                include_meta,
-                exclude_meta,
-                include_tags,
-                exclude_tags,
-            ]
-        )
-
+        has_filters = any([include_text, exclude_text, include_meta, exclude_meta, include_tags, exclude_tags])
         if has_filters:
-            sql_query, params = build_search_query(
-                include_text,
-                exclude_text,
-                include_meta,
-                exclude_meta,
-                include_tags,
-                exclude_tags,
-            )
+            sql_query, params = build_search_query(include_text, exclude_text, include_meta, exclude_meta, include_tags, exclude_tags)
         else:
-            # No query = return all entries (most recent first)
-            sql_query = (
-                "SELECT source_file, id FROM entries "
-                "ORDER BY id DESC"
-            )
+            sql_query = "SELECT source_file, id FROM entries ORDER BY id DESC"
             params = []
-
         if limit > 0:
             sql_query += " LIMIT ?"
             params.append(limit)
-
         cursor = self.conn.cursor()
         try:
             cursor.execute(sql_query, params)
-        except Exception as error:  # pragma: no cover
-            return {
-                "success": False,
-                "error": f"Database query failed: {error}",
-            }
+        except Exception as error:
+            return {"success": False, "error": f"Database query failed: {error}"}
         locations = cursor.fetchall()
         if not locations:
             return {"success": True, "query": query, "matches": [], "total": 0}
-
         matches = load_matches(locations, self.storage_dir, self.config)
-        matches.sort(
-            key=lambda entry: entry_id_sort_key(entry.entry_id),
-            reverse=True,
-        )
+        matches.sort(key=lambda entry: entry_id_sort_key(entry.entry_id), reverse=True)
         payload = [match.to_dict() for match in matches]
-        return {
-            "success": True,
-            "query": query,
-            "matches": payload,
-            "total": len(payload),
-        }
+        return {"success": True, "query": query, "matches": payload, "total": len(payload)}
 
     def get_entry(self, entry_id: str) -> dict[str, Any]:
         """Return a single entry by its identifier."""
+        if self._rust:
+            e = self._rust.get_entry(entry_id)
+            if e is None:
+                return {"success": False, "error": f"Entry {entry_id} not found."}
+            entry_dict = {
+                "entry_id": e.entry_id,
+                "date": e.date,
+                "timestamp": e.timestamp,
+                "text": e.text,
+                "tags": e.tags,
+                "metadata": e.metadata,
+            }
+            # secrets hala Python'da
+            from .secrets import decrypt_secret, get_secret
+            from .utils import get_secret_password
+            encrypted = get_secret(entry_id, self.storage_dir)
+            if encrypted:
+                password = get_secret_password(self.config_dir)
+                if password:
+                    try:
+                        entry_dict["secret"] = decrypt_secret(encrypted, password)
+                    except Exception:
+                        entry_dict["secret"] = None
+                        entry_dict["secret_error"] = "Decryption failed"
+            return {"success": True, "entry": entry_dict}
+
         now = datetime.now()
         self._ensure_index(now)
-
         cursor = self.conn.cursor()
-        cursor.execute(
-            "SELECT source_file FROM entries WHERE id = ?", (entry_id,)
-        )
+        cursor.execute("SELECT source_file FROM entries WHERE id = ?", (entry_id,))
         result = cursor.fetchone()
         if result is None:
             return {"success": False, "error": f"Entry {entry_id} not found."}
-
         locations = [(result[0], entry_id)]
         matches = load_matches(locations, self.storage_dir, self.config)
         if not matches:
             return {"success": False, "error": f"Entry {entry_id} not found."}
-
         entry_dict = matches[0].to_dict()
-
-        # Include decrypted secret if available
         from .secrets import decrypt_secret, get_secret
         from .utils import get_secret_password
-
         encrypted = get_secret(entry_id, self.storage_dir)
         if encrypted:
             password = get_secret_password(self.config_dir)
             if password:
                 try:
-                    entry_dict["secret"] = decrypt_secret(
-                        encrypted, password
-                    )
+                    entry_dict["secret"] = decrypt_secret(encrypted, password)
                 except Exception:
                     entry_dict["secret"] = None
                     entry_dict["secret_error"] = "Decryption failed"
-
         return {"success": True, "entry": entry_dict}
 
     def list_tags(self) -> dict[str, Any]:
+        if self._rust:
+            from collections import Counter
+            all_entries = self._rust.all_entries()
+            counts = Counter(tag for e in all_entries for tag in e.tags)
+            tags = [{"tag": t, "count": c} for t, c in sorted(counts.items())]
+            return {"success": True, "tags": tags}
         cursor = self.conn.cursor()
         cursor.execute(
-            (
-                "SELECT tag_name, COUNT(*) "
-                "FROM tags "
-                "GROUP BY tag_name "
-                "ORDER BY tag_name"
-            )
+            "SELECT tag_name, COUNT(*) FROM tags GROUP BY tag_name ORDER BY tag_name"
         )
         rows = cursor.fetchall()
         tags = [{"tag": name, "count": count} for name, count in rows]
@@ -363,6 +402,9 @@ class KaydetService:
     def get_stats(
         self, *, year: int | None = None, month: int | None = None
     ) -> dict[str, Any]:
+        if self._rust:
+            result = self._rust.get_stats(year, month)
+            return {"success": True, **result}
         now = datetime.now()
         target_year = year or now.year
         target_month = month or now.month
@@ -385,6 +427,19 @@ class KaydetService:
         self, description: str, metadata: dict[str, str] | None = None
     ) -> dict[str, Any]:
         """Create a new todo entry with status:pending and #todo tag."""
+        if self._rust:
+            try:
+                text = f"{description} #todo status:pending"
+                entry = self._rust.add_entry(text)
+                return {
+                    "success": True,
+                    "entry_id": entry.entry_id,
+                    "timestamp": entry.timestamp,
+                    "day_file": str(self.storage_dir / f"{entry.date}.txt"),
+                }
+            except Exception as error:
+                return {"success": False, "error": str(error)}
+
         now = datetime.now()
         metadata = metadata or {}
         metadata["status"] = "pending"
@@ -406,6 +461,12 @@ class KaydetService:
 
     def mark_todo_done(self, entry_id: str) -> dict[str, Any]:
         """Mark a todo entry as done by updating its status."""
+        if self._rust:
+            try:
+                self._rust.mark_todo_done(entry_id)
+                return {"success": True, "entry_id": entry_id, "message": f"Todo {entry_id} marked as done"}
+            except Exception as error:
+                return {"success": False, "error": str(error)}
         now = datetime.now()
         try:
             done_command(
@@ -435,6 +496,24 @@ class KaydetService:
             status: Filter by status ('pending', 'done', or None for all).
             filter_query: Optional search query to further narrow results.
         """
+        if self._rust:
+            entries = self._rust.list_todos(status=status)
+            if filter_query:
+                q = filter_query.lower()
+                entries = [e for e in entries if q in e.text.lower()]
+            todos = [
+                {
+                    "id": e.entry_id,
+                    "date": e.date,
+                    "timestamp": e.timestamp,
+                    "status": e.metadata.get("status", "pending"),
+                    "completed_at": e.metadata.get("completed_at", ""),
+                    "description": e.text.split("\n")[0] if e.text else "(no description)",
+                }
+                for e in entries
+            ]
+            return {"success": True, "todos": todos}
+        # LEGACY — Rust yoksa Python devam eder
         now = datetime.now()
         self._ensure_index(now)
 

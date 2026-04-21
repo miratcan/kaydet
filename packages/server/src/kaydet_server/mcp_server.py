@@ -76,14 +76,6 @@ async def serve() -> None:
                     "type": "object",
                     "properties": {
                         "text": {"type": "string"},
-                        "metadata": {
-                            "type": "object",
-                            "additionalProperties": {"type": "string"},
-                        },
-                        "tags": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                        },
                         "timestamp": {
                             "type": "string",
                             "pattern": "^\\d{2}:\\d{2}$",
@@ -102,14 +94,6 @@ async def serve() -> None:
                     "properties": {
                         "entry_id": {"type": "string"},
                         "text": {"type": "string"},
-                        "metadata": {
-                            "type": "object",
-                            "additionalProperties": {"type": "string"},
-                        },
-                        "tags": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                        },
                         "timestamp": {
                             "type": "string",
                             "pattern": "^\\d{2}:\\d{2}$",
@@ -227,10 +211,6 @@ async def serve() -> None:
                     "type": "object",
                     "properties": {
                         "description": {"type": "string"},
-                        "metadata": {
-                            "type": "object",
-                            "additionalProperties": {"type": "string"},
-                        },
                     },
                     "required": ["description"],
                 },
@@ -292,8 +272,6 @@ async def serve() -> None:
                 return error_response("Entry text is required")
             result = service.add_entry(
                 text=text,
-                metadata=arguments.get("metadata"),
-                tags=arguments.get("tags"),
                 timestamp=arguments.get("timestamp"),
             )
             if result.get("success") and result.get("entry_id"):
@@ -307,8 +285,6 @@ async def serve() -> None:
             result = service.update_entry(
                 entry_id,
                 text=arguments.get("text"),
-                metadata=arguments.get("metadata"),
-                tags=arguments.get("tags"),
                 timestamp=arguments.get("timestamp"),
             )
             if result.get("success"):
@@ -374,10 +350,7 @@ async def serve() -> None:
             description = arguments.get("description", "")
             if not description:
                 return error_response("Todo description is required")
-            result = service.create_todo(
-                description=description,
-                metadata=arguments.get("metadata"),
-            )
+            result = service.create_todo(description=description)
             if result.get("success") and result.get("entry_id"):
                 log_sync_action(service.conn, result["entry_id"], "created")
             return [TextContent(type="text", text=json.dumps(result))]

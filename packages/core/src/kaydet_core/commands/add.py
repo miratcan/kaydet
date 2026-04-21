@@ -9,13 +9,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Iterable, List, Tuple
 
-from .. import database
 from ..parsers import (
     ENTRY_LINE_PATTERN,
     deduplicate_tags,
     extract_tags_from_text,
     format_entry_header,
-    parse_numeric_value,
     partition_entry_tokens,
 )
 from ..utils import (
@@ -143,7 +141,7 @@ def create_entry(
     config_dir: Path,
     storage_dir: Path,
     now: datetime,
-    conn,
+    conn=None,  # kept for backward compat, unused
     at_str: str | None = None,
     attachment_paths: List[Path] | None = None,
     grab_paths: List[Path] | None = None,
@@ -166,7 +164,6 @@ def create_entry(
     day_file = ensure_day_file(storage_dir, now, config)
     timestamp = now.strftime("%H:%M")
 
-    # Generate persistent alphanumeric ID at creation time if not provided (Sync)
     if not entry_id:
         from ..utils import generate_next_id
         entry_id = generate_next_id(config, config_dir)
@@ -176,55 +173,29 @@ def create_entry(
     extra_tag_markers = [
         tag for tag in unique_explicit if tag not in set(embedded_tags)
     ]
-    all_tags = deduplicate_tags(unique_explicit, message_lines)
 
-    full_metadata = {
-        key: (value, parse_numeric_value(value))
-        for key, value in metadata.items()
-    }
+    # Store attachments
+    attachment_names: List[str] = []
+    for path in (attachment_paths or []):
+        attachment_names.append(store_attachment(path, entry_id, storage_dir))
+    for path in (grab_paths or []):
+        attachment_names.append(store_attachment(path, entry_id, storage_dir, move=True))
 
-    cursor = conn.cursor()
-    conn.execute("BEGIN")
-    try:
-        database._add_entry_to_cursor(
-            cursor=cursor,
-            source_file=day_file.name,
-            timestamp=timestamp,
-            tags=all_tags,
-            body=entry_body,
-            metadata=full_metadata,
-            entry_id=entry_id,
-        )
+    # Store encrypted secret
+    if secret_text and secret_password:
+        from ..secrets import encrypt_secret, store_secret
+        store_secret(entry_id, encrypt_secret(secret_text, secret_password), storage_dir)
 
-        # Store attachments
-        attachment_names: List[str] = []
-        for path in (attachment_paths or []):
-            name = store_attachment(path, entry_id, storage_dir)
-            attachment_names.append(name)
-        for path in (grab_paths or []):
-            name = store_attachment(path, entry_id, storage_dir, move=True)
-            attachment_names.append(name)
-
-        # Store encrypted secret as file in secrets/ dir
-        if secret_text and secret_password:
-            from ..secrets import encrypt_secret, store_secret
-            encrypted = encrypt_secret(secret_text, secret_password)
-            store_secret(entry_id, encrypted, storage_dir)
-
-        write_func = inject_entry if at_str else append_entry
-        write_func(
-            day_file=day_file,
-            entry_id=entry_id,
-            timestamp=timestamp,
-            message_lines=message_lines,
-            metadata=metadata,
-            extra_tag_markers=extra_tag_markers,
-            attachments=attachment_names,
-        )
-        conn.execute("COMMIT")
-    except Exception:
-        conn.execute("ROLLBACK")
-        raise
+    write_func = inject_entry if at_str else append_entry
+    write_func(
+        day_file=day_file,
+        entry_id=entry_id,
+        timestamp=timestamp,
+        message_lines=message_lines,
+        metadata=metadata,
+        extra_tag_markers=extra_tag_markers,
+        attachments=attachment_names,
+    )
 
     save_last_entry_timestamp(config_dir, now)
     return {
@@ -293,7 +264,7 @@ def _resolve_attachment_paths(
     return resolved
 
 
-def add_entry_command(args, config, config_dir, storage_dir, now, conn):
+def add_entry_command(args, config, config_dir, storage_dir, now, conn=None):
     """Handle the add entry command."""
     entry_now = _parse_at_str(args.at, now) if args.at else now
 
@@ -332,15 +303,12 @@ def add_entry_command(args, config, config_dir, storage_dir, now, conn):
         config_dir=config_dir,
         storage_dir=storage_dir,
         now=entry_now,
-        conn=conn,
         at_str=args.at,
         attachment_paths=attach_paths,
         grab_paths=grab_paths,
         secret_text=secret_text,
         secret_password=secret_password,
     )
-
-    database.log_sync_action(conn, result["entry_id"], "created")
 
     msg = f"Entry added to: {result['day_file']} (ID: {result['entry_id']})"
     if result.get("attachments"):

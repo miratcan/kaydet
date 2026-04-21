@@ -112,20 +112,14 @@ class SyncClient:
 
     def _apply_entry(self, entry_data: EntryData) -> None:
         """Apply a remote entry to the local store."""
-        cursor = self.conn.cursor()
-        cursor.execute(
-            "SELECT id FROM entries WHERE id = ?",
-            (entry_data.entry_id,),
-        )
-        existing = cursor.fetchone()
+        existing = self.service.get_entry(entry_data.entry_id)
 
-        if existing:
+        if existing.get("success"):
             self.service.update_entry(
-                existing[0],
+                entry_data.entry_id,
                 text=entry_data.text,
                 metadata=entry_data.metadata or None,
                 tags=entry_data.tags or None,
-                log_sync=False,
             )
         else:
             day_pattern = self.config.get(
@@ -148,7 +142,6 @@ class SyncClient:
                 metadata=entry_data.metadata or None,
                 tags=entry_data.tags or None,
                 at=entry_at,
-                log_sync=False,
                 entry_id=entry_data.entry_id,
             )
             if not result.get("success"):
@@ -169,14 +162,7 @@ class SyncClient:
         """Delete an entry from the local index (server-initiated deletion)."""
         from kaydet_core.database import log_sync_action
 
-        # Use service.delete_entry when it exists on disk; fall back to
-        # direct DB cleanup for entries that are index-only (no day file).
-        result = self.service.delete_entry(entry_id)
-        if not result.get("success"):
-            # Entry may be index-only — clean up tables directly.
-            self.conn.execute(
-                "DELETE FROM entries WHERE id = ?", (entry_id,)
-            )
+        self.service.delete_entry(entry_id)
         # Log the deletion so other devices pick it up on next sync.
         log_sync_action(self.conn, entry_id, "deleted")
 
@@ -192,14 +178,27 @@ class SyncClient:
 
         entry = result["entry"]
 
-        cursor = self.conn.cursor()
-        cursor.execute(
-            "SELECT source_file, updated_at FROM entries WHERE id = ?",
-            (entry_id,),
-        )
-        row = cursor.fetchone()
-        source_file = row[0] if row else ""
-        updated_at = row[1] if row else None
+        # Derive source_file from entry date; updated_at from DB if available.
+        day_pattern = self.config.get("DAY_FILE_PATTERN", "%Y-%m-%d.txt")
+        source_file = ""
+        updated_at = None
+        if entry.get("date"):
+            try:
+                from datetime import datetime as _dt
+                source_file = _dt.strptime(
+                    entry["date"], "%Y-%m-%d"
+                ).strftime(day_pattern)
+            except ValueError:
+                pass
+
+        if self.conn:
+            cursor = self.conn.cursor()
+            cursor.execute(
+                "SELECT updated_at FROM entries WHERE id = ?",
+                (entry_id,),
+            )
+            row = cursor.fetchone()
+            updated_at = row[0] if row else None
 
         encrypted = get_secret(entry_id, self.storage_dir)
         enc_b64 = None

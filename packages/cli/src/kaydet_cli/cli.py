@@ -23,17 +23,10 @@ from kaydet_core.commands import (
     tags_command,
     todo_command,
 )
-from kaydet_core.commands.edit import update_entry_inline
-from kaydet_core.commands.search import (
-    build_search_query,
-    load_matches,
-)
-from kaydet_core.commands.todo import list_todos_command
 from kaydet_core.database import INDEX_FILENAME, log_sync_action
 from kaydet_core.indexing import rebuild_index_if_empty
 from kaydet_core.parsers import (
     extract_tags_from_text,  # noqa: F401
-    tokenize_query,
 )
 from kaydet_core.sync import sync_modified_day_files
 from kaydet_core.utils import (
@@ -529,9 +522,9 @@ def main() -> None:
 
         return
 
-    db_path = index_dir / INDEX_FILENAME
-    conn = database.get_db_connection(db_path)
-    database.initialize_database(conn)
+    from kaydet_core.service import KaydetService
+    service = KaydetService.initialize()
+    conn = service.conn
 
     if args.doctor:
         print(
@@ -549,61 +542,51 @@ def main() -> None:
     if args.stats:
         from kaydet_cli.cli_printers import print_stats
 
-        print_stats(
-            stats_command(storage_dir, config, now),
-            args.output_format,
-        )
+        res = service.get_stats()
+        print_stats(res, args.output_format)
         return
 
     if args.list_tags:
         from kaydet_cli.cli_printers import print_tags
-        print_tags(tags_command(conn), args.output_format)
+        res = service.list_tags()
+        print_tags(res.get("tags", []), args.output_format)
         return
 
     if args.get is not None:
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT source_file FROM entries WHERE id = ?", (args.get,)
+        res = service.get_entry(args.get)
+        if not res.get("success"):
+            print(f"Entry {args.get} not found.")
+            return
+        entry = res["entry"]
+        # Wrap in a list-like structure for print_matches
+        from kaydet_core.models import Entry as CoreEntry
+        from datetime import date as _date
+        from pathlib import Path as _Path
+        try:
+            day = _date.fromisoformat(entry.get("date", ""))
+        except ValueError:
+            day = None
+        fake_entry = CoreEntry(
+            entry_id=entry["entry_id"],
+            timestamp=entry.get("timestamp", ""),
+            lines=tuple(entry.get("text", "").splitlines()),
+            tags=tuple(entry.get("tags", [])),
+            metadata=entry.get("metadata", {}),
+            metadata_numbers={},
+            source=_Path("."),
+            day=day,
         )
-        result = cursor.fetchone()
-        if result is None:
-            print(f"Entry {args.get} not found.")
-            return
-        locations = [(result[0], args.get)]
-        matches = load_matches(locations, storage_dir, config)
-        if not matches:
-            print(f"Entry {args.get} not found.")
-            return
         print_matches(
-            matches,
+            [fake_entry],
             f"id:{args.get}",
             args.output_format,
             config,
             console=console,
         )
-        # Show decrypted secret if one exists
-        from kaydet_core.secrets import decrypt_secret, get_secret
-        from kaydet_core.utils import get_secret_password
-
-        encrypted = get_secret(args.get, storage_dir)
-        if encrypted:
-            password = get_secret_password(config_dir)
-            if password:
-                try:
-                    plaintext = decrypt_secret(encrypted, password)
-                    console.print(
-                        f"\n[bold]Secret:[/bold] {plaintext}"
-                    )
-                except Exception:
-                    console.print(
-                        "\n[red]Failed to decrypt secret."
-                        " Wrong password?[/red]"
-                    )
-            else:
-                console.print(
-                    "\n[yellow]Entry has a secret but no password"
-                    " is configured.[/yellow]"
-                )
+        if entry.get("secret"):
+            console.print(f"\n[bold]Secret:[/bold] {entry['secret']}")
+        elif entry.get("secret_error"):
+            console.print(f"\n[red]Secret: {entry['secret_error']}[/red]")
         return
 
     # args.todo with nargs="*" returns:
@@ -615,79 +598,28 @@ def main() -> None:
         has_todo_text = bool(args.todo)
 
         if has_todo_text:
-            res = todo_command(
-                args, config, config_dir, storage_dir, now, conn
-            )
+            description = " ".join(args.todo)
+            res = service.create_todo(description=description)
             if res.get("entry_id"):
                 log_sync_action(conn, res["entry_id"], "created")
-            if "message" in res:
-                print(res["message"])
+            if res.get("success"):
+                print(f"Todo added (ID: {res['entry_id']})")
+            else:
+                print(f"Error: {res.get('error')}")
         elif args.filter:
             # Filter todos and display in todo format
-            combined_query = f"{args.filter} #todo"
-            print(f"Filtering todos: {combined_query}\n")
-
-            (
-                include_text,
-                exclude_text,
-                include_meta,
-                exclude_meta,
-                include_tags,
-                exclude_tags,
-            ) = tokenize_query(combined_query)
-
-            sql_query, params = build_search_query(
-                include_text,
-                exclude_text,
-                include_meta,
-                exclude_meta,
-                include_tags,
-                exclude_tags,
-            )
-
-            cursor = conn.cursor()
-            cursor.execute(sql_query, params)
-            locations = cursor.fetchall()
-
-            if not locations:
+            res = service.list_todos(filter_query=args.filter)
+            todos = res.get("todos", [])
+            if not todos:
                 print(f"No todos found matching '{args.filter}'.")
                 return
-
-            matches = load_matches(locations, storage_dir, config)
-
-            # Convert search results to todo format
-            todos = []
-            for match in matches:
-                status = match.metadata.get("status", "pending")
-                if status == "done":
-                    continue
-                completed_at = match.metadata.get("completed_at", "")
-                description = (
-                    match.lines[0] if match.lines else "(no description)"
-                )
-                date_str = match.day.isoformat() if match.day else "unknown"
-
-                todos.append(
-                    {
-                        "id": int(match.entry_id) if match.entry_id else 0,
-                        "date": date_str,
-                        "timestamp": match.timestamp,
-                        "status": status,
-                        "completed_at": completed_at,
-                        "description": description,
-                    }
-                )
-
-            if not todos:
-                print("No pending todos found matching the filter.")
-                return
-
             format_todo_results(
                 todos, args.output_format, config=config, console=console
             )
         else:
-            # kaydet --todo (no arguments) → list all todos
-            todos = list_todos_command(conn, storage_dir, config)
+            # kaydet --todo (no arguments) → list all pending todos
+            res = service.list_todos(status="pending")
+            todos = res.get("todos", [])
             if not todos:
                 print("No pending todos.")
             else:
@@ -701,12 +633,11 @@ def main() -> None:
 
     if args.done is not None:
         for entry_id in args.done:
-            res = done_command(
-                conn, storage_dir, config, entry_id, now
-            )
+            res = service.mark_todo_done(entry_id)
             if "message" in res:
                 print(res["message"])
-            log_sync_action(conn, entry_id, "updated")
+            if res.get("success"):
+                log_sync_action(conn, entry_id, "updated")
         return
 
     # Handle --today: add today's date as a since: filter
@@ -716,9 +647,45 @@ def main() -> None:
             args.filter = f"{args.filter} {today_since}"
         else:
             args.filter = today_since
-        # Enable list mode if not already set
         if not args.list_entries:
             args.list_entries = True
+
+    def _print_search_result(res, query, default_since_hint=None):
+        if res.get("success"):
+            matches = res.get("matches", [])
+            if not matches:
+                if query:
+                    print(f"No entries matched '{query}'.")
+            else:
+                from kaydet_core.models import Entry as CoreEntry
+                from datetime import date as _date
+                from pathlib import Path as _Path
+                fake_entries = []
+                for m in matches:
+                    try:
+                        day = _date.fromisoformat(m.get("date", ""))
+                    except ValueError:
+                        day = None
+                    fake_entries.append(CoreEntry(
+                        entry_id=m["entry_id"],
+                        timestamp=m.get("timestamp", ""),
+                        lines=tuple(m.get("text", "").splitlines()),
+                        tags=tuple(m.get("tags", [])),
+                        metadata=m.get("metadata", {}),
+                        metadata_numbers={},
+                        source=_Path("."),
+                        day=day,
+                    ))
+                print_matches(
+                    fake_entries,
+                    query,
+                    args.output_format,
+                    config,
+                    console=console,
+                    default_since_hint=default_since_hint,
+                )
+        elif "error" in res:
+            print(res["error"])
 
     # Handle --list (with optional --filter)
     if args.list_entries:
@@ -728,58 +695,14 @@ def main() -> None:
             month_start = now.replace(day=1).date().isoformat()
             query = f"since:{month_start}"
             default_since_hint = month_start
-
-        # allow_empty=True lets --list show all entries when no filter
-        # is provided
-        res = search_command(
-            conn, storage_dir, config, query, allow_empty=True
-        )
-        if res.get('success', False):
-            if not res['matches'] and not query:
-                pass
-            elif not res['matches']:
-                print(f"No entries matched '{query}'.")
-            else:
-                print_matches(
-                    res['matches'],
-                    query,
-                    args.output_format,
-                    config,
-                    console=console,
-                    default_since_hint=default_since_hint,
-                    metadata_filters=res.get(
-                        'metadata_filters'
-                    ),
-                )
-        else:
-            if 'error' in res:
-                print(res['error'])
+        res = service.search_entries(query, limit=0)
+        _print_search_result(res, query, default_since_hint)
         return
 
     # Handle standalone --filter (shorthand for --list --filter)
     if args.filter:
-        res = search_command(
-            conn, storage_dir, config, args.filter
-        )
-        if res.get('success', False):
-            if not res['matches']:
-                print(
-                    f"No entries matched '{args.filter}'."
-                )
-            else:
-                print_matches(
-                    res['matches'],
-                    args.filter,
-                    args.output_format,
-                    config,
-                    console=console,
-                    metadata_filters=res.get(
-                        'metadata_filters'
-                    ),
-                )
-        else:
-            if 'error' in res:
-                print(res['error'])
+        res = service.search_entries(args.filter)
+        _print_search_result(res, args.filter)
         return
 
     if args.edit is not None and args.delete is not None:
@@ -788,34 +711,30 @@ def main() -> None:
     if args.edit is not None:
         edit_id = args.edit[0]
         if len(args.edit) > 1:
-            # Inline update: --edit ID "new text"
             inline_text = " ".join(args.edit[1:])
-            update_entry_inline(
-                conn, storage_dir, config, edit_id, text=inline_text, now=now
-            )
+            res = service.update_entry(edit_id, text=inline_text)
         else:
-            # Editor mode: --edit ID
+            # Editor mode: still uses Python path (opens $EDITOR)
             edit_entry_command(conn, storage_dir, config, edit_id, now)
-        log_sync_action(conn, edit_id, "updated")
+            res = {"success": True}
+        if res.get("success"):
+            log_sync_action(conn, edit_id, "updated")
         return
     if args.delete is not None:
-        res = delete_entry_command(
-            conn,
-            storage_dir,
-            config,
-            args.delete,
-            assume_yes=args.assume_yes,
-            now=now,
-        )
-        if res and "message" in res:
-            print(res["message"])
+        res = service.delete_entry(args.delete)
+        if res.get("success"):
+            log_sync_action(conn, args.delete, "deleted")
+        elif "error" in res:
+            print(res["error"])
         return
 
     res = add_entry_command(
-        args, config, config_dir, storage_dir, now, conn
+        args, config, config_dir, storage_dir, now
     )
     if res and "message" in res:
         print(res["message"])
+    if res and res.get("success") and res.get("entry_id"):
+        log_sync_action(conn, res["entry_id"], "created")
 
 
 def _handle_sync_command(
