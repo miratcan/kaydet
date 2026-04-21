@@ -3,6 +3,24 @@ use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 use regex::Regex;
 
+// ---------------------------------------------------------------------------
+// ShortUUID — 8 karakter base57
+// ---------------------------------------------------------------------------
+// base57 alphabet: 0, 1, I, O, l yok — karışıklık önler
+const BASE57: &[u8] = b"23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+
+pub fn short_id() -> String {
+    let uuid = Uuid::new_v4();
+    let mut num = u128::from_be_bytes(*uuid.as_bytes());
+    let mut result = Vec::with_capacity(8);
+    for _ in 0..8 {
+        result.push(BASE57[(num % 57) as usize]);
+        num /= 57;
+    }
+    result.reverse();
+    String::from_utf8(result).unwrap()
+}
+
 pub mod filesystem;
 pub use filesystem::{FileSystem, MemoryFs, NativeFs, FsError};
 
@@ -56,7 +74,7 @@ impl Entry {
             .collect();
 
         Entry {
-            entry_id: Uuid::new_v4().to_string(),
+            entry_id: short_id(),
             originator_id: originator_id.to_string(),
             hop_path: HashSet::new(),
             timestamp: String::new(),

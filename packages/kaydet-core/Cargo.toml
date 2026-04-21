@@ -16,6 +16,7 @@ uuid = { version = "1", features = ["v4"] }
 crc32fast = "1"
 regex = "1"
 chrono = "0.4"
+rand = "0.8"
 pyo3 = { version = "0.22", features = ["extension-module"], optional = true }
 clap = { version = "4", features = ["derive"] }
 dirs = "5"

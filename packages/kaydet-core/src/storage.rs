@@ -40,29 +40,56 @@ impl Storage {
         Local::now().format("%Y-%m-%d").to_string()
     }
 
-    /// Entry'yi .txt formatına çevirir
-    /// Örnek: "14:25 [d1]: yolda not aldım #mirat"
+    /// Entry'yi .txt formatına çevirir — yeni spec v1.1
+    /// Format: "YYYY-MM-DD HH:MM [id]:\n\nbody\n\n"
     fn format_entry(entry: &Entry) -> String {
-        format!("{} [{}]: {}\n", entry.timestamp, entry.entry_id, entry.text)
+        let date = Self::today();
+        format!("{} {} [{}]:\n\n{}\n\n", date, entry.timestamp, entry.entry_id, entry.text)
     }
 
     /// Bir günlük dosyasını parse eder, entry_id -> text map döner
     fn parse_day(content: &str) -> HashMap<String, String> {
-        let mut entries = HashMap::new();
-        for line in content.lines() {
-            if let Some((_ts, id, text)) = parse_entry_line(line) {
-                entries.insert(id, text);
-            }
-        }
-        entries
+        Self::parse_day_full(content)
+            .into_iter()
+            .map(|(id, (_, text))| (id, text))
+            .collect()
     }
 
     /// Gün dosyasını parse eder: entry_id -> (timestamp, text)
+    /// Yeni format (v1.1): "YYYY-MM-DD HH:MM [id]:\n\nbody\n\n"
+    /// Eski format (v1.0): "HH:MM [id]: text" (geriye dönük uyumluluk)
     pub fn parse_day_full(content: &str) -> HashMap<String, (String, String)> {
         let mut entries = HashMap::new();
-        for line in content.lines() {
-            if let Some((ts, id, text)) = parse_entry_line(line) {
-                entries.insert(id, (ts, text));
+        let mut lines = content.lines().peekable();
+
+        while let Some(line) = lines.next() {
+            // yeni format header dene
+            if let Some((_date, timestamp, entry_id)) = parse_header_line(line) {
+                // boş satırı atla
+                if lines.peek().map(|l| l.trim().is_empty()).unwrap_or(false) {
+                    lines.next();
+                }
+                // body satırlarını topla
+                let mut body_lines = Vec::new();
+                while let Some(&next) = lines.peek() {
+                    if parse_header_line(next).is_some() {
+                        break; // yeni entry başlıyor
+                    }
+                    body_lines.push(lines.next().unwrap());
+                }
+                let text = body_lines
+                    .iter()
+                    .map(|l| l.trim_end())
+                    .collect::<Vec<_>>()
+                    .join("\n")
+                    .trim()
+                    .to_string();
+                if !text.is_empty() || !entry_id.is_empty() {
+                    entries.insert(entry_id, (timestamp, text));
+                }
+            } else if let Some((timestamp, entry_id, text)) = parse_entry_line(line) {
+                // eski format — geriye dönük uyumluluk
+                entries.insert(entry_id, (timestamp, text));
             }
         }
         entries
@@ -140,18 +167,27 @@ impl EventListener for Storage {
 // Entry line parser
 // ---------------------------------------------------------------------------
 
-/// "HH:MM [id]: text" → (timestamp, id, text)
-pub fn parse_entry_line(line: &str) -> Option<(String, String, String)> {
+/// "YYYY-MM-DD HH:MM [id]:" header satırını parse eder
+/// → (date, timestamp, id)
+pub fn parse_header_line(line: &str) -> Option<(String, String, String)> {
     let line = line.trim();
-    if line.len() < 8 {
+
+    // "YYYY-MM-DD HH:MM [id]:" — min 22 char
+    if line.len() < 22 {
         return None;
     }
 
-    // timestamp kontrolü: "HH:MM"
-    if !line.chars().nth(2).map(|c| c == ':').unwrap_or(false) {
+    // date: "YYYY-MM-DD"
+    if !line.chars().nth(4).map(|c| c == '-').unwrap_or(false) {
         return None;
     }
-    let timestamp = line[..5].to_string();
+    let date = line[..10].to_string();
+
+    // timestamp: "HH:MM" at offset 11
+    if line.len() < 16 {
+        return None;
+    }
+    let timestamp = line[11..16].to_string();
 
     // "[id]:" kısmını bul
     let bracket_start = line.find('[')?;
@@ -159,15 +195,38 @@ pub fn parse_entry_line(line: &str) -> Option<(String, String, String)> {
     if bracket_end <= bracket_start {
         return None;
     }
-
     let entry_id = line[bracket_start + 1..bracket_end].trim().to_string();
 
-    // "]: " sonrasını al
+    // son karakter ':' olmalı
+    if !line.ends_with(':') {
+        return None;
+    }
+
+    Some((date, timestamp, entry_id))
+}
+
+/// Geriye dönük uyumluluk için eski format parser
+/// "HH:MM [id]: text" → (timestamp, id, text)
+pub fn parse_entry_line(line: &str) -> Option<(String, String, String)> {
+    let line = line.trim();
+    if line.len() < 8 {
+        return None;
+    }
+    // timestamp kontrolü: "HH:MM"
+    if !line.chars().nth(2).map(|c| c == ':').unwrap_or(false) {
+        return None;
+    }
+    let timestamp = line[..5].to_string();
+    let bracket_start = line.find('[')?;
+    let bracket_end = line.find(']')?;
+    if bracket_end <= bracket_start {
+        return None;
+    }
+    let entry_id = line[bracket_start + 1..bracket_end].trim().to_string();
     let rest_start = bracket_end + 1;
     let text = line[rest_start..]
         .trim_start_matches(|c| c == ':' || c == ' ')
         .to_string();
-
     Some((timestamp, entry_id, text))
 }
 
@@ -182,7 +241,22 @@ mod tests {
     use crate::KaydetCore;
 
     #[test]
-    fn test_parse_entry_line() {
+    fn test_parse_header_line() {
+        let (date, ts, id) = parse_header_line("2026-04-21 14:25 [kW3mJ8vq]:").unwrap();
+        assert_eq!(date, "2026-04-21");
+        assert_eq!(ts, "14:25");
+        assert_eq!(id, "kW3mJ8vq");
+    }
+
+    #[test]
+    fn test_parse_header_line_invalid() {
+        assert!(parse_header_line("bu bir entry değil").is_none());
+        assert!(parse_header_line("14:25 [d1]: eski format").is_none());
+        assert!(parse_header_line("").is_none());
+    }
+
+    #[test]
+    fn test_parse_entry_line_legacy() {
         let (ts, id, text) = parse_entry_line("14:25 [d1]: yolda not aldım #mirat").unwrap();
         assert_eq!(ts, "14:25");
         assert_eq!(id, "d1");
@@ -190,9 +264,21 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_entry_line_invalid() {
-        assert!(parse_entry_line("bu bir entry değil").is_none());
-        assert!(parse_entry_line("").is_none());
+    fn test_parse_day_full_new_format() {
+        let content = "2026-04-21 09:28 [kW3mJ8vq]:\n\nbugün güzel bir gündü #mirat\n\n2026-04-21 09:30 [xR7nP2qL]:\n\ntoplantı notları #work\n\n";
+        let entries = Storage::parse_day_full(content);
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries["kW3mJ8vq"].0, "09:28");
+        assert_eq!(entries["kW3mJ8vq"].1, "bugün güzel bir gündü #mirat");
+        assert_eq!(entries["xR7nP2qL"].1, "toplantı notları #work");
+    }
+
+    #[test]
+    fn test_parse_day_full_legacy_format() {
+        let content = "14:25 [d1]: yolda not aldım #mirat\n09:00 [d2]: sabah kahvesi #mirat\n";
+        let entries = Storage::parse_day_full(content);
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries["d1"].0, "14:25");
     }
 
     #[test]

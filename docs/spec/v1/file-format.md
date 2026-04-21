@@ -2,9 +2,9 @@
 
 |             |                    |
 |-------------|--------------------|
-| Version     | 1.0                |
-| Status      | Frozen             |
-| Date        | 2026-04-15         |
+| Version     | 1.1                |
+| Status      | Draft              |
+| Date        | 2026-04-21         |
 
 ## Overview
 
@@ -46,67 +46,93 @@ MAY generate title blocks but MUST NOT require them for parsing.
 
 ## Entry
 
-### Header Line
+### Entry Format
 
-Every entry begins with a header line matching this pattern:
+Each entry consists of a **header line**, a blank line, the **body**, and a trailing blank line.
 
 ```
-HH:MM [ID]: message | key:value key:value | attachment:name | #tag #tag
+YYYY-MM-DD HH:MM [ID]:
+
+body text — free-form, may span multiple lines
+#tag key:value attachment:filename
+
+```
+
+Two blank lines separate consecutive entries. A blank line MUST follow the header and MUST follow the body.
+
+Example day file:
+
+```
+2026-04-21 09:28 [kW3mJ8vq]:
+
+bugün güzel bir gündü #mirat #test
+
+2026-04-21 09:30 [xR7nP2qL]:
+
+toplantı notları #work status:done
+
+```
+
+### Header Line
+
+```
+YYYY-MM-DD HH:MM [ID]:
 ```
 
 Formally (regex):
 ```
-^(\d{2}:\d{2})              # timestamp (required)
-(?:\s+\[\s*([a-zA-Z0-9]+)\s*\])?  # ID (required for v1)
-:\s*(.*)                     # remainder
+^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})\s+\[([A-Za-z0-9]{8})\]:$
 ```
+
+#### Date
+
+- Format: `YYYY-MM-DD`
+- MUST match the day file name
 
 #### Timestamp
 
 - Format: `HH:MM` (24-hour, zero-padded)
-- MUST be the first non-whitespace content on the line
 - Examples: `09:30`, `14:05`, `00:00`
 
 #### Entry ID
 
-- Format: `[{prefix}{number}]` where prefix is one or more letters
-  and number is a positive integer
-- Examples: `[d1]`, `[d42]`, `[c7]`, `[s100]`
-- The prefix identifies the originating device
-- Implementations MUST generate an ID for every new entry
-- IDs MUST be unique within a single kaydet instance
+- Format: 8-character base57 encoded UUID (ShortUUID, first 8 chars)
+- Alphabet: `23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz` (no 0, 1, I, O, l)
+- Examples: `kW3mJ8vq`, `xR7nP2qL`
+- Globally unique — generated from UUID v4, no device prefix needed
+- Implementations MUST generate a new ID for every new entry
+- IDs MUST be treated as opaque strings — never interpreted as numbers
 
-#### Remainder
+### Body
 
-Everything after the `: ` separator is the remainder. It contains,
-in order:
+Everything after the blank line following the header, until the next blank line.
 
-1. **Message text** — free-form text, MAY contain inline `#tags`
-2. **Metadata section** — zero or more `key:value` pairs, separated
-   by the `|` delimiter from the message
-3. **Attachment references** — zero or more `attachment:filename` tokens
-4. **Explicit tags** — zero or more `#tag` tokens not already in the
-   message text
+Body text is free-form and may span multiple lines. Tokens are parsed from the entire body:
 
-The `|` character is used as a visual delimiter between sections.
-Implementations MUST parse tokens regardless of `|` placement —
-the delimiter is cosmetic, not structural. Parsing is token-based:
-
-- A token starting with `#` followed by `[a-z][a-z0-9_-]*` is a **tag**
-- A token matching `attachment:(.+)` is an **attachment reference**
-- A token matching `[a-z][a-z0-9_-]*:.+` is a **metadata pair**
+- A token matching `#[a-z][a-z0-9_-]*` is a **tag**
+- A token matching `attachment:[^\s]+` is an **attachment reference**
+- A token matching `[a-z][a-z0-9_-]*:[^\s]+` is a **metadata pair**
 - Everything else is **message text**
 
-### Body Lines
+The `|` character MAY be used as a visual separator but has no structural meaning.
 
-Any lines following a header line, until the next header line or end of
-file, are body lines. They are part of the preceding entry.
+Multi-line bodies are supported:
 
-Body lines MAY have any content including leading whitespace.
-Implementations MUST preserve body lines exactly as written (no
-trimming, no re-indentation).
+```
+2026-04-21 14:00 [aB3cD4eF]:
 
-An entry with no body lines is valid.
+sabah koşusu yaptım
+5km, 28 dakika
+distance:5km time:28m #spor #sağlık
+
+```
+
+### Blank Lines
+
+- One blank line MUST follow the header line
+- One blank line MUST follow the body
+- Parsers MUST tolerate missing trailing blank lines (EOF)
+- Parsers MUST ignore extra blank lines between entries
 
 ## Tags
 
