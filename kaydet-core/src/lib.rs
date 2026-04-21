@@ -16,7 +16,6 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 pub mod filesystem;
-pub mod merkle;
 pub mod packet;
 
 #[cfg(feature = "python")]

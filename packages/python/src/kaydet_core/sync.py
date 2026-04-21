@@ -8,9 +8,8 @@ from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Iterable, List, Sequence
+from typing import List, Sequence
 
-from . import database
 from .models import Entry
 from .parsers import (
     ENTRY_LINE_PATTERN,
@@ -200,37 +199,6 @@ def _normalize_entries(
     return normalized
 
 
-def _reindex_entries(
-    conn: sqlite3.Connection, entries: Iterable[Entry]
-) -> None:
-    """Refresh tags, FTS data, and metadata rows for the provided entries."""
-    cursor = conn.cursor()
-    for entry in entries:
-        eid = entry.entry_id
-        if not eid:
-            continue
-
-        cursor.execute("DELETE FROM tags WHERE entry_id = ?", (eid,))
-        cursor.execute("DELETE FROM entries_fts WHERE entry_id = ?", (eid,))
-        cursor.execute("DELETE FROM metadata WHERE entry_id = ?", (eid,))
-
-        if entry.tags:
-            cursor.executemany(
-                database.INSERT_TAG_SQL,
-                [(eid, tag) for tag in set(entry.tags)],
-            )
-
-        if entry.text:
-            cursor.execute(database.INSERT_FTS_SQL, (eid, entry.text))
-
-        if entry.metadata:
-            cursor.executemany(
-                database.INSERT_METADATA_SQL,
-                [
-                    (eid, k, v, entry.metadata_numbers.get(k))
-                    for k, v in entry.metadata.items()
-                ],
-            )
 
 
 def _sync_single_file(
@@ -257,14 +225,13 @@ def _sync_single_file(
     conn.execute("BEGIN")
     try:
         normalized = _normalize_entries(
-            conn, 
-            day_file, 
-            entries, 
+            conn,
+            day_file,
+            entries,
             updated_at=updated_at,
             config=config,
             config_dir=config_dir
         )
-        _reindex_entries(conn, normalized)
 
         rendered = list(header_lines)
         for entry in normalized:

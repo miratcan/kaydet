@@ -13,15 +13,9 @@ from rich.console import Console
 from kaydet_core import database
 from kaydet_core.commands import (
     add_entry_command,
-    delete_entry_command,
     doctor_command,
-    done_command,
     edit_entry_command,
     reminder_command,
-    search_command,
-    stats_command,
-    tags_command,
-    todo_command,
 )
 from kaydet_core.database import INDEX_FILENAME, log_sync_action
 from kaydet_core.indexing import rebuild_index_if_empty
