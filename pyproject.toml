@@ -1,10 +1,8 @@
 [tool.uv.workspace]
-members = ["packages/core", "packages/cli", "packages/server"]
+members = ["packages/python"]
 
 [tool.uv.sources]
-kaydet-core = {workspace = true}
-kaydet-cli = {workspace = true}
-kaydet-server = {workspace = true}
+kaydet = {workspace = true}
 
 [tool.uv]
 dev-dependencies = [
@@ -16,9 +14,7 @@ dev-dependencies = [
     "mcp>=0.9.0",
     "rich>=13.0",
     "cryptography>=41.0",
-    "kaydet-core",
-    "kaydet-cli",
-    "kaydet-server",
+    "kaydet",
     "pytest-playwright>=0.7.2",
     "pytest-asyncio>=1.3.0",
 ]
@@ -26,7 +22,7 @@ dev-dependencies = [
 [tool.ruff]
 line-length = 79
 target-version = "py310"
-src = ["packages/*/src", "tests"]
+src = ["packages/python/src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "PLC0415"]

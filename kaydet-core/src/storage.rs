@@ -103,6 +103,31 @@ impl Storage {
         self.fs.read_day(date)
     }
 
+    /// Entry'yi tüm günlük dosyalarından sil
+    pub fn delete_entry(&self, entry_id: &str) -> FsResult<bool> {
+        for day in self.fs.list_days()? {
+            let content = self.fs.read_day(&day)?;
+            let new_content = remove_entry_from_content(&content, entry_id);
+            if new_content != content {
+                self.fs.write_day(&day, &new_content)?;
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    /// Entry metnini güncelle — entry'yi bulur, yeni metinle yazar
+    pub fn update_entry(&self, entry_id: &str, new_text: &str) -> FsResult<bool> {
+        for day in self.fs.list_days()? {
+            let content = self.fs.read_day(&day)?;
+            if let Some(new_content) = replace_entry_body(&content, entry_id, new_text) {
+                self.fs.write_day(&day, &new_content)?;
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
     /// Tüm storage'ı okur: date -> { entry_id -> text }
     pub fn all_entries(&self) -> FsResult<HashMap<String, HashMap<String, String>>> {
         let mut result = HashMap::new();
@@ -129,10 +154,13 @@ impl Storage {
     fn write_entry(&self, entry: &Entry) -> FsResult<()> {
         let date = Self::today();
 
-        // timestamp boşsa şu anki saati kullan
+        // timestamp/date boşsa şu anki zamanı kullan
         let mut entry_to_write = entry.clone();
         if entry_to_write.timestamp.is_empty() {
             entry_to_write.timestamp = Local::now().format("%H:%M").to_string();
+        }
+        if entry_to_write.date.is_empty() {
+            entry_to_write.date = date.clone();
         }
 
         let existing = self.fs.read_day(&date).unwrap_or_default();
@@ -161,6 +189,84 @@ impl EventListener for Storage {
         // şimdilik log
         eprintln!("[Storage] delete not yet implemented: {}", entry_id);
     }
+}
+
+// ---------------------------------------------------------------------------
+// Content manipulation helpers
+// ---------------------------------------------------------------------------
+
+/// Entry'yi içerikten sil — header + blank + body + blank bloğunu kaldırır
+fn remove_entry_from_content(content: &str, entry_id: &str) -> String {
+    let mut result = String::new();
+    let mut lines = content.lines().peekable();
+
+    while let Some(line) = lines.next() {
+        if let Some((_, _, id)) = parse_header_line(line) {
+            if id == entry_id {
+                // boş satırı atla
+                if lines.peek().map(|l| l.trim().is_empty()).unwrap_or(false) {
+                    lines.next();
+                }
+                // body + trailing blank'i atla
+                while let Some(&next) = lines.peek() {
+                    if parse_header_line(next).is_some() {
+                        break;
+                    }
+                    lines.next();
+                }
+                continue;
+            }
+        } else if let Some((_, id, _)) = parse_entry_line(line) {
+            if id == entry_id {
+                continue; // eski format — tek satır
+            }
+        }
+        result.push_str(line);
+        result.push('\n');
+    }
+
+    result
+}
+
+/// Entry body'sini değiştir — eşleşirse Some(yeni_içerik), yoksa None
+fn replace_entry_body(content: &str, entry_id: &str, new_text: &str) -> Option<String> {
+    let mut result = String::new();
+    let mut lines = content.lines().peekable();
+    let mut found = false;
+
+    while let Some(line) = lines.next() {
+        if let Some((date, timestamp, id)) = parse_header_line(line) {
+            if id == entry_id {
+                found = true;
+                // yeni header yaz
+                result.push_str(&format!("{} {} [{}]:\n\n{}\n\n", date, timestamp, id, new_text));
+                // eski boş satırı atla
+                if lines.peek().map(|l| l.trim().is_empty()).unwrap_or(false) {
+                    lines.next();
+                }
+                // eski body + trailing blank'i atla
+                while let Some(&next) = lines.peek() {
+                    if parse_header_line(next).is_some() {
+                        break;
+                    }
+                    lines.next();
+                }
+                continue;
+            }
+        } else if let Some((timestamp, id, _)) = parse_entry_line(line) {
+            if id == entry_id {
+                found = true;
+                // eski format entry'yi yeni formata çevir
+                let date = chrono::Local::now().format("%Y-%m-%d").to_string();
+                result.push_str(&format!("{} {} [{}]:\n\n{}\n\n", date, timestamp, id, new_text));
+                continue;
+            }
+        }
+        result.push_str(line);
+        result.push('\n');
+    }
+
+    if found { Some(result) } else { None }
 }
 
 // ---------------------------------------------------------------------------

@@ -3,14 +3,16 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "kaydet-server"
-version = "0.36.0"
-description = "Sync server and MCP server for Kaydet."
+name = "kaydet"
+version = "0.37.0"
+description = "Kaydet — personal daily log. CLI, MCP server, sync."
 authors = [{name = "Mirat Can Bayrak"}]
 license-files = ["../../LICENSE"]
 requires-python = ">=3.10"
 dependencies = [
-    "kaydet-core",
+    "cryptography>=41.0",
+    "qrcode>=8.2",
+    "rich>=13.0",
 ]
 
 [project.optional-dependencies]
@@ -19,6 +21,7 @@ mcp = [
 ]
 
 [project.scripts]
+kaydet     = "kaydet_cli.cli:main"
 kaydet-mcp = "kaydet_server.mcp_server:main"
 
 [tool.setuptools]

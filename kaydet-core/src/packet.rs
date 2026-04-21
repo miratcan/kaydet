@@ -167,7 +167,7 @@ pub fn deserialize(data: &[u8]) -> Result<PacketEntry, PacketError> {
 
     // Entry oluştur — originator_id ve hop_path packet'ta yok,
     // bunlar sync katmanının sorumluluğu
-    let mut entry = Entry::from_text(&text, "");
+    let mut entry = Entry::from_text(&text);
     entry.entry_id = entry_id;
     entry.timestamp = timestamp;
 
@@ -256,7 +256,7 @@ mod tests {
     use crate::Entry;
 
     fn make_entry(text: &str) -> Entry {
-        let mut e = Entry::from_text(text, "phone");
+        let mut e = Entry::from_text(text);
         e.entry_id = "test-id-123".to_string();
         e.timestamp = "14:25".to_string();
         e

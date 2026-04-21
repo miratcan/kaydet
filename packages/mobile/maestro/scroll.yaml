@@ -1,0 +1,11 @@
+appId: com.miratcan.kaydet
+---
+- launchApp
+- waitForAnimationToEnd
+- repeat:
+    times: 20
+    commands:
+      - swipe:
+          direction: UP
+          duration: 300
+- assertVisible: "kaydet"

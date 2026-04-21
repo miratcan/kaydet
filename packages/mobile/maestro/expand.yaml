@@ -1,0 +1,15 @@
+appId: com.miratcan.kaydet
+---
+# Test: Entry'ye tıklayınca expand/collapse çalışıyor mu?
+- launchApp
+- waitForAnimationToEnd
+- tapOn:
+    index: 0
+    selector:
+      type: "com.miratcan.kaydet:id/content"
+- waitForAnimationToEnd
+- tapOn:
+    index: 0
+    selector:
+      type: "com.miratcan.kaydet:id/content"
+- waitForAnimationToEnd

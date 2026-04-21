@@ -41,6 +41,18 @@ enum Command {
     },
     /// Tüm tag'leri göster
     Tags,
+    /// Kayıt sil
+    Delete {
+        /// Silinecek entry ID
+        id: String,
+    },
+    /// Kayıt güncelle
+    Update {
+        /// Güncellenecek entry ID
+        id: String,
+        /// Yeni metin
+        text: Vec<String>,
+    },
     /// Storage istatistikleri
     Stats,
 }
@@ -141,6 +153,39 @@ fn main() {
             }
         }
 
+        Command::Delete { id } => {
+            match storage.delete_entry(&id) {
+                Ok(true) => println!("✓ silindi [{}]", id),
+                Ok(false) => {
+                    eprintln!("bulunamadı: {}", id);
+                    std::process::exit(1);
+                }
+                Err(e) => {
+                    eprintln!("hata: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
+
+        Command::Update { id, text } => {
+            let new_text = text.join(" ");
+            if new_text.trim().is_empty() {
+                eprintln!("hata: boş metin");
+                std::process::exit(1);
+            }
+            match storage.update_entry(&id, &new_text) {
+                Ok(true) => println!("✓ güncellendi [{}]", id),
+                Ok(false) => {
+                    eprintln!("bulunamadı: {}", id);
+                    std::process::exit(1);
+                }
+                Err(e) => {
+                    eprintln!("hata: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
+
         Command::Stats => {
             let all = index.all();
             println!("toplam kayıt: {}", all.len());
@@ -192,6 +237,7 @@ fn load_index(storage: &Storage, index: &MemoryIndex, device_id: &str) {
                     let mut entry = kaydet_core_rs::Entry::from_text(&text, device_id);
                     entry.entry_id = entry_id;
                     entry.timestamp = timestamp;
+                    entry.date = day.clone();
                     index.on_entry_created(&entry);
                 }
             }
