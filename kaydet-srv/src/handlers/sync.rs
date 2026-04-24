@@ -2,7 +2,7 @@
 //
 // Request body (JSON):
 // {
-//   "since": 42,           // sync token (last seen sync_log id)
+//   "since": 1745678901,   // unix timestamp from previous server_time
 //   "device_id": "abc123",
 //   "entries": [...]       // local changes to push
 // }
@@ -10,7 +10,7 @@
 // Response body (JSON):
 // {
 //   "entries": [...],      // remote changes to apply
-//   "new_token": 55,
+//   "server_time": 1745679000,
 //   "has_more": false
 // }
 
@@ -30,7 +30,7 @@ const PAGE_SIZE: usize = 500;
 
 #[derive(Debug, Deserialize)]
 pub struct SyncRequest {
-    pub since: i64,
+    pub since: i64,  // unix timestamp
     pub device_id: String,
     #[serde(default)]
     pub entries: Vec<EntryData>,
@@ -39,7 +39,7 @@ pub struct SyncRequest {
 #[derive(Debug, Serialize)]
 pub struct SyncResponse {
     pub entries: Vec<EntryData>,
-    pub new_token: i64,
+    pub server_time: i64,  // unix timestamp — client saves this as next "since"
     pub has_more: bool,
 }
 
@@ -58,7 +58,7 @@ pub struct EntryData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub encrypted_secret: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<String>,
+    pub updated_at: Option<i64>,  // unix timestamp
     #[serde(default)]
     pub deleted: bool,
 }
@@ -73,13 +73,7 @@ pub async fn handle_sync(
 ) -> Result<Json<SyncResponse>, StatusCode> {
     let store = &state.store;
 
-    // 1. Snapshot max sync_log id before applying client entries
-    let pre_apply_max = {
-        let db = store.db.lock().unwrap();
-        sync_log::max_id(&db).unwrap_or(0)
-    };
-
-    // 2. Apply client's entries
+    // 1. Apply client's entries
     let mut applied = 0;
     for entry_data in &req.entries {
         if entry_data.deleted {
@@ -106,21 +100,16 @@ pub async fn handle_sync(
         }
     }
 
-    // 3. Collect changes since client's token (exclude entries from this device)
+    // 2. Collect changes since client's token (exclude entries from this device)
     let (changes, has_more) = {
         let db = store.db.lock().unwrap();
         sync_log::changes_since(&db, req.since, Some(&req.device_id), PAGE_SIZE)
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
     };
 
-    // Limit to pre_apply_max so client doesn't see their own pushed entries
-    let changes: Vec<_> = changes.into_iter()
-        .filter(|c| c.id <= pre_apply_max)
-        .collect();
+    let server_time = sync_log::server_time();
 
-    let new_token = changes.last().map(|c| c.id).unwrap_or(req.since);
-
-    // 4. Deduplicate: last action wins per entry_id
+    // 3. Deduplicate: last action wins per entry_id
     let mut to_send: HashMap<String, &str> = HashMap::new();
     for c in &changes {
         to_send.insert(c.entry_id.clone(), &c.action);
@@ -132,7 +121,7 @@ pub async fn handle_sync(
             m
         });
 
-    // 5. Load full entry data
+    // 4. Load full entry data
     let mut entries: Vec<EntryData> = Vec::new();
     for (entry_id, action) in &to_send {
         if action == "deleted" {
@@ -153,7 +142,7 @@ pub async fn handle_sync(
             if let Some(entry) = core.index.get(entry_id) {
                 let updated_at = {
                     let db = store.db.lock().unwrap();
-                    sync_log::updated_at(&db, entry_id).ok().flatten()
+                    sync_log::updated_at_ts(&db, entry_id).ok().flatten()
                 };
                 let enc = load_secret(&store.storage_dir, entry_id);
                 entries.push(entry_to_wire(entry, updated_at, enc));
@@ -161,7 +150,7 @@ pub async fn handle_sync(
         }
     }
 
-    Ok(Json(SyncResponse { entries, new_token, has_more }))
+    Ok(Json(SyncResponse { entries, server_time, has_more }))
 }
 
 // ---------------------------------------------------------------------------
@@ -179,14 +168,14 @@ fn upsert_entry(
         core.index.get(&data.entry_id).cloned()
     };
 
-    if let Some(existing) = existing {
+    if let Some(_existing) = existing {
         // Conflict check: server newer → skip
-        let server_updated = {
+        let server_updated_ts = {
             let db = store.db.lock().unwrap();
-            sync_log::updated_at(&db, &data.entry_id).ok().flatten()
+            sync_log::updated_at_ts(&db, &data.entry_id).ok().flatten()
         };
-        if let (Some(srv), Some(cli)) = (&server_updated, &data.updated_at) {
-            if &srv[..19.min(srv.len())] > &cli[..19.min(cli.len())] {
+        if let (Some(srv_ts), Some(cli_ts)) = (server_updated_ts, data.updated_at) {
+            if srv_ts > cli_ts {
                 return Ok(false);
             }
         }
@@ -228,7 +217,7 @@ fn upsert_entry(
 
 fn entry_to_wire(
     entry: &Entry,
-    updated_at: Option<String>,
+    updated_at: Option<i64>,
     encrypted_secret: Option<String>,
 ) -> EntryData {
     EntryData {
@@ -256,7 +245,6 @@ fn load_secret(storage_dir: &std::path::Path, entry_id: &str) -> Option<String> 
 }
 
 fn parse_entry_datetime(source_file: &str, timestamp: &str) -> Option<chrono::DateTime<chrono::Local>> {
-    use chrono::TimeZone;
     // source_file: "2026-04-23.txt"
     let date_str = source_file.strip_suffix(".txt")?;
     let dt_str = format!("{} {}:00", date_str, timestamp);
@@ -266,10 +254,7 @@ fn parse_entry_datetime(source_file: &str, timestamp: &str) -> Option<chrono::Da
 }
 
 fn base64_encode(data: &[u8]) -> String {
-    use std::fmt::Write;
-    // simple base64 without external dep — use std or include manually
-    // axum already pulls in base64 transitively via tower-http; use it.
-    // For now: manual const table to stay dep-free.
+    // simple base64 without external dep
     const TABLE: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = String::with_capacity((data.len() + 2) / 3 * 4);
     for chunk in data.chunks(3) {

@@ -26,22 +26,24 @@ pub fn log_action(
 
 pub fn changes_since(
     conn: &Connection,
-    since: i64,
+    since_ts: i64,
     exclude_device: Option<&str>,
     limit: usize,
 ) -> rusqlite::Result<(Vec<SyncChange>, bool)> {
+    // since_ts is a unix timestamp (seconds). created_at is stored as
+    // SQLite datetime string; we compare using strftime epoch conversion.
     let mut stmt = conn.prepare(
         "SELECT id, entry_id, action, device_id, created_at
          FROM sync_log
-         WHERE id > ?1
+         WHERE CAST(strftime('%s', created_at) AS INTEGER) > ?1
            AND (?2 IS NULL OR device_id IS NULL OR device_id != ?2)
-         ORDER BY id
+         ORDER BY created_at, id
          LIMIT ?3"
     )?;
 
     let fetch_limit = (limit + 1) as i64;
     let rows: Vec<SyncChange> = stmt.query_map(
-        rusqlite::params![since, exclude_device, fetch_limit],
+        rusqlite::params![since_ts, exclude_device, fetch_limit],
         |row| Ok(SyncChange {
             id: row.get(0)?,
             entry_id: row.get(1)?,
@@ -56,17 +58,16 @@ pub fn changes_since(
     Ok((rows, has_more))
 }
 
-pub fn max_id(conn: &Connection) -> rusqlite::Result<i64> {
-    conn.query_row(
-        "SELECT COALESCE(MAX(id), 0) FROM sync_log",
-        [],
-        |row| row.get(0),
-    )
+pub fn server_time() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64
 }
 
-pub fn updated_at(conn: &Connection, entry_id: &str) -> rusqlite::Result<Option<String>> {
+pub fn updated_at_ts(conn: &Connection, entry_id: &str) -> rusqlite::Result<Option<i64>> {
     conn.query_row(
-        "SELECT MAX(created_at) FROM sync_log WHERE entry_id = ?1",
+        "SELECT CAST(strftime('%s', MAX(created_at)) AS INTEGER) FROM sync_log WHERE entry_id = ?1",
         rusqlite::params![entry_id],
         |row| row.get(0),
     )

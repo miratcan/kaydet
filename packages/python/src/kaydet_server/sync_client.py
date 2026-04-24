@@ -56,13 +56,13 @@ class SyncClient:
         att_stats_total = {"downloaded": 0, "uploaded": 0}
 
         entries_to_push = [e.to_dict() for e in local_entries]
-        current_token = int(self.config.get("sync_token", "0"))
+        since = int(self.config.get("sync_token", "0"))
 
         while True:
             req = ProtocolMessage(
                 method="sync",
                 body={
-                    "since": current_token,
+                    "since": since,
                     "entries": entries_to_push,
                     "device_id": device_id,
                 },
@@ -85,7 +85,7 @@ class SyncClient:
             att_stats_total["downloaded"] += page_att_stats["downloaded"]
             att_stats_total["uploaded"] += page_att_stats["uploaded"]
 
-            current_token = resp.new_token
+            since = resp.server_time
 
             if not resp.has_more:
                 break
@@ -96,7 +96,7 @@ class SyncClient:
         if new_pushed_log_id:
             self._update_config("last_pushed_log_id", str(new_pushed_log_id))
 
-        self._update_config("sync_token", str(current_token))
+        self._update_config("sync_token", str(since))
 
         return {
             "pushed": len(local_entries),
@@ -186,11 +186,11 @@ class SyncClient:
 
         cursor = self.conn.cursor()
         cursor.execute(
-            "SELECT MAX(created_at) FROM sync_log WHERE entry_id = ?",
+            "SELECT CAST(strftime('%s', MAX(created_at)) AS INTEGER) FROM sync_log WHERE entry_id = ?",
             (entry_id,),
         )
         row = cursor.fetchone()
-        updated_at = row[0] if row and row[0] else None
+        updated_at = row[0] if row and row[0] else None  # int unix timestamp
 
         encrypted = get_secret(entry_id, self.storage_dir)
         enc_b64 = None

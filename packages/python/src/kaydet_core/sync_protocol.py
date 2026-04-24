@@ -51,8 +51,8 @@ class EntryData:
     tags: List[str] = field(default_factory=list)
     metadata: Dict[str, str] = field(default_factory=dict)
     attachments: List[str] = field(default_factory=list)
-    encrypted_secret: Optional[str] = None  # Base64 encoded Fernet token
-    updated_at: Optional[str] = None
+    encrypted_secret: Optional[str] = None  # Base64 encoded encrypted secret
+    updated_at: Optional[int] = None  # unix timestamp
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to a JSON-serializable dictionary."""
@@ -305,10 +305,11 @@ class SyncRequest:
 
 @dataclass
 class SyncResponse:
-    """Server returns remote changes + new token."""
+    """Server returns remote changes + server_time for next sync."""
 
     entries: List[EntryData] = field(default_factory=list)
-    new_token: int = 0
+    server_time: int = 0  # unix timestamp — use as "since" in next sync
+    has_more: bool = False
 
 
 # -- Protocol message envelope --
@@ -436,7 +437,8 @@ def _from_dict(cls: type, data: dict) -> Any:
         ]
         return SyncResponse(
             entries=entries,
-            new_token=data.get("new_token", 0),
+            server_time=data.get("server_time", 0),
+            has_more=data.get("has_more", False),
         )
     if cls == PushEntriesRequest:
         entries = [
