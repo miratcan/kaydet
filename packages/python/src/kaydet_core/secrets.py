@@ -2,21 +2,20 @@
 
 from __future__ import annotations
 
-import os
+import re
 from pathlib import Path
 from typing import Optional
 
+import kaydet_core_rs as _rust
 
-def _derive_key(password: str, salt: bytes) -> bytes:
-    """Derive a 256-bit key from a password using scrypt.
+_SAFE_ENTRY_ID_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9\-]{0,63}$")
 
-    Parameters match OWASP recommendations for interactive use:
-    n=2**16, r=8, p=1 (doubles memory cost vs the previous n=2**14).
-    """
-    from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 
-    kdf = Scrypt(salt=salt, length=32, n=2**16, r=8, p=1)
-    return kdf.derive(password.encode("utf-8"))
+def _safe_entry_id(entry_id: str) -> str:
+    """Raise ValueError if entry_id would be unsafe as a file name component."""
+    if not _SAFE_ENTRY_ID_RE.match(entry_id):
+        raise ValueError(f"Invalid entry_id: {entry_id!r}")
+    return entry_id
 
 
 def encrypt_secret(plaintext: str, password: str) -> bytes:
@@ -24,27 +23,12 @@ def encrypt_secret(plaintext: str, password: str) -> bytes:
 
     Returns: salt (16) + nonce (12) + ciphertext + tag
     """
-    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-
-    salt = os.urandom(16)
-    key = _derive_key(password, salt)
-    aesgcm = AESGCM(key)
-    nonce = os.urandom(12)
-    ciphertext = aesgcm.encrypt(nonce, plaintext.encode("utf-8"), None)
-    return salt + nonce + ciphertext
+    return bytes(_rust.encrypt_secret(plaintext, password))
 
 
 def decrypt_secret(encrypted: bytes, password: str) -> str:
     """Decrypt data produced by encrypt_secret."""
-    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-
-    salt = encrypted[:16]
-    nonce = encrypted[16:28]
-    ciphertext = encrypted[28:]
-    key = _derive_key(password, salt)
-    aesgcm = AESGCM(key)
-    plaintext = aesgcm.decrypt(nonce, ciphertext, None)
-    return plaintext.decode("utf-8")
+    return _rust.decrypt_secret(bytes(encrypted), password)
 
 
 # -- File-based storage (secrets/ directory is SoT) --
@@ -63,7 +47,7 @@ def store_secret(
     storage_dir: Path,
 ) -> None:
     """Save or replace an encrypted secret for an entry."""
-    path = _secrets_dir(storage_dir) / f"{entry_id}.enc"
+    path = _secrets_dir(storage_dir) / f"{_safe_entry_id(entry_id)}.enc"
     path.write_bytes(encrypted_data)
 
 
@@ -72,7 +56,7 @@ def get_secret(
     storage_dir: Path,
 ) -> Optional[bytes]:
     """Retrieve encrypted secret data for an entry, or None."""
-    path = storage_dir / "secrets" / f"{entry_id}.enc"
+    path = storage_dir / "secrets" / f"{_safe_entry_id(entry_id)}.enc"
     if path.exists():
         return path.read_bytes()
     return None
@@ -83,7 +67,7 @@ def delete_secret(
     storage_dir: Path,
 ) -> bool:
     """Delete the secret file for an entry. Returns True if deleted."""
-    path = storage_dir / "secrets" / f"{entry_id}.enc"
+    path = storage_dir / "secrets" / f"{_safe_entry_id(entry_id)}.enc"
     if path.exists():
         path.unlink()
         return True

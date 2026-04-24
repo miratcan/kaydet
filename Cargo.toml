@@ -1,0 +1,6 @@
+[workspace]
+members = [
+    "kaydet-core",
+    "kaydet-srv",
+]
+resolver = "2"

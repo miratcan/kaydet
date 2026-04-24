@@ -8,16 +8,16 @@ name = "kaydet_core_rs"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-uuid = { version = "1", features = ["v4"] }
 crc32fast = "1"
-regex = "1"
 chrono = "0.4"
 rand = "0.8"
+aes-gcm = "0.10"
+scrypt = "0.11"
 pyo3 = { version = "0.22", features = ["extension-module"], optional = true }
 
 [features]
 python = ["pyo3"]
-default = ["python"]
+default = []
 
 [dev-dependencies]
 pyo3 = { version = "0.22", features = ["extension-module"] }

@@ -20,7 +20,7 @@
 //     [n]  data
 //   [4]  CRC32
 //
-// Python karşılığı:
+// Python equivalent:
 //   def serialize(entry, attachments):
 //       buf = bytearray()
 //       buf += b'KYDT'
@@ -39,7 +39,9 @@ const MAGIC: &[u8; 4] = b"KYDT";
 const VERSION: u8 = 0x01;
 
 const FLAG_HAS_ATTACHMENTS: u8 = 0x01;
+#[allow(dead_code)] // protocol reservation — not yet implemented
 const FLAG_IS_ENCRYPTED: u8 = 0x02;
+#[allow(dead_code)] // protocol reservation — not yet implemented
 const FLAG_IS_COMPRESSED: u8 = 0x04;
 
 #[derive(Debug)]
@@ -90,7 +92,7 @@ pub fn serialize(entry: &Entry, attachments: &HashMap<String, Vec<u8>>) -> Vec<u
 
     // attachments
     buf.extend_from_slice(&(attachments.len() as u16).to_be_bytes());
-    // sırala — deterministik output için
+    // sort for deterministic output
     let mut att_names: Vec<&String> = attachments.keys().collect();
     att_names.sort();
     for name in att_names {
@@ -119,7 +121,7 @@ pub struct PacketEntry {
 pub fn deserialize(data: &[u8]) -> Result<PacketEntry, PacketError> {
     let mut r = Reader::new(data);
 
-    // CRC32 doğrula — son 4 byte checksum, geri kalanı veri
+    // Verify CRC32 — last 4 bytes are checksum, rest is payload
     if data.len() < 4 {
         return Err(PacketError::UnexpectedEof);
     }
@@ -165,9 +167,9 @@ pub fn deserialize(data: &[u8]) -> Result<PacketEntry, PacketError> {
         attachments.insert(name, data);
     }
 
-    // Entry oluştur — originator_id ve hop_path packet'ta yok,
-    // bunlar sync katmanının sorumluluğu
-    let mut entry = Entry::from_text(&text);
+    // Build Entry — originator_id and hop_path are not in the packet;
+    // they are the sync layer's responsibility
+    let mut entry = Entry::from_text(&text, None);
     entry.entry_id = entry_id;
     entry.timestamp = timestamp;
 
@@ -175,7 +177,7 @@ pub fn deserialize(data: &[u8]) -> Result<PacketEntry, PacketError> {
 }
 
 // ---------------------------------------------------------------------------
-// Reader — byte slice üzerinde cursor
+// Reader — cursor over a byte slice
 // ---------------------------------------------------------------------------
 
 struct Reader<'a> {
@@ -256,7 +258,7 @@ mod tests {
     use crate::Entry;
 
     fn make_entry(text: &str) -> Entry {
-        let mut e = Entry::from_text(text);
+        let mut e = Entry::from_text(text, None);
         e.entry_id = "test-id-123".to_string();
         e.timestamp = "14:25".to_string();
         e
@@ -294,7 +296,7 @@ mod tests {
         let entry = make_entry("test");
         let mut packed = serialize(&entry, &HashMap::new());
         packed[0] = 0xFF; // magic boz
-        // CRC da bozulacak ama önce magic kontrolü
+        // CRC will also fail, but check magic first
         assert!(matches!(
             deserialize(&packed),
             Err(PacketError::BadChecksum) | Err(PacketError::BadMagic)

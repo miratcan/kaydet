@@ -4,13 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kaydet"
-version = "0.37.0"
+version = "0.38.0"
 description = "Kaydet — personal daily log. CLI, MCP server, sync."
 authors = [{name = "Mirat Can Bayrak"}]
 license-files = ["../../LICENSE"]
 requires-python = ">=3.10"
 dependencies = [
-    "cryptography>=41.0",
     "qrcode>=8.2",
     "rich>=13.0",
 ]

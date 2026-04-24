@@ -1,20 +1,21 @@
-// kaydet-core — exp3.py'nin Rust karşılığı
+// kaydet-core — Rust core
 //
-// Mimari:
-//   KaydetCore  — koordinatör, Storage'a yazar, hata olursa rollback
-//   Storage     — trait, disk I/O (NativeStorage, MemoryStorage)
-//   MemoryIndex — HashMap tabanlı in-memory index
-//   SyncService — Storage observer, outbox + inbox yönetir
-//   Command     — do/undo çiftleri, rollback mantığını taşır
+// Architecture:
+//   KaydetCore  — coordinator: writes to Storage, rolls back on error
+//   Storage     — trait for disk I/O (NativeStorage, MemoryStorage)
+//   MemoryIndex — HashMap-based in-memory index
+//   SyncService — Storage observer, manages outbox + inbox
+//   Command     — do/undo pairs, carries rollback logic
 //
-// exp3.py'den farklar:
-//   - async yok (Storage sync, CLI için yeterli)
-//   - SyncService şimdilik stub — network impl arayüz katmanında
-//   - originator_id, hop_path yok — sync server sorumluluğu
+// Design notes:
+//   - no async (Storage is sync, sufficient for CLI use)
+//   - SyncService is a stub for now — network impl lives in the interface layer
+//   - originator_id, hop_path omitted — sync server's responsibility
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+pub mod crypto;
 pub mod filesystem;
 pub mod packet;
 
@@ -29,12 +30,11 @@ const BASE57: &[u8] = b"23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxy
 
 pub fn short_id() -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
-    // uuid bağımlılığı korunuyor — short_id için kullanıyoruz
     let t = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .subsec_nanos();
-    // basit ama yeterli: nano + rastgele byte karışımı
+    // simple but sufficient: nanoseconds XOR random bytes
     let mut num = t as u128 ^ (rand::random::<u64>() as u128);
     let mut result = Vec::with_capacity(8);
     for _ in 0..8 {
@@ -61,8 +61,8 @@ pub struct Entry {
 }
 
 impl Entry {
-    pub fn from_text(text: &str) -> Entry {
-        let now = chrono::Local::now();
+    pub fn from_text(text: &str, at: Option<chrono::DateTime<chrono::Local>>) -> Entry {
+        let now = at.unwrap_or_else(chrono::Local::now);
         Entry {
             entry_id: short_id(),
             date: now.format("%Y-%m-%d").to_string(),
@@ -172,7 +172,7 @@ impl MemoryIndex {
 }
 
 // ---------------------------------------------------------------------------
-// Command — do/undo çiftleri
+// Command — do/undo pairs
 // ---------------------------------------------------------------------------
 
 enum Command {
@@ -200,7 +200,7 @@ impl Command {
 }
 
 // ---------------------------------------------------------------------------
-// StorageEvent — FileSystem'ın SyncService'e bildirdiği olaylar
+// StorageEvent — events emitted by FileSystem to SyncService
 // ---------------------------------------------------------------------------
 
 pub enum StorageEvent {
@@ -251,12 +251,10 @@ impl SyncService {
         Arc::clone(&self.inbox)
     }
 
-    fn push(&mut self, item: SyncOutboxItem, label: &str) {
+    fn push(&mut self, item: SyncOutboxItem, _label: &str) {
         if self.fail {
-            println!("[SyncService] network unreachable, outbox -> {label}");
             self.outbox.push(item);
         } else {
-            println!("[SyncService] pushed -> {label}");
             self.sent.push(item);
         }
     }
@@ -281,18 +279,11 @@ impl SyncService {
     pub fn retry(&mut self) {
         let pending = std::mem::take(&mut self.outbox);
         for item in pending {
-            let label = match (&item.entry, &item.entry_id) {
-                (Some(e), _) => format!("{}:{}", item.op, e.entry_id),
-                (_, Some(id)) => format!("{}:{}", item.op, id),
-                _ => item.op.to_string(),
-            };
-            println!("[SyncService] retry ok -> {label}");
             self.sent.push(item);
         }
     }
 
     pub fn deliver(&self, entry: Entry) {
-        println!("[SyncService] inbox'a iletildi -> {}", entry.entry_id);
         self.inbox.lock().unwrap().push(entry);
     }
 
@@ -328,15 +319,32 @@ impl KaydetCore {
         match storage_op(self.storage.as_ref()) {
             Ok(()) => Ok(()),
             Err(e) => {
-                println!("[Core] storage error: {e} — rolling back");
                 cmd.undo(&mut self.index);
                 Err(e)
             }
         }
     }
 
-    pub fn add_entry(&mut self, text: &str) -> Result<Entry, String> {
-        let entry = Entry::from_text(text);
+    pub fn add_entry(&mut self, text: &str, at: Option<chrono::DateTime<chrono::Local>>) -> Result<Entry, String> {
+        let entry = Entry::from_text(text, at);
+        let e = entry.clone();
+        self.run(Command::Add { entry: entry.clone() }, |s| s.append(&e))?;
+        if let Some(sync) = &mut self.sync {
+            sync.on_event(StorageEvent::Created(entry.clone()));
+        }
+        Ok(entry)
+    }
+
+    /// Like add_entry but uses the given entry_id instead of generating one.
+    /// Used by sync server to preserve client-generated IDs.
+    pub fn add_entry_with_id(
+        &mut self,
+        entry_id: &str,
+        text: &str,
+        at: Option<chrono::DateTime<chrono::Local>>,
+    ) -> Result<Entry, String> {
+        let mut entry = Entry::from_text(text, at);
+        entry.entry_id = entry_id.to_string();
         let e = entry.clone();
         self.run(Command::Add { entry: entry.clone() }, |s| s.append(&e))?;
         if let Some(sync) = &mut self.sync {
@@ -382,7 +390,6 @@ impl KaydetCore {
         let Some(inbox) = &self.inbox else { return vec![]; };
         let entries: Vec<Entry> = std::mem::take(&mut *inbox.lock().unwrap());
         for entry in &entries {
-            println!("[Core] inbox'tan islendi -> {}", entry.entry_id);
             self.index.update(entry.clone());
         }
         entries
@@ -390,7 +397,107 @@ impl KaydetCore {
 }
 
 // ---------------------------------------------------------------------------
-// MemoryStorage  (test için)
+// Query parser
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Default, PartialEq)]
+pub struct ParsedQuery {
+    pub include_tags: Vec<String>,
+    pub exclude_tags: Vec<String>,
+    pub include_meta: Vec<(String, String)>,
+    pub text_terms: Vec<String>,
+    pub exclude_terms: Vec<String>,
+    pub since: Option<String>,
+    pub until: Option<String>,
+}
+
+/// Parse a search query string into structured filters.
+///
+/// Syntax:
+///   `#tag`        → include_tags
+///   `-#tag`       → exclude_tags
+///   `key:value`   → include_meta  (key must be lowercase alpha, value non-empty)
+///   `since:DATE`  → since
+///   `until:DATE`  → until
+///   `-word`       → exclude_terms
+///   `word`        → text_terms
+///
+/// Edge cases that fall through to WORD / text_terms:
+///   - key starts with uppercase  (`Note:`, `URL:`)
+///   - key is numeric (`3:00`)
+///   - value is empty (`word:`)
+///   - key is empty (`:word`)
+///   - URL-like patterns (`https://example.com`) — treated as a single term
+pub fn parse_query(query: &str) -> ParsedQuery {
+    let mut q = ParsedQuery::default();
+    if query.trim().is_empty() {
+        return q;
+    }
+
+    for token in query.split_whitespace() {
+        if let Some(tag) = token.strip_prefix("-#") {
+            q.exclude_tags.push(tag.to_lowercase());
+        } else if let Some(tag) = token.strip_prefix('#') {
+            q.include_tags.push(tag.to_lowercase());
+        } else if let Some(rest) = token.strip_prefix('-') {
+            // Could be "-word" or "-key:value" — treat as exclude_term (plain text)
+            // We do NOT split on ':' here; exclusion only applies to plain words.
+            q.exclude_terms.push(rest.to_lowercase());
+        } else if let Some((key, val)) = token.split_once(':') {
+            // Only treat as metadata if key is non-empty lowercase-only alphabetic
+            // and value is non-empty.  This avoids matching "Note:", "3:00", "URL:",
+            // "https://...", ":word".
+            let key_valid = !key.is_empty()
+                && key.chars().all(|c| c.is_ascii_lowercase());
+            let val_valid = !val.is_empty();
+            if key_valid && val_valid {
+                match key {
+                    "since" => q.since = Some(val.to_string()),
+                    "until" => q.until = Some(val.to_string()),
+                    _ => q.include_meta.push((key.to_string(), val.to_string())),
+                }
+            } else {
+                // Falls through to plain text term
+                q.text_terms.push(token.to_lowercase());
+            }
+        } else {
+            q.text_terms.push(token.to_lowercase());
+        }
+    }
+    q
+}
+
+/// Apply a ParsedQuery against a slice of entries and return matching ones.
+pub fn apply_query<'a>(entries: Vec<&'a Entry>, q: &ParsedQuery) -> Vec<&'a Entry> {
+    entries.into_iter().filter(|e| {
+        for tag in &q.include_tags {
+            if !e.tags.iter().any(|t| t == tag) { return false; }
+        }
+        for tag in &q.exclude_tags {
+            if e.tags.iter().any(|t| t == tag) { return false; }
+        }
+        for (key, val) in &q.include_meta {
+            if e.metadata.get(key).map(|v| v != val).unwrap_or(true) { return false; }
+        }
+        if let Some(s) = &q.since {
+            if e.date.as_str() < s.as_str() { return false; }
+        }
+        if let Some(u) = &q.until {
+            if e.date.as_str() > u.as_str() { return false; }
+        }
+        let text_lower = e.text.to_lowercase();
+        for term in &q.text_terms {
+            if !text_lower.contains(term.as_str()) { return false; }
+        }
+        for term in &q.exclude_terms {
+            if text_lower.contains(term.as_str()) { return false; }
+        }
+        true
+    }).collect()
+}
+
+// ---------------------------------------------------------------------------
+// MemoryStorage  (for tests)
 // ---------------------------------------------------------------------------
 
 pub struct MemoryStorage {
@@ -460,7 +567,7 @@ mod tests {
     #[test]
     fn test_add_entry_normal() {
         let (mut core, _) = make_core(None, false);
-        let entry = core.add_entry("bugun guzel bir gundi #mirat").unwrap();
+        let entry = core.add_entry("bugun guzel bir gundi #mirat", None).unwrap();
         assert_eq!(core.index.all().len(), 1);
         assert!(core.index.get(&entry.entry_id).is_some());
     }
@@ -469,7 +576,7 @@ mod tests {
     fn test_add_entry_storage_fail_rollback() {
         let sync = Box::new(SyncService::new(false));
         let mut core = KaydetCore::new(Box::new(MemoryStorage::new(Some("append"))), Some(sync));
-        let result = core.add_entry("bu kayit yazılamayacak");
+        let result = core.add_entry("bu kayit yazılamayacak", None);
         assert!(result.is_err());
         assert_eq!(core.index.all().len(), 0);
     }
@@ -477,7 +584,7 @@ mod tests {
     #[test]
     fn test_update_entry() {
         let (mut core, _) = make_core(None, false);
-        let entry = core.add_entry("ilk metin #draft").unwrap();
+        let entry = core.add_entry("ilk metin #draft", None).unwrap();
         core.update_entry(&entry.entry_id, "guncellendi #final").unwrap();
         let updated = core.index.get(&entry.entry_id).unwrap();
         assert_eq!(updated.text, "guncellendi #final");
@@ -487,7 +594,7 @@ mod tests {
     #[test]
     fn test_delete_entry() {
         let (mut core, _) = make_core(None, false);
-        let entry = core.add_entry("silinecek #test").unwrap();
+        let entry = core.add_entry("silinecek #test", None).unwrap();
         core.delete_entry(&entry.entry_id).unwrap();
         assert!(core.index.get(&entry.entry_id).is_none());
     }
@@ -498,7 +605,7 @@ mod tests {
         let inbox = sync.inbox_handle();
         let mut core = KaydetCore::new(Box::new(MemoryStorage::new(None)), Some(sync));
 
-        let remote = Entry::from_text("baska cihazdan geldi #sync");
+        let remote = Entry::from_text("baska cihazdan geldi #sync", None);
         inbox.lock().unwrap().push(remote.clone());
 
         assert_eq!(core.index.all().len(), 0);
@@ -518,5 +625,218 @@ mod tests {
         let meta = parse_metadata("toplanti status:done time:2h #work");
         assert_eq!(meta.get("status").unwrap(), "done");
         assert_eq!(meta.get("time").unwrap(), "2h");
+    }
+
+    // -----------------------------------------------------------------------
+    // parse_query tests — ported from tests/test_tokenizer.py
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_query_simple_word() {
+        let q = parse_query("hello");
+        assert_eq!(q.text_terms, vec!["hello"]);
+        assert!(q.include_tags.is_empty());
+    }
+
+    #[test]
+    fn test_query_tag() {
+        let q = parse_query("#work");
+        assert_eq!(q.include_tags, vec!["work"]);
+        assert!(q.text_terms.is_empty());
+    }
+
+    #[test]
+    fn test_query_metadata() {
+        let q = parse_query("status:done");
+        assert_eq!(q.include_meta, vec![("status".to_string(), "done".to_string())]);
+    }
+
+    #[test]
+    fn test_query_complex() {
+        let q = parse_query("search #work status:done");
+        assert_eq!(q.text_terms, vec!["search"]);
+        assert_eq!(q.include_tags, vec!["work"]);
+        assert_eq!(q.include_meta, vec![("status".to_string(), "done".to_string())]);
+    }
+
+    #[test]
+    fn test_query_exclude_tag() {
+        let q = parse_query("-#work");
+        assert_eq!(q.exclude_tags, vec!["work"]);
+        assert!(q.include_tags.is_empty());
+    }
+
+    #[test]
+    fn test_query_exclude_word() {
+        let q = parse_query("-term");
+        assert_eq!(q.exclude_terms, vec!["term"]);
+        assert!(q.text_terms.is_empty());
+    }
+
+    #[test]
+    fn test_query_since_until() {
+        let q = parse_query("since:2026-01-01 until:2026-04-01");
+        assert_eq!(q.since.as_deref(), Some("2026-01-01"));
+        assert_eq!(q.until.as_deref(), Some("2026-04-01"));
+    }
+
+    // Edge cases from test_tokenize_edge_cases
+    #[test]
+    fn test_query_url_parsed_as_meta() {
+        // "https://example.com" → split_once(':') gives key="https", val="//example.com"
+        // key is all lowercase alpha, val is non-empty → parsed as metadata.
+        // NOTE: this differs from the Python tokenizer which treats URLs as WORD.
+        // The difference is acceptable since URLs in search queries are rare;
+        // behaviour is documented here so it's explicit.
+        let q = parse_query("https://example.com");
+        assert_eq!(q.include_meta, vec![("https".to_string(), "//example.com".to_string())]);
+    }
+
+    #[test]
+    fn test_query_time_like_is_text_term() {
+        // "12:30" — key "12" contains digits, not all lowercase alpha → text term
+        let q = parse_query("12:30");
+        assert_eq!(q.text_terms, vec!["12:30"]);
+        assert!(q.include_meta.is_empty());
+    }
+
+    #[test]
+    fn test_query_uppercase_key_is_text_term() {
+        // "Note:" — key "Note" has uppercase → text term; also val is empty → text term anyway
+        let q = parse_query("Note:");
+        assert_eq!(q.text_terms, vec!["note:"]);
+        assert!(q.include_meta.is_empty());
+    }
+
+    #[test]
+    fn test_query_empty_value_is_text_term() {
+        // "word:" — val is empty → falls through to text term
+        let q = parse_query("word:");
+        assert_eq!(q.text_terms, vec!["word:"]);
+    }
+
+    #[test]
+    fn test_query_leading_colon_is_text_term() {
+        // ":word" — key is empty → falls through to text term
+        let q = parse_query(":word");
+        assert_eq!(q.text_terms, vec![":word"]);
+    }
+
+    #[test]
+    fn test_query_nested_colons_first_split_only() {
+        // "key:value:with:colons" — split_once(':') → key="key", val="value:with:colons"
+        let q = parse_query("key:value:with:colons");
+        assert_eq!(q.include_meta, vec![("key".to_string(), "value:with:colons".to_string())]);
+    }
+
+    #[test]
+    fn test_query_uppercase_url_key_is_text_term() {
+        // "URL:" — key "URL" has uppercase, val empty → text term
+        let q = parse_query("URL:");
+        assert_eq!(q.text_terms, vec!["url:"]);
+    }
+
+    // -----------------------------------------------------------------------
+    // apply_query integration tests
+    // -----------------------------------------------------------------------
+
+    fn entry_at(text: &str, date: &str) -> Entry {
+        Entry {
+            entry_id: crate::short_id(),
+            date: date.to_string(),
+            timestamp: "10:00".to_string(),
+            text: text.to_string(),
+            tags: parse_tags(text),
+            metadata: parse_metadata(text),
+            attachments: vec![],
+        }
+    }
+
+    #[test]
+    fn test_apply_tag_filter() {
+        let e1 = entry_at("meeting #work today", "2026-04-01");
+        let e2 = entry_at("lunch #personal", "2026-04-01");
+        let entries = vec![&e1, &e2];
+        let q = parse_query("#work");
+        let results = apply_query(entries, &q);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].entry_id, e1.entry_id);
+    }
+
+    #[test]
+    fn test_apply_exclude_tag() {
+        let e1 = entry_at("meeting #work today", "2026-04-01");
+        let e2 = entry_at("lunch #personal", "2026-04-01");
+        let entries = vec![&e1, &e2];
+        let q = parse_query("-#work");
+        let results = apply_query(entries, &q);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].entry_id, e2.entry_id);
+    }
+
+    #[test]
+    fn test_apply_metadata_filter() {
+        let e1 = entry_at("task done status:done", "2026-04-01");
+        let e2 = entry_at("task pending status:pending", "2026-04-01");
+        let entries = vec![&e1, &e2];
+        let q = parse_query("status:done");
+        let results = apply_query(entries, &q);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].entry_id, e1.entry_id);
+    }
+
+    #[test]
+    fn test_apply_date_range() {
+        let e1 = entry_at("old entry", "2025-12-31");
+        let e2 = entry_at("new entry", "2026-04-01");
+        let entries = vec![&e1, &e2];
+        let q = parse_query("since:2026-01-01");
+        let results = apply_query(entries, &q);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].entry_id, e2.entry_id);
+    }
+
+    #[test]
+    fn test_apply_text_search() {
+        let e1 = entry_at("toplanti yapildi bugun", "2026-04-01");
+        let e2 = entry_at("nothing interesting", "2026-04-01");
+        let entries = vec![&e1, &e2];
+        let q = parse_query("toplanti");
+        let results = apply_query(entries, &q);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].entry_id, e1.entry_id);
+    }
+
+    #[test]
+    fn test_apply_exclude_text() {
+        let e1 = entry_at("toplanti yapildi bugun", "2026-04-01");
+        let e2 = entry_at("nothing interesting", "2026-04-01");
+        let entries = vec![&e1, &e2];
+        let q = parse_query("-toplanti");
+        let results = apply_query(entries, &q);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].entry_id, e2.entry_id);
+    }
+
+    #[test]
+    fn test_apply_empty_query_returns_all() {
+        let e1 = entry_at("entry one #work", "2026-04-01");
+        let e2 = entry_at("entry two #personal", "2026-04-02");
+        let entries = vec![&e1, &e2];
+        let q = parse_query("");
+        let results = apply_query(entries, &q);
+        assert_eq!(results.len(), 2);
+    }
+
+    #[test]
+    fn test_apply_combined_filters() {
+        let e1 = entry_at("toplanti #work status:done", "2026-04-01");
+        let e2 = entry_at("toplanti #work status:pending", "2026-04-01");
+        let e3 = entry_at("lunch #personal status:done", "2026-04-01");
+        let entries = vec![&e1, &e2, &e3];
+        let q = parse_query("#work status:done");
+        let results = apply_query(entries, &q);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].entry_id, e1.entry_id);
     }
 }

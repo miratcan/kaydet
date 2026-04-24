@@ -1,9 +1,9 @@
-// PyO3 bindings — Rust core'u Python'a expose eder
+// PyO3 bindings — exposes the Rust core to Python
 //
-// Python'da kullanım:
+// Usage:
 //   import kaydet_core_rs
 //   core = kaydet_core_rs.KaydetCore("/path/to/storage")
-//   entry = core.add_entry("bugün #mirat")
+//   entry = core.add_entry("today #tag")
 //   print(entry.entry_id, entry.tags)
 
 #![cfg(feature = "python")]
@@ -17,7 +17,7 @@ use crate::filesystem::NativeFs;
 use chrono::Datelike;
 
 // ---------------------------------------------------------------------------
-// NativeStorage — gerçek disk I/O, StorageTrait implement eder
+// NativeStorage — real disk I/O, implements StorageTrait
 // ---------------------------------------------------------------------------
 
 struct NativeStorage {
@@ -77,21 +77,21 @@ impl StorageTrait for NativeStorage {
 fn update_metadata_in_text(text: &str, key: &str, value: &str) -> String {
     let token = format!("{key}:");
     let new_token = format!("{key}:{value}");
-    // varsa güncelle
     if text.split_whitespace().any(|w| w.starts_with(&token)) {
+        // update existing token
         text.split_whitespace()
             .map(|w| if w.starts_with(&token) { new_token.as_str() } else { w })
             .collect::<Vec<_>>()
             .join(" ")
     } else {
-        // yoksa sona ekle
+        // append new token
         format!("{text} {new_token}")
     }
 }
 
 fn format_entry(entry: &Entry) -> String {
     // Format: "HH:MM [ID]: text\n"
-    // Çok satırlı text: ilk satır header'da, geri kalanlar alt satırlarda
+    // Multi-line text: first line in the header, remaining lines as continuation
     let mut lines = entry.text.lines();
     let first = lines.next().unwrap_or("");
     let header = format!("{} [{}]: {}\n", entry.timestamp, entry.entry_id, first);
@@ -100,16 +100,16 @@ fn format_entry(entry: &Entry) -> String {
 }
 
 fn inject_entry(content: &str, entry: &Entry) -> String {
-    // Zaman sıralı yerleştirme: HH:MM karşılaştırması ile doğru yere ekle
+    // Insert in timestamp order by comparing HH:MM strings
     let new_line = format_entry(entry);
     let mut result = String::new();
     let mut inserted = false;
 
     for line in content.lines() {
-        // Entry header satırı mı? "HH:MM [ID]:" formatı
+        // Is this an entry header line? "HH:MM [ID]:" format
         if !inserted {
             if let Some(ts) = line.split_whitespace().next() {
-                // "HH:MM" formatında mı?
+                // Is it in "HH:MM" format?
                 if ts.len() == 5 && ts.as_bytes().get(2) == Some(&b':') {
                     if entry.timestamp.as_str() < ts {
                         result.push_str(&new_line);
@@ -129,8 +129,8 @@ fn inject_entry(content: &str, entry: &Entry) -> String {
 }
 
 fn remove_entry_from_content(content: &str, entry_id: &str) -> String {
-    // Her entry tek satır: "HH:MM [ID]: text"
-    // Çok satırlı entry: header + devam satırları (HH:MM ile başlamayan)
+    // Each entry: header line "HH:MM [ID]: text" + optional continuation lines
+    // Continuation lines do not start with "HH:MM"
     let marker = format!("[{entry_id}]:");
     let mut result = String::new();
     let mut skip = false;
@@ -158,36 +158,56 @@ fn remove_entry_from_content(content: &str, entry_id: &str) -> String {
 
 fn parse_day(content: &str, date: &str) -> Vec<Entry> {
     use crate::{parse_tags, parse_metadata, parse_attachments};
-    let mut entries = Vec::new();
+    let mut entries: Vec<Entry> = Vec::new();
 
     for line in content.lines() {
         // Format: "HH:MM [ID]: text..."
-        // Satir bos, yorum veya baslik ise atla
         let trimmed = line.trim();
-        if trimmed.is_empty() || trimmed.starts_with('-') || trimmed.starts_with('#') {
+
+        // Separator lines (---) are always skipped
+        if trimmed.starts_with('-') {
             continue;
         }
 
-        // entry_id ve timestamp ayikla
-        let Some(entry_id) = extract_entry_id(trimmed) else { continue };
-        let Some(timestamp) = extract_timestamp(trimmed) else { continue };
+        // Empty lines: pass through to current entry as blank lines (preserve paragraph breaks)
+        if trimmed.is_empty() {
+            if let Some(last) = entries.last_mut() {
+                last.text.push('\n');
+            }
+            continue;
+        }
 
-        // "[ID]: " sonrasini text olarak al
-        let text = match trimmed.find("]: ") {
-            Some(pos) => trimmed[pos + 3..].trim().to_string(),
-            None => continue,
-        };
-        if text.is_empty() { continue; }
+        // Try to parse as an entry header line
+        let entry_id = extract_entry_id(trimmed);
+        let timestamp = extract_timestamp(trimmed);
 
-        entries.push(Entry {
-            entry_id,
-            date: date.to_string(),
-            timestamp,
-            tags: parse_tags(&text),
-            metadata: parse_metadata(&text),
-            attachments: parse_attachments(&text),
-            text,
-        });
+        if let (Some(entry_id), Some(timestamp)) = (entry_id, timestamp) {
+            // Header line: "HH:MM [ID]: text"
+            let text = match trimmed.find("]: ") {
+                Some(pos) => trimmed[pos + 3..].trim().to_string(),
+                None => continue,
+            };
+            if text.is_empty() { continue; }
+
+            entries.push(Entry {
+                entry_id,
+                date: date.to_string(),
+                timestamp,
+                tags: parse_tags(&text),
+                metadata: parse_metadata(&text),
+                attachments: parse_attachments(&text),
+                text,
+            });
+        } else if let Some(last) = entries.last_mut() {
+            // Continuation line: append to the previous entry's text
+            last.text.push('\n');
+            last.text.push_str(trimmed);
+            // Re-parse tags/metadata/attachments from full updated text
+            last.tags = parse_tags(&last.text);
+            last.metadata = parse_metadata(&last.text);
+            last.attachments = parse_attachments(&last.text);
+        }
+        // Lines before the first entry are ignored
     }
     entries
 }
@@ -256,7 +276,7 @@ impl PyKaydetCore {
     fn new(storage_dir: &str) -> PyResult<PyKaydetCore> {
         let storage = Box::new(NativeStorage::new(storage_dir));
 
-        // startup: mevcut entry'leri yükle
+        // startup: load all existing entries from disk
         let existing = storage.load_all()
             .map_err(|e| PyValueError::new_err(e.to_string()))?;
 
@@ -269,9 +289,20 @@ impl PyKaydetCore {
         Ok(PyKaydetCore { inner: Mutex::new(core) })
     }
 
-    fn add_entry(&self, text: &str) -> PyResult<PyEntry> {
+    #[pyo3(signature = (text, at_date=None, at_time=None))]
+    fn add_entry(&self, text: &str, at_date: Option<&str>, at_time: Option<&str>) -> PyResult<PyEntry> {
+        let at = match (at_date, at_time) {
+            (Some(date), Some(time)) => {
+                let dt_str = format!("{} {}:00", date, time);
+                chrono::NaiveDateTime::parse_from_str(&dt_str, "%Y-%m-%d %H:%M:%S")
+                    .map(|ndt| ndt.and_local_timezone(chrono::Local).single())
+                    .ok()
+                    .flatten()
+            }
+            _ => None,
+        };
         let mut core = self.inner.lock().unwrap();
-        core.add_entry(text)
+        core.add_entry(text, at)
             .map(PyEntry::from)
             .map_err(|e| PyValueError::new_err(e))
     }
@@ -342,69 +373,16 @@ impl PyKaydetCore {
     //   word        → full-text search
     #[pyo3(signature = (query="", limit=0))]
     fn search_entries(&self, query: &str, limit: usize) -> PyResult<Vec<PyEntry>> {
+        use crate::{apply_query, parse_query};
         let core = self.inner.lock().unwrap();
-        let mut results: Vec<&Entry> = core.index.all();
+        let all = core.index.all();
+        let q = parse_query(query);
+        let mut results = apply_query(all, &q);
 
-        if !query.trim().is_empty() {
-            let mut since: Option<String> = None;
-            let mut until: Option<String> = None;
-            let mut include_tags: Vec<String> = vec![];
-            let mut exclude_tags: Vec<String> = vec![];
-            let mut include_meta: Vec<(String, String)> = vec![];
-            let mut text_terms: Vec<String> = vec![];
-            let mut exclude_terms: Vec<String> = vec![];
-
-            for token in query.split_whitespace() {
-                if let Some(tag) = token.strip_prefix("-#") {
-                    exclude_tags.push(tag.to_lowercase());
-                } else if let Some(tag) = token.strip_prefix('#') {
-                    include_tags.push(tag.to_lowercase());
-                } else if token.starts_with('-') {
-                    exclude_terms.push(token[1..].to_lowercase());
-                } else if let Some((key, val)) = token.split_once(':') {
-                    match key {
-                        "since" => since = Some(val.to_string()),
-                        "until" => until = Some(val.to_string()),
-                        _ => include_meta.push((key.to_string(), val.to_string())),
-                    }
-                } else {
-                    text_terms.push(token.to_lowercase());
-                }
-            }
-
-            results = results.into_iter().filter(|e| {
-                // tag filters
-                for tag in &include_tags {
-                    if !e.tags.iter().any(|t| t == tag) { return false; }
-                }
-                for tag in &exclude_tags {
-                    if e.tags.iter().any(|t| t == tag) { return false; }
-                }
-                // metadata filters
-                for (key, val) in &include_meta {
-                    if e.metadata.get(key).map(|v| v != val).unwrap_or(true) { return false; }
-                }
-                // date range
-                if let Some(s) = &since {
-                    if e.date.as_str() < s.as_str() { return false; }
-                }
-                if let Some(u) = &until {
-                    if e.date.as_str() > u.as_str() { return false; }
-                }
-                // text search
-                let text_lower = e.text.to_lowercase();
-                for term in &text_terms {
-                    if !text_lower.contains(term.as_str()) { return false; }
-                }
-                for term in &exclude_terms {
-                    if text_lower.contains(term.as_str()) { return false; }
-                }
-                true
-            }).collect();
-        }
-
-        // entry_id'ye göre azalan sıra (en yeni önce)
-        results.sort_by(|a, b| b.entry_id.cmp(&a.entry_id));
+        // sort ascending by date + timestamp (oldest first, newest last)
+        results.sort_by(|a, b| {
+            a.date.cmp(&b.date).then_with(|| a.timestamp.cmp(&b.timestamp))
+        });
 
         if limit > 0 {
             results.truncate(limit);
@@ -457,7 +435,7 @@ impl PyKaydetCore {
         })
     }
 
-    // list_todos: #todo tag'li entry'leri döner
+    // list_todos: returns entries tagged with #todo
     #[pyo3(signature = (status=None))]
     fn list_todos(&self, status: Option<&str>) -> PyResult<Vec<PyEntry>> {
         let core = self.inner.lock().unwrap();
@@ -483,7 +461,7 @@ impl PyKaydetCore {
         let now = chrono::Local::now();
         let completed_at = now.format("%H:%M").to_string();
 
-        // mevcut metne status:done ve completed_at ekle (varsa güncelle)
+        // add status:done and completed_at to the text (update if already present)
         let text = &old.text;
         let new_text = update_metadata_in_text(text, "status", "done");
         let new_text = update_metadata_in_text(&new_text, "completed_at", &completed_at);
@@ -497,9 +475,30 @@ impl PyKaydetCore {
 // Python module
 // ---------------------------------------------------------------------------
 
+#[pyfunction]
+fn generate_id() -> String {
+    crate::short_id()
+}
+
+#[pyfunction]
+fn encrypt_secret(plaintext: &str, password: &str) -> PyResult<Vec<u8>> {
+    crate::crypto::encrypt_secret(plaintext, password)
+        .map_err(|e| PyValueError::new_err(e.to_string()))
+}
+
+#[pyfunction]
+fn decrypt_secret(encrypted: &[u8], password: &str) -> PyResult<String> {
+    crate::crypto::decrypt_secret(encrypted, password)
+        .map_err(|e| PyValueError::new_err(e.to_string()))
+}
+
 #[pymodule]
 fn kaydet_core_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyKaydetCore>()?;
     m.add_class::<PyEntry>()?;
+    m.add_function(wrap_pyfunction!(generate_id, m)?)?;
+    m.add_function(wrap_pyfunction!(encrypt_secret, m)?)?;
+    m.add_function(wrap_pyfunction!(decrypt_secret, m)?)?;
+    m.add("__all__", vec!["KaydetCore", "Entry", "generate_id", "encrypt_secret", "decrypt_secret"])?;
     Ok(())
 }

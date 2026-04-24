@@ -1,21 +1,8 @@
 // FileSystem trait — platform adapter
 //
-// Python karşılığı:
-//   class FileSystem(ABC):
-//       @abstractmethod
-//       def read_day(self, date: str) -> str: ...
-//       @abstractmethod
-//       def write_day(self, date: str, content: str): ...
-//       @abstractmethod
-//       def list_days(self) -> list[str]: ...
-//       @abstractmethod
-//       def read_attachment(self, filename: str) -> bytes: ...
-//       @abstractmethod
-//       def write_attachment(self, filename: str, data: bytes): ...
-//
-// Core bu trait'i constructor'dan alır — kim ne verirse onu kullanır.
-// NativeFs: gerçek disk
-// MemoryFs: testler için, disk yok
+// Core accepts this trait in its constructor — any implementation works.
+// NativeFs: real disk I/O
+// MemoryFs: in-memory, no disk (used in tests)
 
 use std::collections::HashMap;
 
@@ -52,7 +39,7 @@ pub trait FileSystem: Send + Sync {
 }
 
 // ---------------------------------------------------------------------------
-// MemoryFs — testler için, gerçek disk yok
+// MemoryFs — in-memory, no real disk (for tests)
 // ---------------------------------------------------------------------------
 
 pub struct MemoryFs {
@@ -124,7 +111,7 @@ impl FileSystem for MemoryFs {
 }
 
 // ---------------------------------------------------------------------------
-// NativeFs — gerçek disk
+// NativeFs — real disk I/O
 // ---------------------------------------------------------------------------
 
 pub struct NativeFs {
@@ -152,7 +139,10 @@ impl FileSystem for NativeFs {
 
     fn write_day(&self, date: &str, content: &str) -> FsResult<()> {
         let path = self.storage_dir.join(format!("{}.txt", date));
-        std::fs::write(&path, content)
+        let tmp_path = self.storage_dir.join(format!(".{}.tmp", date));
+        std::fs::write(&tmp_path, content)
+            .map_err(|e| FsError::IoError(e.to_string()))?;
+        std::fs::rename(&tmp_path, &path)
             .map_err(|e| FsError::IoError(e.to_string()))
     }
 
