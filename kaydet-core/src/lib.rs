@@ -1,23 +1,26 @@
 // kaydet-core — Rust core
 //
 // Architecture:
-//   KaydetCore  — coordinator: writes to Storage, rolls back on error
-//   Storage     — trait for disk I/O (NativeStorage, MemoryStorage)
-//   MemoryIndex — HashMap-based in-memory index
-//   SyncService — Storage observer, manages outbox + inbox
-//   Command     — do/undo pairs, carries rollback logic
+//   KaydetCore    — coordinator: writes to Storage, rolls back on error
+//   StorageTrait  — trait for disk I/O (NativeStorage, MemoryStorage)
+//   MemoryIndex   — HashMap-based in-memory index
+//   SyncBackend   — optional trait for sync transport (HTTP, P2P, noop)
+//   Command       — do/undo pairs, carries rollback logic
 //
 // Design notes:
 //   - no async (Storage is sync, sufficient for CLI use)
-//   - SyncService is a stub for now — network impl lives in the interface layer
+//   - SyncBackend is optional: None = offline (e.g. embedded/C64 build)
 //   - originator_id, hop_path omitted — sync server's responsibility
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 
 pub mod crypto;
 pub mod filesystem;
 pub mod packet;
+pub mod sync;
+
+pub use sync::{SyncBackend, SyncStats};
 
 #[cfg(feature = "python")]
 pub mod python;
@@ -200,16 +203,6 @@ impl Command {
 }
 
 // ---------------------------------------------------------------------------
-// StorageEvent — events emitted by FileSystem to SyncService
-// ---------------------------------------------------------------------------
-
-pub enum StorageEvent {
-    Created(Entry),
-    Updated(Entry),
-    Deleted(String),
-}
-
-// ---------------------------------------------------------------------------
 // Storage trait
 // ---------------------------------------------------------------------------
 
@@ -221,96 +214,27 @@ pub trait StorageTrait: Send + Sync {
 }
 
 // ---------------------------------------------------------------------------
-// SyncService
-// ---------------------------------------------------------------------------
-
-pub struct SyncOutboxItem {
-    pub op: &'static str,  // "created" | "updated" | "deleted"
-    pub entry: Option<Entry>,
-    pub entry_id: Option<String>,
-}
-
-pub struct SyncService {
-    fail: bool,
-    pub sent: Vec<SyncOutboxItem>,
-    outbox: Vec<SyncOutboxItem>,
-    inbox: Arc<Mutex<Vec<Entry>>>,
-}
-
-impl SyncService {
-    pub fn new(fail: bool) -> Self {
-        SyncService {
-            fail,
-            sent: Vec::new(),
-            outbox: Vec::new(),
-            inbox: Arc::new(Mutex::new(Vec::new())),
-        }
-    }
-
-    pub fn inbox_handle(&self) -> Arc<Mutex<Vec<Entry>>> {
-        Arc::clone(&self.inbox)
-    }
-
-    fn push(&mut self, item: SyncOutboxItem, _label: &str) {
-        if self.fail {
-            self.outbox.push(item);
-        } else {
-            self.sent.push(item);
-        }
-    }
-
-    pub fn on_event(&mut self, event: StorageEvent) {
-        match event {
-            StorageEvent::Created(entry) => {
-                let label = format!("created:{}", entry.entry_id);
-                self.push(SyncOutboxItem { op: "created", entry: Some(entry), entry_id: None }, &label);
-            }
-            StorageEvent::Updated(entry) => {
-                let label = format!("updated:{}", entry.entry_id);
-                self.push(SyncOutboxItem { op: "updated", entry: Some(entry), entry_id: None }, &label);
-            }
-            StorageEvent::Deleted(entry_id) => {
-                let label = format!("deleted:{entry_id}");
-                self.push(SyncOutboxItem { op: "deleted", entry: None, entry_id: Some(entry_id) }, &label);
-            }
-        }
-    }
-
-    pub fn retry(&mut self) {
-        let pending = std::mem::take(&mut self.outbox);
-        for item in pending {
-            self.sent.push(item);
-        }
-    }
-
-    pub fn deliver(&self, entry: Entry) {
-        self.inbox.lock().unwrap().push(entry);
-    }
-
-    pub fn outbox_len(&self) -> usize {
-        self.outbox.len()
-    }
-}
-
-// ---------------------------------------------------------------------------
 // KaydetCore
 // ---------------------------------------------------------------------------
 
 pub struct KaydetCore {
     pub index: MemoryIndex,
     storage: Box<dyn StorageTrait>,
-    sync: Option<Box<SyncService>>,
-    inbox: Option<Arc<Mutex<Vec<Entry>>>>,
+    pub sync_backend: Option<Box<dyn SyncBackend>>,
+    /// Unix timestamp of last successful sync (0 = never synced).
+    pub sync_token: i64,
+    /// Pending local changes not yet pushed (entry_ids).
+    pending_push: Vec<String>,
 }
 
 impl KaydetCore {
-    pub fn new(storage: Box<dyn StorageTrait>, sync: Option<Box<SyncService>>) -> Self {
-        let inbox = sync.as_ref().map(|s| s.inbox_handle());
+    pub fn new(storage: Box<dyn StorageTrait>, sync_backend: Option<Box<dyn SyncBackend>>) -> Self {
         KaydetCore {
             index: MemoryIndex::new(),
             storage,
-            sync,
-            inbox,
+            sync_backend,
+            sync_token: 0,
+            pending_push: Vec::new(),
         }
     }
 
@@ -329,9 +253,7 @@ impl KaydetCore {
         let entry = Entry::from_text(text, at);
         let e = entry.clone();
         self.run(Command::Add { entry: entry.clone() }, |s| s.append(&e))?;
-        if let Some(sync) = &mut self.sync {
-            sync.on_event(StorageEvent::Created(entry.clone()));
-        }
+        self.pending_push.push(entry.entry_id.clone());
         Ok(entry)
     }
 
@@ -347,9 +269,7 @@ impl KaydetCore {
         entry.entry_id = entry_id.to_string();
         let e = entry.clone();
         self.run(Command::Add { entry: entry.clone() }, |s| s.append(&e))?;
-        if let Some(sync) = &mut self.sync {
-            sync.on_event(StorageEvent::Created(entry.clone()));
-        }
+        self.pending_push.push(entry.entry_id.clone());
         Ok(entry)
     }
 
@@ -368,9 +288,7 @@ impl KaydetCore {
         };
         let u = updated.clone();
         self.run(Command::Update { old, updated: updated.clone() }, |s| s.replace(&u))?;
-        if let Some(sync) = &mut self.sync {
-            sync.on_event(StorageEvent::Updated(updated));
-        }
+        self.pending_push.push(entry_id.to_string());
         Ok(())
     }
 
@@ -380,19 +298,78 @@ impl KaydetCore {
             .clone();
         let id = entry_id.to_string();
         self.run(Command::Delete { old }, |s| s.delete(&id))?;
-        if let Some(sync) = &mut self.sync {
-            sync.on_event(StorageEvent::Deleted(entry_id.to_string()));
-        }
+        self.pending_push.push(entry_id.to_string());
         Ok(())
     }
 
-    pub fn drain_inbox(&mut self) -> Vec<Entry> {
-        let Some(inbox) = &self.inbox else { return vec![]; };
-        let entries: Vec<Entry> = std::mem::take(&mut *inbox.lock().unwrap());
-        for entry in &entries {
-            self.index.update(entry.clone());
+    /// Run a sync cycle. No-op if no SyncBackend is attached.
+    pub fn sync(&mut self) -> Result<SyncStats, String> {
+        use crate::packet;
+
+        let Some(backend) = &self.sync_backend else {
+            return Ok(SyncStats::default());
+        };
+
+        // 1. Collect local entries to push
+        let local_entries: Vec<Entry> = self.pending_push.iter()
+            .filter_map(|id| self.index.get(id).cloned())
+            .collect();
+
+        // 2. Exchange: push local, get remote diff
+        let (remote_changes, new_token) = backend.exchange(self.sync_token, &local_entries)?;
+
+        let pushed = local_entries.len();
+        let mut pulled = 0;
+        let mut packets_fetched = 0;
+
+        // 3. Apply remote changes
+        for change in remote_changes {
+            if change.deleted {
+                // Delete locally if present
+                if self.index.get(&change.entry_id).is_some() {
+                    let id = change.entry_id.clone();
+                    let _ = self.storage.delete(&id);
+                    self.index.remove(&change.entry_id);
+                }
+                pulled += 1;
+            } else if let Some(entry) = change.entry {
+                // Inline entry — apply directly
+                self.storage.replace(&entry)?;
+                self.index.update(entry);
+                pulled += 1;
+            } else {
+                // Fetch packet
+                let packet_bytes = backend.fetch_packet(&change.entry_id)?;
+                let pkt = packet::deserialize(&packet_bytes)
+                    .map_err(|e| format!("packet error for {}: {}", change.entry_id, e))?;
+
+                // Write attachments
+                if !pkt.attachments.is_empty() {
+                    // Attachment storage is handled by the storage layer via metadata;
+                    // caller is responsible for persisting attachment files.
+                    // Here we just update the entry.
+                }
+
+                self.storage.replace(&pkt.entry)?;
+                self.index.update(pkt.entry);
+                packets_fetched += 1;
+                pulled += 1;
+            }
         }
-        entries
+
+        // 4. Upload packets for local entries with attachments
+        for entry in &local_entries {
+            if entry.attachments.is_empty() { continue; }
+            // Attachment bytes must be loaded by the storage layer.
+            // For now: upload_packet is a best-effort call; errors are non-fatal.
+            let _ = backend.upload_packet(&entry.entry_id, &[]);
+        }
+
+        // 5. Commit state
+        self.sync_token = new_token;
+        self.pending_push.clear();
+
+        Ok(SyncStats { pushed, pulled, packets_fetched })
     }
 }
 
@@ -555,18 +532,13 @@ impl StorageTrait for MemoryStorage {
 mod tests {
     use super::*;
 
-    fn make_core(fail_on: Option<&'static str>, sync_fail: bool) -> (KaydetCore, Option<*mut SyncService>) {
-        let sync = Box::new(SyncService::new(sync_fail));
-        let core = KaydetCore::new(
-            Box::new(MemoryStorage::new(fail_on)),
-            Some(sync),
-        );
-        (core, None)
+    fn make_core(fail_on: Option<&'static str>) -> KaydetCore {
+        KaydetCore::new(Box::new(MemoryStorage::new(fail_on)), None)
     }
 
     #[test]
     fn test_add_entry_normal() {
-        let (mut core, _) = make_core(None, false);
+        let mut core = make_core(None);
         let entry = core.add_entry("bugun guzel bir gundi #mirat", None).unwrap();
         assert_eq!(core.index.all().len(), 1);
         assert!(core.index.get(&entry.entry_id).is_some());
@@ -574,8 +546,7 @@ mod tests {
 
     #[test]
     fn test_add_entry_storage_fail_rollback() {
-        let sync = Box::new(SyncService::new(false));
-        let mut core = KaydetCore::new(Box::new(MemoryStorage::new(Some("append"))), Some(sync));
+        let mut core = KaydetCore::new(Box::new(MemoryStorage::new(Some("append"))), None);
         let result = core.add_entry("bu kayit yazılamayacak", None);
         assert!(result.is_err());
         assert_eq!(core.index.all().len(), 0);
@@ -583,7 +554,7 @@ mod tests {
 
     #[test]
     fn test_update_entry() {
-        let (mut core, _) = make_core(None, false);
+        let mut core = make_core(None);
         let entry = core.add_entry("ilk metin #draft", None).unwrap();
         core.update_entry(&entry.entry_id, "guncellendi #final").unwrap();
         let updated = core.index.get(&entry.entry_id).unwrap();
@@ -593,25 +564,10 @@ mod tests {
 
     #[test]
     fn test_delete_entry() {
-        let (mut core, _) = make_core(None, false);
+        let mut core = make_core(None);
         let entry = core.add_entry("silinecek #test", None).unwrap();
         core.delete_entry(&entry.entry_id).unwrap();
         assert!(core.index.get(&entry.entry_id).is_none());
-    }
-
-    #[test]
-    fn test_drain_inbox() {
-        let sync = Box::new(SyncService::new(false));
-        let inbox = sync.inbox_handle();
-        let mut core = KaydetCore::new(Box::new(MemoryStorage::new(None)), Some(sync));
-
-        let remote = Entry::from_text("baska cihazdan geldi #sync", None);
-        inbox.lock().unwrap().push(remote.clone());
-
-        assert_eq!(core.index.all().len(), 0);
-        let applied = core.drain_inbox();
-        assert_eq!(applied.len(), 1);
-        assert_eq!(core.index.all().len(), 1);
     }
 
     #[test]
