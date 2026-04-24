@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
+import struct
 import subprocess
 import sys
+import urllib.error
+import urllib.request
 from abc import ABC, abstractmethod
 from configparser import SectionProxy
 from pathlib import Path
@@ -16,6 +18,8 @@ from kaydet_core.sync_protocol import (
     deserialize_message,
     serialize_message,
 )
+
+CHUNK_SIZE = 256 * 1024  # 256 KB — per spec
 
 
 class SyncTransport(ABC):
@@ -39,11 +43,7 @@ class StdinTransport(SyncTransport):
     def _ensure_process(self) -> subprocess.Popen:
         if self._process is None or self._process.poll() is not None:
             self._process = subprocess.Popen(
-                [
-                    sys.executable,
-                    "-m",
-                    "kaydet_server.sync_server",
-                ],
+                [sys.executable, "-m", "kaydet_server.sync_server"],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -59,18 +59,12 @@ class StdinTransport(SyncTransport):
         proc.stdin.write(line)
         proc.stdin.flush()
 
-        # Use a 60-second timeout to avoid blocking forever if the server
-        # stops producing output (pipe buffer deadlock prevention).
         ready, _, _ = select.select([proc.stdout], [], [], 60)
         if not ready:
-            raise ConnectionError(
-                "Timed out waiting for server response"
-            )
+            raise ConnectionError("Timed out waiting for server response")
         response_line = proc.stdout.readline()
         if not response_line:
-            raise ConnectionError(
-                "Server process closed unexpectedly"
-            )
+            raise ConnectionError("Server process closed unexpectedly")
         return deserialize_message(response_line.strip())
 
     def close(self) -> None:
@@ -81,179 +75,108 @@ class StdinTransport(SyncTransport):
 
 
 class HttpTransport(SyncTransport):
-    """Transport that communicates with a remote HTTP server."""
+    """Transport that communicates with the Rust kaydet-srv over HTTP."""
 
-    def __init__(
-        self, server_url: str, api_key: str
-    ) -> None:
+    def __init__(self, server_url: str, api_key: str) -> None:
         self.server_url = server_url.rstrip("/")
         self.api_key = api_key
 
-    def send(self, msg: ProtocolMessage) -> ProtocolMessage:
-        import urllib.error
-        import urllib.request
-
-        url = f"{self.server_url}/sync"
-        data = serialize_message(msg).encode("utf-8")
-
-        req = urllib.request.Request(
-            url,
-            data=data,
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {self.api_key}",
-            },
-            method="POST",
-        )
-
-        try:
-            with urllib.request.urlopen(req, timeout=60) as resp:
-                body = resp.read().decode("utf-8")
-                return deserialize_message(body)
-        except urllib.error.HTTPError as e:
-            if e.code == 401:
-                raise ConnectionError(
-                    "Authentication failed. "
-                    "Check your API key."
-                ) from e
-            raise ConnectionError(
-                f"Server error (HTTP {e.code}): "
-                f"{e.reason}"
-            ) from e
-        except urllib.error.URLError as e:
-            raise ConnectionError(
-                f"Cannot reach server at "
-                f"{self.server_url}: {e.reason}"
-            ) from e
-
-    def upload_file(
-        self, filepath: Path, filename: str
-    ) -> dict:
-        """Upload a file using the 3-step chunked protocol."""
-        import urllib.error
-        import urllib.request
-
-        file_size = filepath.stat().st_size
-        sha256 = self._compute_sha256(filepath)
-
-        # Step 1: upload-start
-        start_body = json.dumps({
-            "filename": filename,
-            "size": file_size,
-            "sha256": sha256,
-        }).encode("utf-8")
-
-        req = urllib.request.Request(
-            f"{self.server_url}/files/upload-start",
-            data=start_body,
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {self.api_key}",
-            },
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            start_resp = json.loads(resp.read().decode("utf-8"))
-
-        if start_resp.get("already_exists"):
-            return {"filename": filename, "already_exists": True}
-
-        upload_id = start_resp["upload_id"]
-        chunk_size = start_resp.get("chunk_size", 1048576)
-        offset = start_resp.get("existing_offset", 0)
-
-        # Step 2: upload chunks
-        with open(filepath, "rb") as f:
-            f.seek(offset)
-            while True:
-                chunk = f.read(chunk_size)
-                if not chunk:
-                    break
-
-                chunk_req = urllib.request.Request(
-                    f"{self.server_url}/files/upload-chunk",
-                    data=chunk,
-                    headers={
-                        "Content-Type": "application/octet-stream",
-                        "Authorization": f"Bearer {self.api_key}",
-                        "X-Upload-Id": upload_id,
-                        "X-Chunk-Offset": str(offset),
-                    },
-                    method="POST",
-                )
-                with urllib.request.urlopen(chunk_req, timeout=60) as resp:
-                    json.loads(resp.read().decode("utf-8"))
-
-                offset += len(chunk)
-
-        # Step 3: upload-finish
-        finish_body = json.dumps({
-            "upload_id": upload_id
-        }).encode("utf-8")
-
-        req = urllib.request.Request(
-            f"{self.server_url}/files/upload-finish",
-            data=finish_body,
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {self.api_key}",
-            },
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            return json.loads(resp.read().decode("utf-8"))
-
-    def download_file(
-        self, filename: str, dest: Path
-    ) -> dict:
-        """Download a file and verify SHA-256."""
-        import urllib.request
-
-        url = f"{self.server_url}/files/{filename}"
-        req = urllib.request.Request(
-            url,
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-            },
-        )
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            expected_sha256 = resp.headers.get("X-SHA256", "")
-
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            tmp = dest.with_suffix(dest.suffix + ".tmp")
-            h = hashlib.sha256()
-
-            with open(tmp, "wb") as f:
-                while True:
-                    chunk = resp.read(65536)
-                    if not chunk:
-                        break
-                    f.write(chunk)
-                    h.update(chunk)
-
-        actual_sha256 = h.hexdigest()
-        if expected_sha256 and actual_sha256 != expected_sha256:
-            tmp.unlink(missing_ok=True)
-            raise ValueError(
-                f"SHA-256 mismatch for {filename}: "
-                f"expected {expected_sha256}, "
-                f"got {actual_sha256}"
-            )
-
-        tmp.rename(dest)
+    def _headers(self, content_type: str = "application/json") -> dict:
         return {
-            "filename": filename,
-            "size": dest.stat().st_size,
-            "sha256_verified": bool(expected_sha256),
+            "Content-Type": content_type,
+            "Authorization": f"Bearer {self.api_key}",
         }
 
-    @staticmethod
-    def _compute_sha256(filepath: Path) -> str:
-        h = hashlib.sha256()
-        with open(filepath, "rb") as f:
-            while chunk := f.read(65536):
-                h.update(chunk)
-        return h.hexdigest()
+    def _request(self, url: str, data: bytes, headers: dict, method: str = "POST") -> bytes:
+        req = urllib.request.Request(url, data=data, headers=headers, method=method)
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                return resp.read()
+        except urllib.error.HTTPError as e:
+            if e.code == 401:
+                raise ConnectionError("Authentication failed. Check your API key.") from e
+            raise ConnectionError(f"Server error (HTTP {e.code}): {e.reason}") from e
+        except urllib.error.URLError as e:
+            raise ConnectionError(f"Cannot reach server at {self.server_url}: {e.reason}") from e
+
+    def send(self, msg: ProtocolMessage) -> ProtocolMessage:
+        """POST /sync — send sync request, receive changes."""
+        # Rust server expects the body dict directly (no ProtocolMessage wrapper)
+        body = json.dumps(msg.body).encode("utf-8")
+        raw = self._request(
+            f"{self.server_url}/sync",
+            data=body,
+            headers=self._headers("application/json"),
+        )
+        resp_body = json.loads(raw.decode("utf-8"))
+        return ProtocolMessage(method=msg.method, body=resp_body)
+
+    def upload_packet(self, entry_id: str, packet_bytes: bytes) -> bool:
+        """POST /v1/packets/{entry_id} — upload KYDT packet in chunks.
+
+        Returns True on success. Supports resume via status endpoint.
+        """
+        total_size = len(packet_bytes)
+
+        # Check for existing partial upload (resume)
+        offset = self._get_upload_offset(entry_id)
+
+        pos = offset
+        while pos < total_size:
+            chunk = packet_bytes[pos:pos + CHUNK_SIZE]
+            is_last = (pos + len(chunk)) >= total_size
+
+            headers = {
+                **self._headers("application/octet-stream"),
+                "X-Kaydet-Chunk-Offset": str(pos),
+                "X-Kaydet-Total-Size": str(total_size),
+                "X-Kaydet-Chunk-Size": str(len(chunk)),
+            }
+
+            raw = self._request(
+                f"{self.server_url}/v1/packets/{entry_id}",
+                data=chunk,
+                headers=headers,
+            )
+
+            resp = json.loads(raw.decode("utf-8"))
+            if is_last and resp.get("status") == "complete":
+                return True
+
+            pos += len(chunk)
+
+        return False
+
+    def download_packet(self, entry_id: str) -> bytes:
+        """GET /v1/packets/{entry_id} — download KYDT packet."""
+        req = urllib.request.Request(
+            f"{self.server_url}/v1/packets/{entry_id}",
+            headers={"Authorization": f"Bearer {self.api_key}"},
+            method="GET",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                return resp.read()
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                raise FileNotFoundError(f"Packet not found: {entry_id}") from e
+            raise ConnectionError(f"Server error (HTTP {e.code})") from e
+        except urllib.error.URLError as e:
+            raise ConnectionError(f"Cannot reach server: {e.reason}") from e
+
+    def _get_upload_offset(self, entry_id: str) -> int:
+        """GET /v1/packets/{entry_id}/status — resume offset."""
+        req = urllib.request.Request(
+            f"{self.server_url}/v1/packets/{entry_id}/status",
+            headers={"Authorization": f"Bearer {self.api_key}"},
+            method="GET",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read())
+                return data.get("received", 0)
+        except Exception:
+            return 0
 
 
 def create_transport(config: SectionProxy) -> SyncTransport:
@@ -265,13 +188,8 @@ def create_transport(config: SectionProxy) -> SyncTransport:
         api_key = config.get("sync_api_key", "")
         if not server:
             raise ValueError(
-                "sync_server not configured. "
-                "Run 'kaydet sync setup' first."
+                "sync_server not configured. Run 'kaydet sync setup' first."
             )
         return HttpTransport(server, api_key)
 
-    # Default: stdin transport
-    server_path = config.get(
-        "sync_server_path", "kaydet"
-    )
-    return StdinTransport(server_path)
+    return StdinTransport(config.get("sync_server_path", "kaydet"))

@@ -492,6 +492,47 @@ fn decrypt_secret(encrypted: &[u8], password: &str) -> PyResult<String> {
         .map_err(|e| PyValueError::new_err(e.to_string()))
 }
 
+#[pyfunction]
+fn serialize_packet(
+    py: Python<'_>,
+    entry_id: &str,
+    timestamp: &str,
+    text: &str,
+    attachments: HashMap<String, Vec<u8>>,
+) -> PyResult<pyo3::PyObject> {
+    use crate::packet::serialize;
+    use pyo3::types::PyBytes;
+    let mut entry = crate::Entry::from_text(text, None);
+    entry.entry_id = entry_id.to_string();
+    entry.timestamp = timestamp.to_string();
+    let data = serialize(&entry, &attachments);
+    Ok(PyBytes::new_bound(py, &data).into())
+}
+
+#[pyfunction]
+fn deserialize_packet(data: &[u8]) -> PyResult<pyo3::PyObject> {
+    use crate::packet::deserialize;
+    use pyo3::types::{PyBytes, PyDict};
+    use pyo3::Python;
+
+    let packet = deserialize(data)
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+
+    Python::with_gil(|py| {
+        let result = PyDict::new_bound(py);
+        result.set_item("entry_id", &packet.entry.entry_id)?;
+        result.set_item("timestamp", &packet.entry.timestamp)?;
+        result.set_item("text", &packet.entry.text)?;
+
+        let atts = PyDict::new_bound(py);
+        for (name, data) in &packet.attachments {
+            atts.set_item(name, PyBytes::new_bound(py, data))?;
+        }
+        result.set_item("attachments", atts)?;
+        Ok(result.into())
+    })
+}
+
 #[pymodule]
 fn kaydet_core_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyKaydetCore>()?;
@@ -499,6 +540,12 @@ fn kaydet_core_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(generate_id, m)?)?;
     m.add_function(wrap_pyfunction!(encrypt_secret, m)?)?;
     m.add_function(wrap_pyfunction!(decrypt_secret, m)?)?;
-    m.add("__all__", vec!["KaydetCore", "Entry", "generate_id", "encrypt_secret", "decrypt_secret"])?;
+    m.add_function(wrap_pyfunction!(serialize_packet, m)?)?;
+    m.add_function(wrap_pyfunction!(deserialize_packet, m)?)?;
+    m.add("__all__", vec![
+        "KaydetCore", "Entry", "generate_id",
+        "encrypt_secret", "decrypt_secret",
+        "serialize_packet", "deserialize_packet",
+    ])?;
     Ok(())
 }

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import base64
 import logging
 import sqlite3
 from datetime import datetime
@@ -16,6 +15,7 @@ from kaydet_core.sync_protocol import (
     EntryData,
     ProtocolMessage,
     parse_response,
+    validate_entry_id,
 )
 
 from .sync_transport import SyncTransport
@@ -43,49 +43,70 @@ class SyncClient:
         return self.service.storage_dir
 
     def sync(self) -> Dict[str, Any]:
-        """Single round-trip sync: send local changes, get remote changes."""
-        # 1. Gather local entries to push
-        local_entries = self._collect_local_changes()
+        """Multi-page sync: send local changes, pull all remote changes."""
+        device_id = self.config.get("device_id")
+        if not device_id:
+            import secrets
+            device_id = secrets.token_hex(4)
+            self._update_config("device_id", device_id)
 
-        # 2. Send to server in one call
-        token = int(self.config.get("sync_token", "0"))
-        req = ProtocolMessage(
-            method="sync",
-            body={
-                "since": token,
-                "entries": [e.to_dict() for e in local_entries],
-                "device_id": self.config.get("DEVICE_PREFIX", "d"),
-            },
-        )
-        resp_msg = self.transport.send(req)
-        resp = parse_response("sync", resp_msg.body)
+        local_entries, new_pushed_log_id = self._collect_local_changes()
 
-        # 3. Apply remote entries locally
-        pulled = 0
-        for entry_data in resp.entries:
-            if entry_data.metadata.get("_deleted") == "true":
-                self._delete_local_entry(entry_data.entry_id)
-            else:
-                self._apply_entry(entry_data)
-            pulled += 1
+        pulled_total = 0
+        att_stats_total = {"downloaded": 0, "uploaded": 0}
 
-        # 4. Update token
-        self._update_config("sync_token", str(resp.new_token))
+        entries_to_push = [e.to_dict() for e in local_entries]
+        current_token = int(self.config.get("sync_token", "0"))
 
-        # 5. Sync attachment files
-        att_stats = self._sync_attachments(
-            resp.entries, local_entries
-        )
+        while True:
+            req = ProtocolMessage(
+                method="sync",
+                body={
+                    "since": current_token,
+                    "entries": entries_to_push,
+                    "device_id": device_id,
+                },
+            )
+            resp_msg = self.transport.send(req)
+            resp = parse_response("sync", resp_msg.body)
+
+            entries_to_push = []
+
+            for entry_data in resp.entries:
+                if entry_data.metadata.get("_deleted") == "true" or getattr(entry_data, "deleted", False):
+                    self._delete_local_entry(entry_data.entry_id)
+                else:
+                    self._apply_entry(entry_data)
+                pulled_total += 1
+
+            page_att_stats = self._sync_packets(
+                resp.entries, local_entries if not pulled_total else []
+            )
+            att_stats_total["downloaded"] += page_att_stats["downloaded"]
+            att_stats_total["uploaded"] += page_att_stats["uploaded"]
+
+            current_token = resp.new_token
+
+            if not resp.has_more:
+                break
+
+        if pulled_total > 0:
+            self.service.reload_rust()
+
+        if new_pushed_log_id:
+            self._update_config("last_pushed_log_id", str(new_pushed_log_id))
+
+        self._update_config("sync_token", str(current_token))
 
         return {
             "pushed": len(local_entries),
-            "pulled": pulled,
-            "token": resp.new_token,
-            "attachments_downloaded": att_stats["downloaded"],
-            "attachments_uploaded": att_stats["uploaded"],
+            "pulled": pulled_total,
+            "token": current_token,
+            "attachments_downloaded": att_stats_total["downloaded"],
+            "attachments_uploaded": att_stats_total["uploaded"],
         }
 
-    def _collect_local_changes(self) -> List[EntryData]:
+    def _collect_local_changes(self) -> tuple[List[EntryData], int]:
         """Gather entries from sync_log that haven't been pushed yet."""
         cursor = self.conn.cursor()
         cursor.execute(
@@ -95,7 +116,7 @@ class SyncClient:
         )
         rows = cursor.fetchall()
         if not rows:
-            return []
+            return [], 0
 
         entries = []
         for _log_id, entry_id, action in rows:
@@ -104,14 +125,14 @@ class SyncClient:
                 if entry_data:
                     entries.append(entry_data)
 
-        # Mark as pushed regardless of success
         new_max = rows[-1][0]
-        self._update_config("last_pushed_log_id", str(new_max))
-
-        return entries
+        return entries, new_max
 
     def _apply_entry(self, entry_data: EntryData) -> None:
         """Apply a remote entry to the local store."""
+        if not validate_entry_id(entry_data.entry_id):
+            logger.warning("Skipping entry with invalid ID: %r", entry_data.entry_id)
+            return
         existing = self.service.get_entry(entry_data.entry_id)
 
         if existing.get("success"):
@@ -120,20 +141,15 @@ class SyncClient:
                 text=entry_data.text,
                 metadata=entry_data.metadata or None,
                 tags=entry_data.tags or None,
+                _log_sync=False,
             )
         else:
-            day_pattern = self.config.get(
-                "DAY_FILE_PATTERN", "%Y-%m-%d.txt"
-            )
+            day_pattern = self.config.get("DAY_FILE_PATTERN", "%Y-%m-%d.txt")
             entry_at = None
             try:
-                entry_date = datetime.strptime(
-                    entry_data.source_file, day_pattern
-                )
+                entry_date = datetime.strptime(entry_data.source_file, day_pattern)
                 h, m = entry_data.timestamp.split(":")
-                entry_at = entry_date.replace(
-                    hour=int(h), minute=int(m)
-                )
+                entry_at = entry_date.replace(hour=int(h), minute=int(m))
             except (ValueError, AttributeError):
                 pass
 
@@ -143,33 +159,23 @@ class SyncClient:
                 tags=entry_data.tags or None,
                 at=entry_at,
                 entry_id=entry_data.entry_id,
+                _log_sync=False,
             )
             if not result.get("success"):
                 return
 
-        # Store encrypted secret if provided
         if entry_data.encrypted_secret:
+            import base64
             from kaydet_core.secrets import store_secret
-
-            encrypted = base64.b64decode(
-                entry_data.encrypted_secret
-            )
-            store_secret(
-                entry_data.entry_id, encrypted, self.storage_dir
-            )
+            encrypted = base64.b64decode(entry_data.encrypted_secret)
+            store_secret(entry_data.entry_id, encrypted, self.storage_dir)
 
     def _delete_local_entry(self, entry_id: str) -> None:
-        """Delete an entry from the local index (server-initiated deletion)."""
-        from kaydet_core.database import log_sync_action
+        self.service.delete_entry(entry_id, _log_sync=False)
 
-        self.service.delete_entry(entry_id)
-        # Log the deletion so other devices pick it up on next sync.
-        log_sync_action(self.conn, entry_id, "deleted")
-
-    def _load_local_entry(
-        self, entry_id: str
-    ) -> Optional[EntryData]:
+    def _load_local_entry(self, entry_id: str) -> Optional[EntryData]:
         """Load an entry for pushing to the server."""
+        import base64
         from kaydet_core.secrets import get_secret
 
         result = self.service.get_entry(entry_id)
@@ -178,27 +184,13 @@ class SyncClient:
 
         entry = result["entry"]
 
-        # Derive source_file from entry date; updated_at from DB if available.
-        day_pattern = self.config.get("DAY_FILE_PATTERN", "%Y-%m-%d.txt")
-        source_file = ""
-        updated_at = None
-        if entry.get("date"):
-            try:
-                from datetime import datetime as _dt
-                source_file = _dt.strptime(
-                    entry["date"], "%Y-%m-%d"
-                ).strftime(day_pattern)
-            except ValueError:
-                pass
-
-        if self.conn:
-            cursor = self.conn.cursor()
-            cursor.execute(
-                "SELECT updated_at FROM entries WHERE id = ?",
-                (entry_id,),
-            )
-            row = cursor.fetchone()
-            updated_at = row[0] if row else None
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "SELECT MAX(created_at) FROM sync_log WHERE entry_id = ?",
+            (entry_id,),
+        )
+        row = cursor.fetchone()
+        updated_at = row[0] if row and row[0] else None
 
         encrypted = get_secret(entry_id, self.storage_dir)
         enc_b64 = None
@@ -207,7 +199,7 @@ class SyncClient:
 
         return EntryData(
             entry_id=entry_id,
-            source_file=source_file,
+            source_file=f"{entry['date']}.txt" if entry.get("date") else "",
             timestamp=entry["timestamp"],
             text=entry["text"],
             tags=entry.get("tags", []),
@@ -217,147 +209,79 @@ class SyncClient:
             updated_at=updated_at,
         )
 
-    def _sync_attachments(
+    def _sync_packets(
         self,
         remote_entries: List[EntryData],
         local_entries: List[EntryData],
     ) -> Dict[str, int]:
-        """Transfer attachment files after entry sync."""
+        """Transfer entry packets (entry + attachments) via KYDT format."""
         from .sync_transport import HttpTransport
+        import kaydet_core_rs as _rust
 
-        if isinstance(self.transport, HttpTransport):
-            return self._sync_attachments_http(
-                remote_entries, local_entries
-            )
-        return self._sync_attachments_stdin(
-            remote_entries, local_entries
-        )
+        if not isinstance(self.transport, HttpTransport):
+            return {"downloaded": 0, "uploaded": 0}
 
-    def _sync_attachments_http(
-        self,
-        remote_entries: List[EntryData],
-        local_entries: List[EntryData],
-    ) -> Dict[str, int]:
-        """Sync attachments via HTTP chunked file transfer."""
-        from .sync_transport import HttpTransport
-
-        transport: HttpTransport = self.transport  # type: ignore[assignment]
-        attachments_dir = self.storage_dir / "attachments"
+        transport: HttpTransport = self.transport
+        att_dir = self.storage_dir / "attachments"
         downloaded = 0
         uploaded = 0
 
-        # Download missing remote attachments
+        # Download: remote entries with attachments we're missing
         for entry in remote_entries:
-            for att_name in entry.attachments:
-                local_path = attachments_dir / att_name
-                if not local_path.exists():
-                    try:
-                        transport.download_file(
-                            att_name, local_path
-                        )
-                        downloaded += 1
-                    except Exception as exc:
-                        logger.warning(
-                            "Failed to download attachment %s: %s",
-                            att_name, exc
-                        )
+            if not entry.attachments:
+                continue
+            missing = [a for a in entry.attachments if not (att_dir / a).exists()]
+            if not missing:
+                continue
+            try:
+                packet_bytes = transport.download_packet(entry.entry_id)
+                packet = _rust.deserialize_packet(packet_bytes)
+                att_dir.mkdir(parents=True, exist_ok=True)
+                for name, data in packet["attachments"].items():
+                    dest = att_dir / name
+                    tmp = att_dir / f".{name}.tmp"
+                    tmp.write_bytes(bytes(data))
+                    tmp.rename(dest)
+                    downloaded += 1
+            except Exception as exc:
+                logger.warning(
+                    "Failed to download packet for %s: %s",
+                    entry.entry_id, exc,
+                )
 
-        # Upload local attachments
+        # Upload: local entries with attachments
         for entry in local_entries:
-            for att_name in entry.attachments:
-                local_path = attachments_dir / att_name
-                if local_path.exists():
-                    try:
-                        transport.upload_file(
-                            local_path, att_name
-                        )
-                        uploaded += 1
-                    except Exception as exc:
-                        logger.warning(
-                            "Failed to upload attachment %s: %s",
-                            att_name, exc
-                        )
-
-        return {"downloaded": downloaded, "uploaded": uploaded}
-
-    def _sync_attachments_stdin(
-        self,
-        remote_entries: List[EntryData],
-        local_entries: List[EntryData],
-    ) -> Dict[str, int]:
-        """Sync attachments via stdin base64 protocol."""
-        import sys
-
-        attachments_dir = self.storage_dir / "attachments"
-        downloaded = 0
-        uploaded = 0
-
-        # Download missing remote attachments
-        for entry in remote_entries:
-            for att_name in entry.attachments:
-                local_path = attachments_dir / att_name
-                if not local_path.exists():
-                    try:
-                        resp_msg = self.transport.send(
-                            ProtocolMessage(
-                                method="attachment_get",
-                                body={"filename": att_name},
-                            )
-                        )
-                        if resp_msg.body.get("found"):
-                            data = base64.b64decode(
-                                resp_msg.body["data"]
-                            )
-                            attachments_dir.mkdir(
-                                parents=True, exist_ok=True
-                            )
-                            local_path.write_bytes(data)
-                            downloaded += 1
-                    except Exception as exc:
-                        logger.warning(
-                            "Failed to download attachment %s: %s",
-                            att_name, exc
-                        )
-
-        # Upload local attachments
-        for entry in local_entries:
-            for att_name in entry.attachments:
-                local_path = attachments_dir / att_name
-                if local_path.exists():
-                    file_size = local_path.stat().st_size
-                    if file_size > 10 * 1024 * 1024:
-                        print(
-                            f"Warning: {att_name} is "
-                            f"{file_size // (1024*1024)}MB, "
-                            f"large files over stdin may "
-                            f"be slow",
-                            file=sys.stderr,
-                        )
-                    try:
-                        data_b64 = base64.b64encode(
-                            local_path.read_bytes()
-                        ).decode("ascii")
-                        self.transport.send(
-                            ProtocolMessage(
-                                method="attachment_put",
-                                body={
-                                    "filename": att_name,
-                                    "data": data_b64,
-                                },
-                            )
-                        )
-                        uploaded += 1
-                    except Exception as exc:
-                        logger.warning(
-                            "Failed to upload attachment %s: %s",
-                            att_name, exc
-                        )
+            if not entry.attachments:
+                continue
+            local_atts = {
+                name: (att_dir / name).read_bytes()
+                for name in entry.attachments
+                if (att_dir / name).exists()
+            }
+            if not local_atts:
+                continue
+            try:
+                result = self.service.get_entry(entry.entry_id)
+                if not result.get("success"):
+                    continue
+                e = result["entry"]
+                packet_bytes = _rust.serialize_packet(
+                    entry_id=e["entry_id"],
+                    timestamp=e["timestamp"],
+                    text=e["text"],
+                    attachments=local_atts,
+                )
+                transport.upload_packet(entry.entry_id, bytes(packet_bytes))
+                uploaded += len(local_atts)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to upload packet for %s: %s",
+                    entry.entry_id, exc,
+                )
 
         return {"downloaded": downloaded, "uploaded": uploaded}
 
     def _update_config(self, key: str, value: str) -> None:
-        """Persist a config key to disk."""
         from kaydet_core.utils import save_config_setting
-
         self.config[key] = value
         save_config_setting(self.service.config_dir, key, value)
