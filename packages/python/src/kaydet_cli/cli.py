@@ -743,13 +743,12 @@ def _handle_sync_command(
         return
 
     if action == "status":
-        from kaydet_server.sync_client import SyncClient
-
-        client = SyncClient.initialize()
-        status = client.get_status()
-        print(f"Transport: {status['transport']}")
-        print(f"Server: {status['server'] or '(local)'}")
-        print(f"Sync token: {status['sync_token']}")
+        transport_type = config.get("sync_transport", "stdin")
+        server = config.get("sync_server", "")
+        token = config.get("sync_token", "0")
+        print(f"Transport: {transport_type}")
+        print(f"Server: {server or '(local)'}")
+        print(f"Sync token: {token}")
         return
 
     if action == "devices":
@@ -757,22 +756,21 @@ def _handle_sync_command(
         return
 
     # Default: run sync
+    from kaydet_core.service import KaydetService
     from kaydet_server.sync_client import SyncClient
+    from kaydet_server.sync_transport import create_transport
 
-    client = SyncClient.initialize()
+    service = KaydetService.initialize()
+    transport = create_transport(config)
+    client = SyncClient(service, transport)
     print("Syncing...")
     result = client.sync()
 
-    pull = result["pull"]
-    push = result["push"]
     print(
-        f"Pulled {pull['pulled']} entries "
-        f"(token: {pull['new_token']})"
+        f"Pushed {result['pushed']}, pulled {result['pulled']} entries"
+        + (f", {result['attachments_downloaded']} attachments downloaded" if result.get('attachments_downloaded') else "")
     )
-    print(f"Pushed {push['pushed']} entries")
-    if push.get("errors"):
-        for err in push["errors"]:
-            print(f"  Error: {err}")
+    print(f"Token: {result['token']}")
 
 
 def _sync_setup(config, config_dir):

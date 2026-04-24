@@ -15,7 +15,6 @@ from kaydet_core.sync_protocol import (
     EntryData,
     ProtocolMessage,
     parse_response,
-    validate_entry_id,
 )
 
 from .sync_transport import SyncTransport
@@ -101,7 +100,7 @@ class SyncClient:
         return {
             "pushed": len(local_entries),
             "pulled": pulled_total,
-            "token": current_token,
+            "token": since,
             "attachments_downloaded": att_stats_total["downloaded"],
             "attachments_uploaded": att_stats_total["uploaded"],
         }
@@ -120,6 +119,7 @@ class SyncClient:
 
         entries = []
         for _log_id, entry_id, action in rows:
+            entry_id = str(entry_id)
             if action in ("created", "updated"):
                 entry_data = self._load_local_entry(entry_id)
                 if entry_data:
@@ -130,7 +130,7 @@ class SyncClient:
 
     def _apply_entry(self, entry_data: EntryData) -> None:
         """Apply a remote entry to the local store."""
-        if not validate_entry_id(entry_data.entry_id):
+        if not entry_data.entry_id or len(entry_data.entry_id) > 64:
             logger.warning("Skipping entry with invalid ID: %r", entry_data.entry_id)
             return
         existing = self.service.get_entry(entry_data.entry_id)
