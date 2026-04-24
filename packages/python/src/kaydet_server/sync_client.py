@@ -89,9 +89,6 @@ class SyncClient:
             if not resp.has_more:
                 break
 
-        if pulled_total > 0:
-            self.service.reload_rust()
-
         if new_pushed_log_id:
             self._update_config("last_pushed_log_id", str(new_pushed_log_id))
 
@@ -120,7 +117,15 @@ class SyncClient:
         entries = []
         for _log_id, entry_id, action in rows:
             entry_id = str(entry_id)
-            if action in ("created", "updated"):
+            if action == "deleted":
+                entries.append(EntryData(
+                    entry_id=entry_id,
+                    source_file="",
+                    timestamp="",
+                    text="",
+                    deleted=True,
+                ))
+            elif action in ("created", "updated"):
                 entry_data = self._load_local_entry(entry_id)
                 if entry_data:
                     entries.append(entry_data)
@@ -141,7 +146,6 @@ class SyncClient:
                 text=entry_data.text,
                 metadata=entry_data.metadata or None,
                 tags=entry_data.tags or None,
-                _log_sync=False,
             )
         else:
             day_pattern = self.config.get("DAY_FILE_PATTERN", "%Y-%m-%d.txt")
@@ -159,7 +163,6 @@ class SyncClient:
                 tags=entry_data.tags or None,
                 at=entry_at,
                 entry_id=entry_data.entry_id,
-                _log_sync=False,
             )
             if not result.get("success"):
                 return
@@ -171,7 +174,7 @@ class SyncClient:
             store_secret(entry_data.entry_id, encrypted, self.storage_dir)
 
     def _delete_local_entry(self, entry_id: str) -> None:
-        self.service.delete_entry(entry_id, _log_sync=False)
+        self.service.delete_entry(entry_id)
 
     def _load_local_entry(self, entry_id: str) -> Optional[EntryData]:
         """Load an entry for pushing to the server."""

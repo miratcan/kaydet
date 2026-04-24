@@ -53,6 +53,7 @@ class EntryData:
     attachments: List[str] = field(default_factory=list)
     encrypted_secret: Optional[str] = None  # Base64 encoded encrypted secret
     updated_at: Optional[int] = None  # unix timestamp
+    deleted: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to a JSON-serializable dictionary."""
