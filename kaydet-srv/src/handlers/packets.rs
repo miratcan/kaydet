@@ -14,7 +14,7 @@ use axum::{
 use serde::Serialize;
 use std::io::Write;
 
-use kaydet_core_rs::packet::{deserialize, serialize};
+use kaydet_core_rs::sync::packet::{deserialize, serialize};
 
 use crate::AppState;
 

@@ -15,9 +15,7 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-pub mod crypto;
 pub mod filesystem;
-pub mod packet;
 pub mod sync;
 
 pub use sync::{SyncBackend, SyncStats};
@@ -304,7 +302,7 @@ impl KaydetCore {
 
     /// Run a sync cycle. No-op if no SyncBackend is attached.
     pub fn sync(&mut self) -> Result<SyncStats, String> {
-        use crate::packet;
+        use crate::sync::packet;
 
         let Some(backend) = &self.sync_backend else {
             return Ok(SyncStats::default());

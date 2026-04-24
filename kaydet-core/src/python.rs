@@ -482,13 +482,13 @@ fn generate_id() -> String {
 
 #[pyfunction]
 fn encrypt_secret(plaintext: &str, password: &str) -> PyResult<Vec<u8>> {
-    crate::crypto::encrypt_secret(plaintext, password)
+    crate::sync::crypto::encrypt_secret(plaintext, password)
         .map_err(|e| PyValueError::new_err(e.to_string()))
 }
 
 #[pyfunction]
 fn decrypt_secret(encrypted: &[u8], password: &str) -> PyResult<String> {
-    crate::crypto::decrypt_secret(encrypted, password)
+    crate::sync::crypto::decrypt_secret(encrypted, password)
         .map_err(|e| PyValueError::new_err(e.to_string()))
 }
 
@@ -500,7 +500,7 @@ fn serialize_packet(
     text: &str,
     attachments: HashMap<String, Vec<u8>>,
 ) -> PyResult<pyo3::PyObject> {
-    use crate::packet::serialize;
+    use crate::sync::packet::serialize;
     use pyo3::types::PyBytes;
     let mut entry = crate::Entry::from_text(text, None);
     entry.entry_id = entry_id.to_string();
@@ -511,7 +511,7 @@ fn serialize_packet(
 
 #[pyfunction]
 fn deserialize_packet(data: &[u8]) -> PyResult<pyo3::PyObject> {
-    use crate::packet::deserialize;
+    use crate::sync::packet::deserialize;
     use pyo3::types::{PyBytes, PyDict};
     use pyo3::Python;
 
