@@ -44,7 +44,7 @@ jobs:
           changelog = pathlib.Path("CHANGELOG.md").read_text(encoding="utf-8")
 
           pattern = re.compile(
-              r"## \\[" + re.escape(version) + r"\\](.*?)(?:\\n## \\[|\\Z)",
+              r"## \[" + re.escape(version) + r"\](.*?)(?:\n## \[|\Z)",
               re.S,
           )
           match = pattern.search(changelog)
