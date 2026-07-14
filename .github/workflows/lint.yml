@@ -28,3 +28,6 @@ jobs:
 
       - name: Run Ruff
         run: ruff check src
+
+      - name: Check formatting
+        run: ruff format --check src

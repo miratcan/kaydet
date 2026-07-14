@@ -33,7 +33,11 @@ def _ensure_attachments_dir(log_dir: Path) -> Path:
 
 
 def store_attachment(
-    source_path: Path, entry_id: int, log_dir: Path, *, move: bool = False,
+    source_path: Path,
+    entry_id: int,
+    log_dir: Path,
+    *,
+    move: bool = False,
 ) -> str:
     """Copy or move a file into the attachments directory.
 
@@ -166,7 +170,7 @@ def create_entry(
     cursor = conn.cursor()
     conn.execute("BEGIN")
     try:
-        entry_id = database._add_entry_to_cursor(
+        entry_id = database.add_entry_to_cursor(
             cursor=cursor,
             source_file=day_file.name,
             timestamp=timestamp,
@@ -177,10 +181,10 @@ def create_entry(
 
         # Store attachments
         attachment_names: List[str] = []
-        for path in (attachment_paths or []):
+        for path in attachment_paths or []:
             name = store_attachment(path, entry_id, log_dir)
             attachment_names.append(name)
-        for path in (grab_paths or []):
+        for path in grab_paths or []:
             name = store_attachment(path, entry_id, log_dir, move=True)
             attachment_names.append(name)
 

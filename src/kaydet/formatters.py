@@ -461,7 +461,11 @@ class SearchResultJSONFormatter:
 class TodoFormatter:
     """Formatter for todo list with status-based formatting."""
 
-    def __init__(self, console: Console, config: SectionProxy):
+    def __init__(
+        self,
+        console: Console,
+        config: Optional[SectionProxy] = None,
+    ):
         """
         Initialize formatter.
 
@@ -469,7 +473,7 @@ class TodoFormatter:
         ----------
         console : Console
             Rich console for output
-        config : SectionProxy
+        config : SectionProxy, optional
             Configuration object with color settings
         """
         self.console = console
@@ -578,6 +582,8 @@ class TodoFormatter:
         """
         if is_completed:
             return "green"
+        if self.config is None:
+            return "yellow"
         return self.config.get("COLOR_ID", "yellow")
 
     def _get_dim_markup(self, is_completed: bool) -> tuple[str, str]:
@@ -661,7 +667,9 @@ class TodoFormatter:
         >>> formatter._format_summary(5, 3)
         '\\nTotal: [yellow]5[/yellow] pending, [green]3[/green] completed'
         """
-        color_id = self.config.get("COLOR_ID", "yellow")
+        color_id = (
+            self.config.get("COLOR_ID", "yellow") if self.config else "yellow"
+        )
         return (
             f"\nTotal: [{color_id}]{pending_count}[/{color_id}] pending, "
             f"[green]{done_count}[/green] completed"

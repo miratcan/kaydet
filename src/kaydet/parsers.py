@@ -127,9 +127,9 @@ def partition_entry_tokens(
     tags = list(extract_tags_from_text(full_text))
 
     # Remove hashtags and unescape backslashes
-    text_clean = REAL_HASHTAG_TOKEN_PATTERN.sub(
-        "", full_text
-    ).replace("\\#", "#")
+    text_clean = REAL_HASHTAG_TOKEN_PATTERN.sub("", full_text).replace(
+        "\\#", "#"
+    )
 
     metadata: Dict[str, str] = {}
     message_parts: List[str] = []

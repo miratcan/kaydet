@@ -8,6 +8,9 @@ from typing import Iterable
 # Increment when we intentionally drop and recreate the schema.
 SCHEMA_VERSION = 2
 
+# Name of the SQLite index file stored in the index directory.
+INDEX_FILENAME = "index.db"
+
 # Legacy migrations kept a user_version pragma, but SQLite is purely an
 # index/cache for Kaydet. We can safely drop and recreate tables whenever the
 # schema changes instead of juggling ALTER statements.
@@ -184,7 +187,7 @@ def _upsert_source_records(
         cursor.executemany(INSERT_METADATA_SQL, meta_data)
 
 
-def _add_entry_to_cursor(
+def add_entry_to_cursor(
     cursor: sqlite3.Cursor,
     source_file: str,
     timestamp: str,
@@ -218,7 +221,7 @@ def add_entry(
     cursor = conn.cursor()
     try:
         cursor.execute("BEGIN")
-        eid = _add_entry_to_cursor(
+        eid = add_entry_to_cursor(
             cursor,
             source_file,
             timestamp,

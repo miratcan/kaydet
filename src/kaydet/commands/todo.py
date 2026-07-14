@@ -10,12 +10,21 @@ from typing import List, Optional
 from rich.console import Console
 
 from ..commands.add import create_entry
+from ..commands.entry_ops import (
+    EntryNotFoundError,
+    find_entry_block,
+    read_day_file,
+    write_day_file,
+)
 from ..parsers import (
+    ENTRY_LINE_PATTERN,
+    format_entry_header,
     parse_day_entries,
-    parse_numeric_value,
+    parse_stored_entry_remainder,
     partition_entry_tokens,
     resolve_entry_date,
 )
+from ..sync import sync_modified_diary_files
 
 
 def todo_command(
@@ -25,7 +34,7 @@ def todo_command(
     log_dir: Path,
     now: datetime,
     conn,
-) -> None:
+) -> dict:
     """Create a new todo entry with status:pending and #todo tag."""
     tokens = list(args.todo or [])
     message_tokens, metadata, explicit_tags = partition_entry_tokens(tokens)
@@ -74,11 +83,13 @@ def done_command(
     config: SectionProxy,
     entry_id: int,
     now: datetime,
-) -> None:
+) -> dict:
     """Mark a todo entry as done by updating its status metadata."""
-    # Find the entry
     cursor = conn.cursor()
-    cursor.execute("SELECT source_file FROM entries WHERE id = ?", (entry_id,))
+    cursor.execute(
+        "SELECT source_file FROM entries WHERE id = ?",
+        (entry_id,),
+    )
     result = cursor.fetchone()
 
     if not result:
@@ -90,144 +101,56 @@ def done_command(
     if not day_file.exists():
         raise FileNotFoundError(f"File {source_file} not found.")
 
-    day_file_pattern = config.get("DAY_FILE_PATTERN", "")
-    entry_date = resolve_entry_date(day_file, day_file_pattern)
-    entries = parse_day_entries(day_file, entry_date)
+    raw_text, lines, had_trailing_newline = read_day_file(day_file)
+    try:
+        start, end = find_entry_block(lines, entry_id)
+    except EntryNotFoundError as err:
+        raise ValueError(
+            f"Entry {entry_id} could not be located inside '{source_file}'. "
+            "Run 'kaydet --doctor' to rebuild the index."
+        ) from err
 
-    # Find the specific entry
-    target_entry = None
-    for entry in entries:
-        if entry.entry_id == str(entry_id):
-            target_entry = entry
-            break
+    header_line = lines[start].rstrip()
+    match = ENTRY_LINE_PATTERN.match(header_line)
+    if not match:
+        raise ValueError(f"Entry {entry_id} has an invalid header.")
 
-    if not target_entry:
-        raise ValueError(f"Entry {entry_id} not found in {source_file}.")
+    original_timestamp, _, remainder = match.groups()
+    (
+        message,
+        metadata,
+        explicit_tags,
+        attachments,
+    ) = parse_stored_entry_remainder(remainder)
+    existing_body_lines = lines[start + 1 : end]
 
-    # Read the entire file
-    with day_file.open("r", encoding="utf-8") as f:
-        lines = f.readlines()
-
-    # Find and update the entry
     completed_time = now.strftime("%H:%M")
-    updated_lines = []
-    found_entry = False
+    metadata["status"] = "done"
+    metadata["completed_at"] = completed_time
 
-    for _i, line in enumerate(lines):
-        # Check if this line starts a new entry
-        if line.strip() and line[0].isdigit() and ":" in line[:5]:
-            # Extract entry ID from line if it has one
-            if f"[{entry_id}]" in line:
-                found_entry = True
-
-                # Update the line with new metadata
-                # Format: "timestamp [id]: text | metadata items | #tags"
-                if " | " in line:
-                    # Has metadata
-                    parts = line.split(" | ")
-                    timestamp_and_text = parts[0]
-
-                    # Metadata is in parts[1], tags in parts[2] (if exists)
-                    metadata_section = parts[1] if len(parts) > 1 else ""
-                    tags_section = parts[2] if len(parts) > 2 else ""
-
-                    # Split metadata by spaces
-                    metadata_items = metadata_section.split()
-                    new_metadata_items = []
-                    has_status = False
-                    has_completed_at = False
-
-                    for item in metadata_items:
-                        if item.startswith("status:"):
-                            new_metadata_items.append("status:done")
-                            has_status = True
-                        elif item.startswith("completed_at:"):
-                            new_metadata_items.append(
-                                f"completed_at:{completed_time}"
-                            )
-                            has_completed_at = True
-                        else:
-                            new_metadata_items.append(item)
-
-                    if not has_status:
-                        new_metadata_items.insert(0, "status:done")
-                    if not has_completed_at:
-                        new_metadata_items.insert(
-                            1, f"completed_at:{completed_time}"
-                        )
-
-                    # Reconstruct line
-                    new_metadata_section = " ".join(new_metadata_items)
-                    if tags_section:
-                        new_line = (
-                            f"{timestamp_and_text} | "
-                            f"{new_metadata_section} | {tags_section}"
-                        )
-                    else:
-                        new_line = (
-                            f"{timestamp_and_text} | {new_metadata_section} |"
-                        )
-
-                    if not new_line.endswith("\n"):
-                        new_line += "\n"
-                    updated_lines.append(new_line)
-                else:
-                    # No metadata, add it
-                    line = line.rstrip("\n")
-                    new_line = (
-                        f"{line} | status:done "
-                        f"completed_at:{completed_time} |\n"
-                    )
-                    updated_lines.append(new_line)
-            else:
-                updated_lines.append(line)
-        else:
-            updated_lines.append(line)
-
-    if not found_entry:
-        raise ValueError(f"Could not find entry {entry_id} in the file.")
-
-    # Write back to file
-    with day_file.open("w", encoding="utf-8") as f:
-        f.writelines(updated_lines)
-
-    # Update database metadata
-    cursor.execute(
-        "UPDATE metadata SET meta_value = 'done' "
-        "WHERE entry_id = ? AND meta_key = 'status'",
-        (entry_id,),
-    )
-    cursor.execute(
-        "SELECT COUNT(*) FROM metadata "
-        "WHERE entry_id = ? AND meta_key = 'status'",
-        (entry_id,),
-    )
-    if cursor.fetchone()[0] == 0:
-        # Status doesn't exist, insert it
-        cursor.execute(
-            "INSERT INTO metadata (entry_id, meta_key, meta_value) "
-            "VALUES (?, 'status', 'done')",
-            (entry_id,),
-        )
-
-    # Add completed_at metadata
-    numeric_val = parse_numeric_value(completed_time)
-    cursor.execute(
-        "INSERT OR REPLACE INTO metadata "
-        "(entry_id, meta_key, meta_value, numeric_value) "
-        "VALUES (?, 'completed_at', ?, ?)",
-        (entry_id, completed_time, numeric_val),
+    normalized_header = format_entry_header(
+        original_timestamp,
+        message,
+        metadata,
+        explicit_tags,
+        entry_id=str(entry_id),
+        attachments=attachments,
     )
 
-    conn.commit()
+    new_block = [normalized_header, *existing_body_lines]
+    lines[start:end] = new_block
+    write_day_file(day_file, lines, had_trailing_newline)
+    sync_modified_diary_files(conn, log_dir, config, now)
 
     return {
         "success": True,
         "entry_id": entry_id,
         "completed_at": completed_time,
         "source_file": source_file,
-        "message": f"✓ Todo {entry_id} marked as done at {completed_time}\n"
-        f"  Entry updated in {source_file}",
+        "message": (
+            f"✓ Todo {entry_id} marked as done at {completed_time}\n"
+            f"  Entry updated in {source_file}"
+        ),
     }
 
 
@@ -237,7 +160,7 @@ def list_todos_command(
     config: SectionProxy,
     output_format: str = "text",
     console: Optional[Console] = None,
-) -> None:
+) -> list[dict]:
     """List all todos with their status."""
     # Find all pending entries with #todo tag (exclude done)
     cursor = conn.cursor()

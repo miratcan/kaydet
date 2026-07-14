@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from . import database
-from .cli import INDEX_FILENAME
 from .commands.add import EmptyEntryError, create_entry
 from .commands.delete import delete_entry_command
 from .commands.edit import update_entry_inline
@@ -44,7 +43,7 @@ class KaydetService:
             storage_dir,
             index_dir,
         ) = load_config()
-        db_path = index_dir / INDEX_FILENAME
+        db_path = index_dir / database.INDEX_FILENAME
         conn = database.get_db_connection(db_path)
         database.initialize_database(conn)
         return cls(
@@ -484,7 +483,7 @@ class KaydetService:
                 if entry.entry_id == str(entry_id):
                     entry_status = entry.metadata.get("status", "pending")
                     if status and filter_query and entry_status != status:
-                        break
+                        continue
                     completed_at = entry.metadata.get("completed_at", "")
                     description = (
                         entry.lines[0] if entry.lines else "(no description)"

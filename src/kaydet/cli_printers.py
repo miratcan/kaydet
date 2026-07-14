@@ -1,8 +1,14 @@
+"""Simple print helpers for stats, tags, and doctor commands."""
+
+from __future__ import annotations
+
 import calendar
 import json
+from typing import Any
 
 
-def print_stats(result, output_format):
+def print_stats(result: dict[str, Any], output_format: str) -> None:
+    """Print monthly calendar stats."""
     if not result.get("success"):
         if output_format == "json":
             print(json.dumps({"error": result.get("error", "Error")}))
@@ -33,14 +39,16 @@ def print_stats(result, output_format):
                 else:
                     cells.append(f"{day:2d}[**]")
             print(" ".join(cells))
-        
+
         total_entries = result["total_entries"]
         if total_entries == 0:
             print("\nNo entries recorded for this month yet.")
         else:
             print(f"\nTotal entries this month: {total_entries}")
 
-def print_tags(result, output_format):
+
+def print_tags(result: dict[str, Any], output_format: str) -> None:
+    """Print tag list with counts."""
     if not result.get("success"):
         return
     rows = result.get("tags", [])
@@ -50,7 +58,7 @@ def print_tags(result, output_format):
         else:
             print("No tags have been recorded yet.")
         return
-    
+
     if output_format == "json":
         print(json.dumps({"tags": rows}, indent=2))
     else:
@@ -60,7 +68,9 @@ def print_tags(result, output_format):
             suffix = "entry" if count == 1 else "entries"
             print(f"{label:<20} {count} {suffix}")
 
-def print_doctor(result):
+
+def print_doctor(result: dict[str, Any]) -> None:
+    """Print doctor rebuild results."""
     if not result.get("success"):
         return
     for msg in result.get("messages", []):
@@ -68,7 +78,7 @@ def print_doctor(result):
     total_entries = result.get("total_entries", 0)
     entry_label = "entry" if total_entries == 1 else "entries"
     print(f"Rebuilt search index for {total_entries} {entry_label}.")
-    
+
     tag_stats = result.get("tag_stats", [])
     if tag_stats:
         tag_list = ", ".join(f"#{t['tag']}: {t['count']}" for t in tag_stats)

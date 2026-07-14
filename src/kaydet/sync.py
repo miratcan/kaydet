@@ -268,10 +268,7 @@ def sync_modified_diary_files(
         needs_sync = (
             force
             or stored_mtime is None
-            or (
-                abs(stored_mtime - day_file.stat().st_mtime)
-                > 1e-6
-            )
+            or (abs(stored_mtime - day_file.stat().st_mtime) > 1e-6)
         )
 
         if not needs_sync:

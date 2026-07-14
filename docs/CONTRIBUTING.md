@@ -12,8 +12,8 @@ There are many ways to contribute, from writing tutorials or blog posts, improvi
 
 ### Reporting Bugs
 
--   Ensure the bug was not already reported by searching on GitHub under [Issues](https://github.com/mirat/kaydet/issues).
--   If you're unable to find an open issue addressing the problem, [open a new one](https://github.com/mirat/kaydet/issues/new). Be sure to include a title and clear description, as much relevant information as possible, and a code sample or an executable test case demonstrating the expected behavior that is not occurring.
+-   Ensure the bug was not already reported by searching on GitHub under [Issues](https://github.com/miratcan/kaydet/issues).
+-   If you're unable to find an open issue addressing the problem, [open a new one](https://github.com/miratcan/kaydet/issues/new). Be sure to include a title and clear description, as much relevant information as possible, and a code sample or an executable test case demonstrating the expected behavior that is not occurring.
 
 ### Suggesting Enhancements
 
@@ -30,4 +30,4 @@ There are many ways to contribute, from writing tutorials or blog posts, improvi
 
 ## Code of Conduct
 
-We have a Code of Conduct, and we expect all contributors to adhere to it. Please read our [Code of Conduct](CODE_OF_CONDUCT.md) to understand what actions will and will not be tolerated.
+Please be respectful and constructive in all interactions.

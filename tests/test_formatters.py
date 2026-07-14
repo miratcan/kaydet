@@ -2,29 +2,11 @@
 
 from datetime import date
 
-from rich.console import Console
-from rich.text import Text
-
 from kaydet.formatters import (
     SearchResult,
     format_search_results,
     format_todo_results,
 )
-
-
-class MockConsole(Console):
-    """A mock Rich Console to capture printed content."""
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.printed_text = []
-
-    def print(self, *objects, **kwargs):
-        for obj in objects:
-            if isinstance(obj, Text):
-                self.printed_text.append(obj.markup)
-            else:
-                self.printed_text.append(str(obj))
 
 
 class TestSearchResult:

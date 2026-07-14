@@ -45,8 +45,6 @@ from .utils import (
     open_file_in_editor,
 )
 
-INDEX_FILENAME = "index.db"
-
 
 def build_parser(
     config_path: Path, storage_path: Path
@@ -310,7 +308,7 @@ def main() -> None:
 
         return
 
-    db_path = index_dir / INDEX_FILENAME
+    db_path = index_dir / database.INDEX_FILENAME
     conn = database.get_db_connection(db_path)
     database.initialize_database(conn)
 
@@ -338,6 +336,7 @@ def main() -> None:
 
     if args.list_tags:
         from kaydet.cli_printers import print_tags
+
         print_tags(tags_command(conn), args.output_format)
         return
 
@@ -457,9 +456,7 @@ def main() -> None:
 
     if args.done is not None:
         for entry_id in args.done:
-            res = done_command(
-                conn, storage_dir, config, entry_id, now
-            )
+            res = done_command(conn, storage_dir, config, entry_id, now)
             if "message" in res:
                 print(res["message"])
         return
@@ -489,52 +486,44 @@ def main() -> None:
         res = search_command(
             conn, storage_dir, config, query, allow_empty=True
         )
-        if res.get('success', False):
-            if not res['matches'] and not query:
+        if res.get("success", False):
+            if not res["matches"] and not query:
                 pass
-            elif not res['matches']:
+            elif not res["matches"]:
                 print(f"No entries matched '{query}'.")
             else:
                 print_matches(
-                    res['matches'],
+                    res["matches"],
                     query,
                     args.output_format,
                     config,
                     console=console,
                     default_since_hint=default_since_hint,
-                    metadata_filters=res.get(
-                        'metadata_filters'
-                    ),
+                    metadata_filters=res.get("metadata_filters"),
                 )
         else:
-            if 'error' in res:
-                print(res['error'])
+            if "error" in res:
+                print(res["error"])
         return
 
     # Handle standalone --filter (shorthand for --list --filter)
     if args.filter:
-        res = search_command(
-            conn, storage_dir, config, args.filter
-        )
-        if res.get('success', False):
-            if not res['matches']:
-                print(
-                    f"No entries matched '{args.filter}'."
-                )
+        res = search_command(conn, storage_dir, config, args.filter)
+        if res.get("success", False):
+            if not res["matches"]:
+                print(f"No entries matched '{args.filter}'.")
             else:
                 print_matches(
-                    res['matches'],
+                    res["matches"],
                     args.filter,
                     args.output_format,
                     config,
                     console=console,
-                    metadata_filters=res.get(
-                        'metadata_filters'
-                    ),
+                    metadata_filters=res.get("metadata_filters"),
                 )
         else:
-            if 'error' in res:
-                print(res['error'])
+            if "error" in res:
+                print(res["error"])
         return
 
     if args.edit is not None and args.delete is not None:
@@ -569,8 +558,6 @@ def main() -> None:
             print(res["message"])
         return
 
-    res = add_entry_command(
-        args, config, config_dir, storage_dir, now, conn
-    )
+    res = add_entry_command(args, config, config_dir, storage_dir, now, conn)
     if res and "message" in res:
         print(res["message"])

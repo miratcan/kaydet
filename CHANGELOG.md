@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.36.1] - 2026-07-14
+
+### Fixed
+- **`done_command` rewrite:** Replaced fragile string-based `" | "` format manipulation with the robust `entry_ops` pattern used by `edit` and `delete` commands. Now correctly handles the current space-separated metadata format.
+- **`TodoFormatter` None config crash:** `format_todo_results` no longer raises `AttributeError` when called with `config=None`.
+- **`service.py` list_todos bug:** Changed `break` to `continue` so status-filtered todo listing doesn't prematurely exit the entry loop.
+
+### Changed
+- **`database._add_entry_to_cursor` made public:** Renamed to `add_entry_to_cursor` to eliminate private API usage from `commands/add.py`.
+- **`INDEX_FILENAME` moved to `database.py`:** Eliminated circular dependency between `service.py` and `cli.py`.
+- **`cli_printers.py` typed:** Added type hints and docstrings to all functions.
+- **Return type annotations fixed:** `todo_command`, `done_command`, `list_todos_command` now have correct return type annotations.
+- **All source files formatted** with `ruff format` for consistent style.
+
+### Added
+- **New test files:** `test_entry_ops.py` (12 tests), `test_utils.py` (14 tests), `test_sync.py` (16 tests) covering previously untested utility modules.
+- **Service edge case tests:** `suggest_tags` tests for nonexistent directory, file path, empty tags file, and comments-only tags file.
+- **CI improvements:** Python 3.13 in test matrix, `pytest --cov` coverage reporting, `ruff format --check` in CI, updated GitHub Action versions.
+
+### Removed
+- **`setup.py`:** Vestigial file replaced by `pyproject.toml`.
+- **Duplicate `MockConsole`:** Removed from `test_formatters.py`, using shared fixture from `conftest.py`.
+
+### Documentation
+- **`.llm-context.md` updated:** Python 3.10+, `--filter`/`--list` commands, accurate storage paths, all 13 MCP tools listed.
+- **`docs/AGENTS.md` updated:** Removed Black references, added Ruff format.
+- **`docs/CONTRIBUTING.md` fixed:** Corrected GitHub URL (`mirat` → `miratcan`), removed broken `CODE_OF_CONDUCT.md` reference.
+- **`.mcp.json` fixed:** Replaced hardcoded absolute path with generic `"kaydet-mcp"` command.
+
 ## [0.36.0] - 2026-04-11
 
 ### Added

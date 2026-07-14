@@ -183,8 +183,7 @@ async def serve() -> None:
             Tool(
                 name="suggest_kaydet_tags",
                 description=(
-                    "Suggest project tags based on "
-                    "the current directory"
+                    "Suggest project tags based on " "the current directory"
                 ),
                 inputSchema={
                     "type": "object",
@@ -192,8 +191,7 @@ async def serve() -> None:
                         "path": {
                             "type": "string",
                             "description": (
-                                "Directory to inspect."
-                                " Defaults to cwd."
+                                "Directory to inspect." " Defaults to cwd."
                             ),
                         },
                     },

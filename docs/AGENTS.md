@@ -15,9 +15,9 @@ The project emphasizes "zero friction" data capture and "AI-ready" personal data
 ## Technologies Used
 
 *   **Language:** Python 3.10+
-*   **Database:** SQLite
-*   **CLI Framework:** (Inferred from `src/kaydet/cli.py` and usage examples)
-*   **Code Formatting/Linting:** Ruff, Black
+*   **Database:** SQLite (FTS5 for full-text search)
+*   **CLI Framework:** argparse
+*   **Code Formatting/Linting:** Ruff
 
 ## Building and Running
 
@@ -61,12 +61,12 @@ pytest
 
 ```bash
 ruff check src
-black --check src
+ruff format --check src
 ```
 
 ## Development Conventions
 
-*   **Code Style:** The project adheres to code style enforced by `ruff` and `black`.
+*   **Code Style:** The project adheres to code style enforced by `ruff`.
 *   **Testing:** `pytest` is the chosen framework for unit and integration tests.
 *   **Contribution:** Contributions via bug reports, feature ideas, and pull requests are encouraged.
 *   **Separation of Concerns:** The project structure (e.g., `cli.py`, `database.py`, `parsers.py`, `commands/`) suggests a focus on separating different functionalities into distinct modules.

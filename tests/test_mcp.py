@@ -327,3 +327,47 @@ def test_serve_registers_tools(monkeypatch, mcp_env):
         )
     )
     assert isinstance(suggestion_response[0], FakeTextContent)
+
+
+def test_suggest_tags_nonexistent_directory(mcp_env):
+    service = service_module.KaydetService.initialize()
+    result = service.suggest_tags("/nonexistent/path/xyz")
+    assert result["success"] is False
+    assert "does not exist" in result["error"]
+
+
+def test_suggest_tags_file_instead_of_directory(mcp_env, tmp_path):
+    service = service_module.KaydetService.initialize()
+    fake_file = tmp_path / "not_a_dir.txt"
+    fake_file.write_text("hello")
+    result = service.suggest_tags(str(fake_file))
+    assert result["success"] is False
+    assert "Not a directory" in result["error"]
+
+
+def test_suggest_tags_empty_tags_file(mcp_env, tmp_path):
+    service = service_module.KaydetService.initialize()
+    tags_file = tmp_path / ".kaydet.tags"
+    tags_file.write_text("")
+    result = service.suggest_tags(str(tmp_path))
+    assert result["success"] is True
+    assert result["source"] == "directory_name"
+
+
+def test_suggest_tags_comments_only(mcp_env, tmp_path):
+    service = service_module.KaydetService.initialize()
+    tags_file = tmp_path / ".kaydet.tags"
+    tags_file.write_text("# this is a comment\n# another comment\n")
+    result = service.suggest_tags(str(tmp_path))
+    assert result["success"] is True
+    assert result["source"] == "directory_name"
+
+
+def test_suggest_tags_from_file_with_real_tags(mcp_env, tmp_path):
+    service = service_module.KaydetService.initialize()
+    tags_file = tmp_path / ".kaydet.tags"
+    tags_file.write_text("work\n# comment\nproject-x\n")
+    result = service.suggest_tags(str(tmp_path))
+    assert result["success"] is True
+    assert result["suggested_tags"] == ["work", "project-x"]
+    assert result["source"] == "tags_file"
