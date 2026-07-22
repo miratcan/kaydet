@@ -21,17 +21,27 @@ Kaydet is not a diary you read—it's a database you query. Capture thoughts, tr
 ## Install
 
 ```bash
-pip install git+https://github.com/miratcan/kaydet.git
+pipx install kaydet
 ```
 
 Or with MCP support for AI integration:
 
 ```bash
-pip install "git+https://github.com/miratcan/kaydet.git#egg=kaydet[mcp]"
+pipx install kaydet[mcp]
 ```
 
 > The `kaydet-mcp` command is always installed, but requires the `[mcp]` extra
 > to run (otherwise it fails with an import error).
+
+**Alternative methods:**
+
+```bash
+# uv
+uv tool install kaydet
+
+# pip (not recommended — use pipx instead)
+pip install git+https://github.com/miratcan/kaydet.git
+```
 
 ## Quick Start
 

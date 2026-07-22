@@ -23,16 +23,16 @@ The project emphasizes "zero friction" data capture and "AI-ready" personal data
 
 ### Installation
 
-To install Kaydet with basic functionality:
+To install Kaydet:
 
 ```bash
-pip install git+https://github.com/miratcan/kaydet.git
+pipx install kaydet
 ```
 
-For AI integration with MCP support:
+With MCP support for AI integration:
 
 ```bash
-pip install "git+https://github.com/miratcan/kaydet.git#egg=kaydet[mcp]"
+pipx install kaydet[mcp]
 ```
 
 ### Development Setup
