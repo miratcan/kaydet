@@ -79,7 +79,6 @@ Built-in MCP server exposes your archive to Claude Desktop. Ask your AI about yo
 - **SQLite indexing**: Fast search across thousands of entries
 - **Git-friendly**: Version your diary, sync across devices
 - **MCP integration**: Connect to Claude Desktop and other AI tools with todo support
-- **Sync at Home**: Offline-first phone workflow that syncs over your home LAN via the fingerprint protocol.
 
 ## Usage
 
