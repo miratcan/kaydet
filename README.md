@@ -194,21 +194,43 @@ kaydet "Morning standup went well #work"
 # Add with metadata
 kaydet "Deep work session #focus time:3h intensity:high project:kaydet"
 
-# Search
+# Attach files
+kaydet "Meeting notes" --attach notes.pdf
+kaydet "Screenshot" --grab screen.png        # copies + removes original
+
+# Search & Filter
 kaydet --filter "#work"
 kaydet --filter "project:kaydet status:done"
 kaydet --filter "time:>2"
+kaydet --list                                # list all entries
+kaydet --today                               # today's entries
+kaydet --get 42                              # show entry by ID
 
 # Todo Management
 kaydet --todo "Write unit tests priority:high"
-kaydet --done 42           # Mark todo as done
-kaydet --todo              # List todos
+kaydet --done 42                             # Mark todo as done
+kaydet --todo                                # List todos
 
-# Utility
-kaydet --tags              # List all tags with counts
-kaydet --stats             # Show calendar and stats
-kaydet --folder            # Open log directory
-kaydet --doctor            # Rebuild index from text files
+# View
+kaydet --tags                                # List all tags with counts
+kaydet --stats                               # Show calendar and stats
+kaydet --folder                              # Open log directory
+kaydet --format json --filter "#work"        # JSON output
+
+# Edit & Delete
+kaydet --edit 42                             # Open in editor
+kaydet --edit 42 "Updated message"           # Inline update
+kaydet --delete 42                           # Delete by ID
+kaydet --delete 42 --yes                     # Skip confirmation
+
+# Management
+kaydet --doctor                              # Rebuild search index
+kaydet --config                              # Edit config file
+kaydet --reminder                            # Show writing reminder
+kaydet --at "2024-01-15:14:30" "Note"       # Backdated entry
+
+# Version
+kaydet --version
 ```
 
 > Need a literal `#` in your note? Escape it as `\#` (e.g.,
