@@ -88,18 +88,26 @@ Your AI assistant grounded in your own data.
 ### Architecture
 
 ```
-         Claude Desktop / Any MCP Client
-                    |
-                  MCP
-                    |
-              kaydet-mcp
-                    |
-         ---------------------
-         |                   |
-    daily txt files      SQLite index
-    (synced via       (local only,
-     Google Drive,      rebuilt from
-     iCloud, etc.)      text files)
+┌─────────────────────┐
+│   Claude Desktop    │
+│  or any MCP client  │
+└────────┬────────────┘
+         │ MCP protocol
+┌────────▼────────────┐
+│     kaydet-mcp      │
+└────────┬────────────┘
+         │
+    ┌────┴────┐
+    │         │
+┌───▼───┐ ┌───▼──────────┐
+│ daily │ │ SQLite index │
+│ .txt  │ │ (local only, │
+│ files │ │  rebuilt     │
+│       │ │  from text)  │
+└───┬───┘ └──────────────┘
+    │
+    ▼
+Google Drive / iCloud / Dropbox
 ```
 
 ### MCP Tools
