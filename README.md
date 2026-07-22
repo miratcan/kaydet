@@ -95,15 +95,15 @@ Built-in MCP server exposes your archive to Claude Desktop. Ask your AI about yo
 | | kaydet | jrnl | nb | dnote |
 |---|---|---|---|---|
 | **CLI diary/journal** | ✅ | ✅ | ❌ notebook | ❌ |
-| **SQLite FTS5 arama** | ✅ | ❌ | ❌ grep | ✅ |
+| **SQLite FTS5 search** | ✅ | ❌ | ❌ grep | ✅ |
 | **Structured metadata** (`time:>2`) | ✅ | ❌ | ❌ | ❌ |
-| **Plain text dosyalar** | ✅ | ✅ | ✅ | ❌ sadece DB |
-| **Günlük dosya yapısı** | ✅ | ❌ | ❌ | ❌ |
-| **Todo yönetimi** | ✅ | ❌ | ❌ | ❌ |
+| **Plain text files** | ✅ | ✅ | ✅ | ❌ DB-only |
+| **Daily file structure** | ✅ | ❌ | ❌ | ❌ |
+| **Todo management** | ✅ | ❌ | ❌ | ❌ |
 | **MCP/AI server** | ✅ | ❌ | ❌ | ❌ |
 | **Edit/delete by ID** | ✅ | ❌ | ❌ | ❌ |
-| **Renkli çıktı** | ✅ | ✅ | ✅ | ❌ |
-| **Dil** | Python | Python | Shell | Go |
+| **Color output** | ✅ | ✅ | ✅ | ❌ |
+| **Language** | Python | Python | Shell | Go |
 
 ## Usage
 
