@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.36.2] - 2026-07-22
+
+### Security
+- **Disabled CI on fork PRs:** Removed `pull_request` trigger from test/lint workflows to prevent credential exfiltration attacks via malicious PRs.
+- **Removed unused publish workflow:** Deleted `python-publish.yml` and `PYPI_API_TOKEN` secret to reduce attack surface.
+
 ## [0.36.1] - 2026-07-14
 
 ### Fixed
