@@ -14,7 +14,9 @@
 [![GitHub stars](https://img.shields.io/github/stars/miratcan/kaydet?style=social)](https://github.com/miratcan/kaydet/stargazers)
 [![Last commit](https://img.shields.io/github/last-commit/miratcan/kaydet)](https://github.com/miratcan/kaydet/commits/master)
 
-> Your queryable personal database. Plain text storage, SQLite search, zero friction.
+> Your personal memory database. Capture anything. Query everything. Let AI remember.
+>
+> Plain text storage · SQLite search · MCP integration
 
 Kaydet is not a diary you read—it's a database you query. Capture thoughts, track work, log life—all from your terminal, in plain text.
 
@@ -81,7 +83,24 @@ Then ask your AI:
 - "How consistent was my fitness routine last month?"
 - "Summarize my accomplishments from last sprint"
 
-Your AI assistant with searchable access to your personal archive.
+Your AI assistant grounded in your own data.
+
+### Architecture
+
+```
+         Claude Desktop / Any MCP Client
+                    |
+                  MCP
+                    |
+              kaydet-mcp
+                    |
+         ---------------------
+         |                   |
+    daily txt files      SQLite index
+    (synced via       (local only,
+     Google Drive,      rebuilt from
+     iCloud, etc.)      text files)
+```
 
 ### MCP Tools
 
