@@ -342,11 +342,11 @@ MIT License. See [LICENSE](LICENSE) for details.
 
 ## Star History
 
-<a href="https://www.star-history.com/#miratcan/kaydet&Timeline">
+<a href="https://www.star-history.com/?repos=miratcan%2Fkaydet&type=date&legend=top-left">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=miratcan/kaydet&type=Timeline&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=miratcan/kaydet&type=Timeline" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=miratcan/kaydet&type=Timeline" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=miratcan/kaydet&type=date&theme=dark&legend=top-left&sealed_token=LbYJy5zZl4ZwffHJEH0Fvputlu2yci0QE3UqAKAQ2XPgadh-bZVXzdTxWucL3N_ksbRbm3TgQNLJpXKLhzkRMYn-TRyAEbfGQnmNcyqp1je6UpWEf0ukPtMDLseHVNPZAhHtDfbWI12Iw7mth6jcOyVSsZUUltfwQExyoE9noQiDW9VPTIka18B30Hjs" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=miratcan/kaydet&type=date&legend=top-left&sealed_token=LbYJy5zZl4ZwffHJEH0Fvputlu2yci0QE3UqAKAQ2XPgadh-bZVXzdTxWucL3N_ksbRbm3TgQNLJpXKLhzkRMYn-TRyAEbfGQnmNcyqp1je6UpWEf0ukPtMDLseHVNPZAhHtDfbWI12Iw7mth6jcOyVSsZUUltfwQExyoE9noQiDW9VPTIka18B30Hjs" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=miratcan/kaydet&type=date&legend=top-left&sealed_token=LbYJy5zZl4ZwffHJEH0Fvputlu2yci0QE3UqAKAQ2XPgadh-bZVXzdTxWucL3N_ksbRbm3TgQNLJpXKLhzkRMYn-TRyAEbfGQnmNcyqp1je6UpWEf0ukPtMDLseHVNPZAhHtDfbWI12Iw7mth6jcOyVSsZUUltfwQExyoE9noQiDW9VPTIka18B30Hjs" />
  </picture>
 </a>
 
