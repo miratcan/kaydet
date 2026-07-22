@@ -30,8 +30,8 @@ Or with MCP support for AI integration:
 pip install "git+https://github.com/miratcan/kaydet.git#egg=kaydet[mcp]"
 ```
 
-> The `kaydet-mcp` entry point stays installed, but it only becomes usable
-> after installing this optional `mcp` extra.
+> The `kaydet-mcp` command is always installed, but requires the `[mcp]` extra
+> to run (otherwise it fails with an import error).
 
 ## Quick Start
 
@@ -71,7 +71,7 @@ Built-in MCP server exposes your archive to Claude Desktop. Ask your AI about yo
 
 ## Features
 
-- **Todo management**: Built-in task tracking with `--todo`, `--done`, and `--list-todos` commands
+- **Todo management**: Built-in task tracking with `--todo` and `--done` commands
 - **Structured metadata**: `key:value` syntax with numeric comparisons (`time:>2`, `status:done`)
 - **Smart tagging**: Hashtags (`#work`) and metadata in one natural string
 - **Edit/delete by ID**: Stable numeric identifiers for every entry
@@ -99,8 +99,7 @@ kaydet --filter "time:>2"
 # Todo Management
 kaydet --todo "Write unit tests priority:high"
 kaydet --done 42           # Mark todo as done
-kaydet --list-todos        # List all todos
-kaydet --todo              # List todos (shorthand)
+kaydet --todo              # List todos
 
 # Utility
 kaydet --tags              # List all tags with counts
@@ -117,7 +116,7 @@ kaydet --doctor            # Rebuild index from text files
 Entries are stored as plain text with this format:
 
 ```
-14:25 [42]: Fixed auth bug | commit:abc123 time:2h status:done | #work #urgent
+14:25 [42]: Fixed auth bug commit:abc123 time:2h status:done #work #urgent
 ```
 
 - Timestamp and unique ID
@@ -128,11 +127,14 @@ Entries are stored as plain text with this format:
 ### File Structure
 
 ```
-~/.local/share/kaydet/
+~/Documents/Kaydet/          → Synced (storage)
 ├── 2025-10-26.txt
 ├── 2025-10-27.txt
 ├── 2025-10-28.txt
-└── index.db  (SQLite cache)
+└── ...
+
+~/.local/share/kaydet/       → Local only (index)
+  └── index.db
 ```
 
 ### Metadata Queries
@@ -152,7 +154,7 @@ Settings are in `~/.config/kaydet/config.ini`:
 [SETTINGS]
 DAY_FILE_PATTERN = %Y-%m-%d.txt
 DAY_TITLE_PATTERN = %Y/%m/%d - %A
-LOG_DIR = ~/.local/share/kaydet
+STORAGE_DIR = ~/Documents/Kaydet
 EDITOR = nvim
 REMIND_AFTER_HOURS = 4
 COLOR_HEADER = bold cyan
@@ -215,8 +217,7 @@ Your AI assistant with perfect memory of your own data.
   the current project or falling back to the directory name when no override is
   defined.
 
-- [`Sync at Home` protocol](docs/SYNC_AT_HOME.md) documents how the phone ↔
-  desktop LAN sync will work (SSID algılama, hash takası, append-both merge).
+
 
 ## Use Cases
 
