@@ -24,7 +24,7 @@ Kaydet is not a diary you read—it's a database you query. Capture thoughts, tr
 pipx install kaydet
 ```
 
-Or with MCP support for AI integration:
+With MCP support for AI integration:
 
 ```bash
 pipx install kaydet[mcp]
@@ -33,14 +33,10 @@ pipx install kaydet[mcp]
 > The `kaydet-mcp` command is always installed, but requires the `[mcp]` extra
 > to run (otherwise it fails with an import error).
 
-**Alternative methods:**
+**Also available via:**
 
 ```bash
-# uv
-uv tool install kaydet
-
-# pip (not recommended — use pipx instead)
-pip install git+https://github.com/miratcan/kaydet.git
+uv tool install kaydet    # uv
 ```
 
 ## Quick Start
@@ -52,7 +48,6 @@ kaydet "Fixed auth bug #work commit:abc123 time:2h status:done"
 # Search by metadata
 kaydet --filter "status:done"
 kaydet --filter "time:>1"
-kaydet --filter "commit:abc123"
 
 # List all tags
 kaydet --tags
@@ -65,36 +60,56 @@ kaydet --edit 42
 kaydet --delete 42
 ```
 
+## AI Integration
+
+Kaydet's MCP server connects your personal archive to Claude Desktop and any MCP-compatible AI.
+
+```json
+// claude_desktop_config.json
+{
+  "mcpServers": {
+    "kaydet": {
+      "command": "kaydet-mcp"
+    }
+  }
+}
+```
+
+Then ask your AI:
+
+- "What did I work on this week?"
+- "How consistent was my fitness routine last month?"
+- "Summarize my accomplishments from last sprint"
+
+Your AI assistant with searchable access to your personal archive.
+
+### MCP Tools
+
+- `suggest_kaydet_tags` – Suggest tags by reading `.kaydet.tags` in the current project
+  or falling back to the directory name.
+- 13 tools total: search, filter by metadata, manage todos, get stats, and more.
+
 ## Why Kaydet?
 
 **Zero Friction**
 One command from your terminal. No app windows, no context switching, no loading screens.
 
-**Plain Text Forever**
-Daily `.txt` files you can grep, version with git, sync however you like. No proprietary formats, no lock-in.
+**Plain Text Ownership**
+Daily `.txt` files you can grep, version with git, sync however you like. No proprietary formats, no lock-in. Your data outlives any app.
 
 **Queryable Database**
-SQLite index with full-text search, metadata extraction, and numeric comparisons. Search `time:>2` to find long work sessions.
+SQLite index with full-text search, metadata extraction, and numeric comparisons. Search `time:>2` to find long work sessions, `status:done` to find completed tasks.
 
-**AI-Ready**
-Built-in MCP server exposes your archive to Claude Desktop. Ask your AI about your own life.
+**Personal AI Memory Layer**
+Built-in MCP server gives your AI assistant direct access to your archive. It's not a chatbot with generic knowledge—it's an AI that knows your life.
 
-## Features
+## How Kaydet Compares
 
-- **Todo management**: Built-in task tracking with `--todo` and `--done` commands
-- **Structured metadata**: `key:value` syntax with numeric comparisons (`time:>2`, `status:done`)
-- **Smart tagging**: Hashtags (`#work`) and metadata in one natural string
-- **Edit/delete by ID**: Stable numeric identifiers for every entry
-- **Plain text storage**: Human-readable `.txt` files, one per day
-- **SQLite indexing**: Fast search across thousands of entries
-- **Git-friendly**: Version your diary, sync across devices
-- **MCP integration**: Connect to Claude Desktop and other AI tools with todo support
-
-## Why Kaydet vs Other CLI Tools?
+### vs CLI Tools
 
 | | kaydet | jrnl | nb | dnote |
 |---|---|---|---|---|
-| **CLI diary/journal** | ✅ | ✅ | ❌ notebook | ❌ |
+| **CLI journal** | ✅ | ✅ | ❌ notebook | ❌ |
 | **SQLite FTS5 search** | ✅ | ❌ | ❌ grep | ✅ |
 | **Structured metadata** (`time:>2`) | ✅ | ❌ | ❌ | ❌ |
 | **Plain text files** | ✅ | ✅ | ✅ | ❌ DB-only |
@@ -104,6 +119,29 @@ Built-in MCP server exposes your archive to Claude Desktop. Ask your AI about yo
 | **Edit/delete by ID** | ✅ | ❌ | ❌ | ❌ |
 | **Color output** | ✅ | ✅ | ✅ | ❌ |
 | **Language** | Python | Python | Shell | Go |
+
+### vs Knowledge Apps
+
+| | kaydet | Notion | Obsidian |
+|---|---|---|---|
+| **Offline first** | ✅ | ❌ | ✅ |
+| **Plain text ownership** | ✅ | ❌ | ✅ |
+| **Git-friendly** | ✅ | ❌ | ❌ |
+| **CLI-native workflow** | ✅ | ❌ | ❌ |
+| **AI access (MCP)** | ✅ | partial | partial |
+| **Structured metadata queries** | ✅ | ❌ | ❌ |
+| **Zero friction capture** | ✅ | ❌ | ❌ |
+
+## Features
+
+- **Todo management**: Built-in task tracking with `--todo` and `--done` commands
+- **Structured metadata**: `key:value` syntax with numeric comparisons (`time:>2`, `status:done`)
+- **Smart tagging**: Hashtags (`#work`) and metadata in one natural string
+- **Edit/delete by ID**: Stable numeric identifiers for every entry
+- **Plain text storage**: Human-readable `.txt` files, one per day
+- **SQLite indexing**: Fast search across thousands of entries
+- **Git-friendly**: Version your journal, sync across devices
+- **MCP integration**: Connect to Claude Desktop and other AI tools
 
 ## Usage
 
@@ -191,58 +229,22 @@ COLOR_ID = yellow
 If `STORAGE_DIR` is omitted, Kaydet picks a sensible default on first run:
 - macOS / Windows → `~/Documents/Kaydet`
 - Linux → `~/Kaydet`
+
 Prefer hidden/XDG dirs? Change `STORAGE_DIR` (e.g., `~/.local/share/kaydet`) in
 `config.ini` and rerun `kaydet --config`; the CLI offers to move files for you.
 
 ### Color Customization
 
-You can customize the colors of various elements in the output by adding the following settings under the `[SETTINGS]` section in `config.ini`:
+You can customize output colors by adding these to `[SETTINGS]` in `config.ini`:
 
 ```ini
-[SETTINGS]
-# ... existing settings ...
 COLOR_HEADER = bold cyan
 COLOR_TAG = bold magenta
 COLOR_DATE = green
 COLOR_ID = yellow
 ```
 
-- `COLOR_HEADER`: Color for date separators and section headers.
-- `COLOR_TAG`: Color for tags (e.g., `#work`).
-- `COLOR_DATE`: Color for timestamps in search results.
-- `COLOR_ID`: Color for entry IDs and pending todo counts.
-
-You can use any [Rich color string](https://rich.readthedocs.io/en/stable/style.html#color-names) (e.g., `red`, `bold green`, `rgb(255,100,0)`).
-
-## AI Integration
-
-Connect Kaydet to Claude Desktop via MCP:
-
-```json
-// claude_desktop_config.json
-{
-  "mcpServers": {
-    "kaydet": {
-      "command": "kaydet-mcp"
-    }
-  }
-}
-```
-
-Then ask Claude:
-- "What did I work on this week?"
-- "How consistent was my fitness routine last month?"
-- "Summarize my accomplishments from last sprint"
-
-Your AI assistant with perfect memory of your own data.
-
-### MCP Tools
-
-- `suggest_kaydet_tags` – Suggest tags for assistants by reading `.kaydet.tags` in
-  the current project or falling back to the directory name when no override is
-  defined.
-
-
+Any [Rich color string](https://rich.readthedocs.io/en/stable/style.html#color-names) works (e.g., `red`, `bold green`, `rgb(255,100,0)`).
 
 ## Use Cases
 
@@ -270,80 +272,27 @@ kaydet "Lunch with client #expense amount:850 currency:TRY billable:yes"
 kaydet --filter "billable:yes"  # Generate invoice data
 ```
 
+## Cloud Sync
+
+Kaydet separates storage (plain text files) from index (SQLite database). Only the plain text files are synced—each device builds its own search index locally. This means zero sync conflicts and no infrastructure cost.
+
+Works with Google Drive, iCloud, Dropbox, Syncthing, or any folder sync tool.
+
+See [docs/sync.md](docs/sync.md) for setup instructions.
+
 ## Development
 
 ```bash
 git clone https://github.com/miratcan/kaydet.git
 cd kaydet
-pip install -e .
-```
-
-Run tests:
-```bash
 pip install -e .[dev]
 pytest
 ruff check src
 ```
 
-## Cloud Sync & Mobile
-
-Kaydet separates storage (plain text files) from index (SQLite database), making cloud sync simple and safe.
-
-### How it works
-
-```
-~/Documents/Kaydet/        → Synced (Google Drive, iCloud, Dropbox)
-  ├── 2025-01-15.txt
-  ├── 2025-01-16.txt
-  └── ...
-
-~/.local/share/kaydet/     → Local only (not synced)
-  └── index.db
-```
-
-**Why this works:**
-- Plain text files are the single source of truth
-- Each device builds its own search index
-- No conflicts, no corruption
-- Zero infrastructure cost
-
-### Setup for cloud sync
-
-1. **First run** — Kaydet will ask where to store entries:
-   ```bash
-   kaydet "First entry"
-
-   # Choose your cloud folder:
-   Path: ~/Google Drive/Kaydet
-   ```
-
-2. **Change location later** — Edit config and migrate:
-   ```bash
-   kaydet --config
-
-   # Edit storage_dir in your editor
-   # Kaydet will offer to move files automatically
-   ```
-
-3. **On other devices** — Install Kaydet, set same folder:
-   ```bash
-   kaydet "First entry on phone"
-   Path: ~/Google Drive/Kaydet  # Same path
-   ```
-
-### Supported cloud providers
-
-- **Google Drive** (recommended for Android)
-- **iCloud Drive** (recommended for iOS/macOS)
-- **Dropbox** (cross-platform)
-- **Any folder sync** (Syncthing, Resilio, etc.)
-
-**Note:** Index is always local. Each device maintains its own `index.db` for fast search.
-
 ## Contributing
 
-Bug reports, feature ideas, and pull requests welcome. Open an issue or submit a PR.
-See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for guidelines and the full philosophy.
+Bug reports, feature ideas, and pull requests welcome. See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for guidelines.
 
 ## License
 
