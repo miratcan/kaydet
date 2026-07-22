@@ -20,6 +20,10 @@
 
 Kaydet is not a diary you read—it's a database you query. Capture thoughts, track work, log life—all from your terminal, in plain text.
 
+<p align="center">
+  <img src="assets/demo.gif" alt="Kaydet demo" width="720">
+</p>
+
 ## Install
 
 ```bash
