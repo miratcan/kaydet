@@ -90,6 +90,21 @@ Built-in MCP server exposes your archive to Claude Desktop. Ask your AI about yo
 - **Git-friendly**: Version your diary, sync across devices
 - **MCP integration**: Connect to Claude Desktop and other AI tools with todo support
 
+## Why Kaydet vs Other CLI Tools?
+
+| | kaydet | jrnl | nb | dnote |
+|---|---|---|---|---|
+| **CLI diary/journal** | ✅ | ✅ | ❌ notebook | ❌ |
+| **SQLite FTS5 arama** | ✅ | ❌ | ❌ grep | ✅ |
+| **Structured metadata** (`time:>2`) | ✅ | ❌ | ❌ | ❌ |
+| **Plain text dosyalar** | ✅ | ✅ | ✅ | ❌ sadece DB |
+| **Günlük dosya yapısı** | ✅ | ❌ | ❌ | ❌ |
+| **Todo yönetimi** | ✅ | ❌ | ❌ | ❌ |
+| **MCP/AI server** | ✅ | ❌ | ❌ | ❌ |
+| **Edit/delete by ID** | ✅ | ❌ | ❌ | ❌ |
+| **Renkli çıktı** | ✅ | ✅ | ✅ | ❌ |
+| **Dil** | Python | Python | Shell | Go |
+
 ## Usage
 
 ### Basic Commands
