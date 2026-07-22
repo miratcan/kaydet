@@ -340,6 +340,16 @@ MIT License. See [LICENSE](LICENSE) for details.
 - [Blog: Why plain text + SQLite beat every cloud note app](https://mirat.dev/articles/nine-years-of-kaydet/)
 - [docs/AGENTS.md](docs/AGENTS.md) — agents must read this before interacting with the repo
 
+## Star History
+
+<a href="https://www.star-history.com/#miratcan/kaydet&Timeline">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=miratcan/kaydet&type=Timeline&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=miratcan/kaydet&type=Timeline" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=miratcan/kaydet&type=Timeline" />
+ </picture>
+</a>
+
 ---
 
 <div align="center">
