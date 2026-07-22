@@ -64,6 +64,10 @@ kaydet --editor
 # Edit or delete by ID
 kaydet --edit 42
 kaydet --delete 42
+
+# Attach files
+kaydet "Meeting notes" --attach notes.pdf
+kaydet "Screenshot attached" --grab screen.png  # also removes original
 ```
 
 ## AI Integration
@@ -173,6 +177,7 @@ Built-in MCP server gives your AI assistant direct access to your archive. It's 
 - **Structured metadata**: `key:value` syntax with numeric comparisons (`time:>2`, `status:done`)
 - **Smart tagging**: Hashtags (`#work`) and metadata in one natural string
 - **Edit/delete by ID**: Stable numeric identifiers for every entry
+- **File attachments**: Attach files with `--attach` or move with `--grab`
 - **Plain text storage**: Human-readable `.txt` files, one per day
 - **SQLite indexing**: Fast search across thousands of entries
 - **Git-friendly**: Version your journal, sync across devices
