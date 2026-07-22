@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.38.0] - 2026-07-22
+
+### Added
+- **Trusted Publisher publishing:** Automated PyPI deployments via OpenID Connect on every release tag.
+
 ## [0.37.0] - 2026-07-22
 
 ### Chore
