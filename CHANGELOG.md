@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.38.1] - 2026-07-22
+
+### Fixed
+- **PyPI classifiers:** Removed stale `Curses` and `Scheduling` classifiers, added `Production/Stable`, `Database`, `Indexing`, `Python 3.13`, `Developers` audience.
+
 ## [0.38.0] - 2026-07-22
 
 ### Added
