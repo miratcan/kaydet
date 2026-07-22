@@ -6,13 +6,11 @@ from configparser import ConfigParser
 from datetime import datetime
 from pathlib import Path
 
-import pytest
-
 from kaydet.utils import (
     ensure_day_file,
-    get_file_glob_from_pattern,
     get_default_index_path,
     get_default_storage_path,
+    get_file_glob_from_pattern,
     load_last_entry_timestamp,
     migrate_storage,
     save_last_entry_timestamp,

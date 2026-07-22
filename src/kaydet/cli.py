@@ -11,6 +11,7 @@ from textwrap import dedent
 from rich.console import Console
 
 from . import __description__, __version__, database
+from .cli_printers import print_doctor, print_stats, print_tags
 from .commands import (
     add_entry_command,
     delete_entry_command,
@@ -317,8 +318,6 @@ def main() -> None:
             "Rebuilding search index from diary files..."
             " This may take a moment."
         )
-        from kaydet.cli_printers import print_doctor
-
         print_doctor(doctor_command(conn, storage_dir, config, now))
         return
 
@@ -326,8 +325,6 @@ def main() -> None:
     rebuild_index_if_empty(conn, storage_dir, config, now)
 
     if args.stats:
-        from kaydet.cli_printers import print_stats
-
         print_stats(
             stats_command(storage_dir, config, now),
             args.output_format,
@@ -335,8 +332,6 @@ def main() -> None:
         return
 
     if args.list_tags:
-        from kaydet.cli_printers import print_tags
-
         print_tags(tags_command(conn), args.output_format)
         return
 

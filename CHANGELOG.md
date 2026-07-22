@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.37.0] - 2026-07-22
+
+### Chore
+- **Removed abandoned Rust core:** Deleted `kaydet-core/` and `.cargo/` — was a cancelled plan for Rust+WASM browser version.
+- **Removed empty package stubs:** Deleted `packages/` — contained only egg-info and pycache, no actual source.
+- **Fixed all lint errors:** Moved lazy imports in `cli.py` to top-level, fixed test import ordering and unused imports.
+- **Updated .gitignore:** Added `target/` and `graphify-out/` to ignore list.
+
 ## [0.36.2] - 2026-07-22
 
 ### Security

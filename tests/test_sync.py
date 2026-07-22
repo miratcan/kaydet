@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import sqlite3
-from configparser import ConfigParser
 from datetime import datetime
 from pathlib import Path
 
@@ -12,8 +11,6 @@ import pytest
 from kaydet import database
 from kaydet.sync import (
     _cleanup_missing_entries,
-    _normalize_entries,
-    _render_entry,
     _split_header,
     _sync_single_file,
     _write_if_changed,
@@ -146,7 +143,7 @@ class TestSyncSingleFile:
             encoding="utf-8",
         )
 
-        changed = _sync_single_file(conn, day_file, config["DAY_FILE_PATTERN"])
+        _sync_single_file(conn, day_file, config["DAY_FILE_PATTERN"])
 
         cursor = conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM entries")

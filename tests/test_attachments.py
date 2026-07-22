@@ -3,7 +3,7 @@
 from datetime import date
 from pathlib import Path
 
-from kaydet.commands.add import store_attachment, _ensure_attachments_dir
+from kaydet.commands.add import _ensure_attachments_dir, store_attachment
 from kaydet.models import Entry
 from kaydet.parsers import (
     format_entry_header,

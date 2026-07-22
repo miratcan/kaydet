@@ -1,4 +1,5 @@
 target/
+graphify-out/
 .DS_Store
 .ruff_cache/
 dist/
