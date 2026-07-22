@@ -70,6 +70,10 @@ kaydet --delete 42
 
 Kaydet's MCP server connects your personal archive to Claude Desktop and any MCP-compatible AI.
 
+<p align="center">
+  <img src="assets/tui-ai-demo.gif" alt="AI querying kaydet for billing hours" width="720">
+</p>
+
 ```json
 // claude_desktop_config.json
 {
