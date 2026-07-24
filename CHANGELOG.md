@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.40.0] - 2026-07-24
+
+### Changed
+- **User-friendly output:** All command outputs now use emoji prefixes and shorter, friendlier messages — adds, deletes, edits, todos, reminders, search results, errors, and empty states.
+
 ## [0.39.0] - 2026-07-24
 
 ### Added
