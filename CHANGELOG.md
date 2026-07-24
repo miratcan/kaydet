@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.44.0] - 2026-07-24
+
+### Changed
+- **Flexible numeric parsing:** `parse_numeric_value` now accepts any alphabetic suffix (km, tl, saat, dk, h, m, etc.) after a number. Timestamps like `18:51` are no longer parsed as numeric. `m`/`dk` no longer convert to fractional hours — all values store their raw number.
+
 ## [0.43.0] - 2026-07-24
 
 ### Added

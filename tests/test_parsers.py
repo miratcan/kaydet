@@ -118,31 +118,15 @@ def test_parse_metadata_token_url_like():
 
 # --- parse_numeric_value ---
 
-def test_parse_numeric_value_hours():
+def test_parse_numeric_value_strips_suffix():
     assert parse_numeric_value("3h") == 3.0
-
-
-def test_parse_numeric_value_minutes():
-    assert parse_numeric_value("30m") == 0.5
-
-
-def test_parse_numeric_value_saat():
+    assert parse_numeric_value("30m") == 30.0
     assert parse_numeric_value("3saat") == 3.0
-
-
-def test_parse_numeric_value_dk():
-    assert parse_numeric_value("30dk") == 0.5
-
-
-def test_parse_numeric_value_plain():
+    assert parse_numeric_value("30dk") == 30.0
+    assert parse_numeric_value("13km") == 13.0
+    assert parse_numeric_value("300tl") == 300.0
     assert parse_numeric_value("42") == 42.0
-
-
-def test_parse_numeric_value_non_numeric():
     assert parse_numeric_value("abc") is None
-
-
-def test_parse_numeric_value_empty():
     assert parse_numeric_value("") is None
 
 

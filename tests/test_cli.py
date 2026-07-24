@@ -394,7 +394,7 @@ def test_search_with_metadata_filters(
             "kaydet",
             "Bugfix",
             "status:done",
-            "time:45m",
+            "time:1.5",
             "branch:hotfix/security",
         ],
     )
@@ -408,11 +408,12 @@ def test_search_with_metadata_filters(
     assert "Bugfix" in output
     assert "Implement feature" not in output
 
-    monkeypatch.setattr(sys, "argv", ["kaydet", "--filter", "time:>2"])
+    monkeypatch.setattr(sys, "argv", ["kaydet", "--filter", "time:<2"])
     cli.main()
     output = capsys.readouterr().out
-    assert "Feature complete" in output
-    assert "Bugfix" not in output
+    assert "Bugfix" in output
+    assert "Feature complete" not in output
+    assert "Implement feature" not in output
 
     monkeypatch.setattr(
         sys, "argv", ["kaydet", "--filter", "branch:feature/* status:done"]

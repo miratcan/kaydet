@@ -95,21 +95,19 @@ def parse_metadata_token(token: str) -> Optional[Tuple[str, str]]:
 
 
 def parse_numeric_value(raw_value: str) -> Optional[float]:
-    """Convert a metadata value to a numeric representation when possible."""
+    """Extract a leading number from a metadata value, ignoring any suffix.
+
+    Accepts an optional alphabetic suffix (km, tl, saat, dk, h, m, etc.)
+    so entries like ``price:300tl``, ``distance:13km``, ``time:3saat``
+    all yield their numeric part.  Values like ``18:51`` (a timestamp)
+    are not parsed as numeric.
+    """
     value = raw_value.strip().lower()
     if not value:
         return None
-
-    if value.endswith("saat") and NUMERIC_PATTERN.match(value[:-4]):
-        return float(value[:-4])
-    if value.endswith("dk") and NUMERIC_PATTERN.match(value[:-2]):
-        return float(value[:-2]) / 60.0
-    if value.endswith("h") and NUMERIC_PATTERN.match(value[:-1]):
-        return float(value[:-1])
-    if value.endswith("m") and NUMERIC_PATTERN.match(value[:-1]):
-        return float(value[:-1]) / 60.0
-    if NUMERIC_PATTERN.match(value):
-        return float(value)
+    match = re.match(r"^([-+]?\d+(?:\.\d+)?)[a-z]*$", value)
+    if match:
+        return float(match.group(1))
     return None
 
 

@@ -266,18 +266,6 @@ def build_parser(
     return parser
 
 
-def _format_time(value: float) -> str:
-    """Format a fractional-hour value as 'Xh Ym' when it maps cleanly."""
-    hours = int(value)
-    fractional = value - hours
-    minutes = round(fractional * 60)
-    if minutes == 0:
-        return f"{hours}h"
-    if fractional == round(fractional * 60) / 60:
-        return f"{hours}h {minutes}m"
-    return f"{value:.2f}".rstrip("0").rstrip(".")
-
-
 def print_sums(matches: list) -> None:
     """Print summed numeric metadata from a list of Entry matches."""
     totals: Counter[str] = Counter()
@@ -295,7 +283,7 @@ def print_sums(matches: list) -> None:
         if value == int(value):
             print(f"  {key}: {int(value)}")
         else:
-            print(f"  {key}: {_format_time(value)}")
+            print(f"  {key}: {value}")
 
 
 def main() -> None:
