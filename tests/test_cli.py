@@ -223,8 +223,8 @@ def test_add_entry_prints_id(setup_kaydet, mock_datetime_factory, capsys):
     cli.main()
 
     output = capsys.readouterr().out
-    assert "Entry added to:" in output
-    assert "ID: " in output
+    assert "Entry Added" in output
+    assert "ID:" in output
 
 
 def test_editor_usage(setup_kaydet, mock_datetime_factory):
@@ -1259,7 +1259,7 @@ def test_add_entry_with_at_flag(setup_kaydet, mock_datetime_factory, capsys):
 
     day_file = fake_log_dir / "2025-10-25.txt"
     content = day_file.read_text()
-    assert "Entry added" in capsys.readouterr().out
+    assert "Entry Added" in capsys.readouterr().out
     # Check chronological order
     assert re.search(
         r"10:00.*First entry.*\n11:00.*Second entry.*\n12:00.*Third entry",

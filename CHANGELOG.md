@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.39.0] - 2026-07-24
+
+### Added
+- **Bulk delete:** `--delete` now accepts multiple IDs (e.g., `kaydet --delete 31 32 33`).
+
+### Changed
+- **Short add output:** Entry added message now shows `💾 Entry Added (ID: <n>)` instead of full file path.
+
 ## [0.38.1] - 2026-07-22
 
 ### Fixed

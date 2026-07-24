@@ -222,8 +222,12 @@ def build_parser(
         "--delete",
         dest="delete",
         type=int,
+        nargs="+",
         metavar="ID",
-        help="Delete an entry by numeric identifier.",
+        help=(
+            "Delete entries by numeric identifier(s) "
+            "(e.g., --delete 31 32 33)."
+        ),
     )
     management_group.add_argument(
         "--yes",
@@ -541,16 +545,20 @@ def main() -> None:
             edit_entry_command(conn, storage_dir, config, edit_id, now)
         return
     if args.delete is not None:
-        res = delete_entry_command(
-            conn,
-            storage_dir,
-            config,
-            args.delete,
-            assume_yes=args.assume_yes,
-            now=now,
-        )
-        if res and "message" in res:
-            print(res["message"])
+        for entry_id in args.delete:
+            try:
+                res = delete_entry_command(
+                    conn,
+                    storage_dir,
+                    config,
+                    entry_id,
+                    assume_yes=args.assume_yes,
+                    now=now,
+                )
+                if res and "message" in res:
+                    print(res["message"])
+            except (ValueError, FileNotFoundError) as e:
+                print(str(e))
         return
 
     res = add_entry_command(args, config, config_dir, storage_dir, now, conn)

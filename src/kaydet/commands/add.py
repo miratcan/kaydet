@@ -309,7 +309,7 @@ def add_entry_command(args, config, config_dir, log_dir, now, conn):
         grab_paths=grab_paths,
     )
 
-    msg = f"Entry added to: {result['day_file']} (ID: {result['entry_id']})"
+    msg = f"\U0001f4be Entry Added (ID: {result['entry_id']})"
     if result.get("attachments"):
         names = ", ".join(result["attachments"])
         msg += f"\nAttachments: {names}"
