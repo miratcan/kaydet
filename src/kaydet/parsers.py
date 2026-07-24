@@ -100,6 +100,10 @@ def parse_numeric_value(raw_value: str) -> Optional[float]:
     if not value:
         return None
 
+    if value.endswith("saat") and NUMERIC_PATTERN.match(value[:-4]):
+        return float(value[:-4])
+    if value.endswith("dk") and NUMERIC_PATTERN.match(value[:-2]):
+        return float(value[:-2]) / 60.0
     if value.endswith("h") and NUMERIC_PATTERN.match(value[:-1]):
         return float(value[:-1])
     if value.endswith("m") and NUMERIC_PATTERN.match(value[:-1]):

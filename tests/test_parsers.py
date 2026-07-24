@@ -126,6 +126,14 @@ def test_parse_numeric_value_minutes():
     assert parse_numeric_value("30m") == 0.5
 
 
+def test_parse_numeric_value_saat():
+    assert parse_numeric_value("3saat") == 3.0
+
+
+def test_parse_numeric_value_dk():
+    assert parse_numeric_value("30dk") == 0.5
+
+
 def test_parse_numeric_value_plain():
     assert parse_numeric_value("42") == 42.0
 

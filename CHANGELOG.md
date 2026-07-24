@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.43.0] - 2026-07-24
+
+### Added
+- **Turkish time units:** `saat` and `dk` suffixes now supported alongside `h`/`m` (e.g., `time:3saat`, `time:34dk`). Summed time values display as `Xh Ym`.
+
 ## [0.42.0] - 2026-07-24
 
 ### Added
