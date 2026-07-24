@@ -253,9 +253,7 @@ def print_matches(
             f" containing {display_query}"
         )
     else:
-        status_msg = (
-            f"\n\U0001f50d {len(matches)} {entry_label}"
-        )
+        status_msg = f"\n\U0001f50d {len(matches)} {entry_label}"
 
     if has_since and has_until:
         status_msg += f" ({since_value} to {until_value})"

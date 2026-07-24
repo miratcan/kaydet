@@ -71,7 +71,11 @@ def test_format_entry_header_with_attachments():
 
 def test_format_entry_header_without_attachments():
     header = format_entry_header(
-        "10:00", "Hello", {}, (), entry_id="1",
+        "10:00",
+        "Hello",
+        {},
+        (),
+        entry_id="1",
     )
     assert "attachment:" not in header
 
@@ -95,8 +99,7 @@ def test_parse_stored_entry_remainder_no_attachments():
 def test_parse_day_entries_with_attachments(tmp_path):
     day_file = tmp_path / "2026-04-11.txt"
     day_file.write_text(
-        "10:00 [1]: Meeting attachment:1_slides.pdf #work\n"
-        "11:00 [2]: Lunch\n",
+        "10:00 [1]: Meeting attachment:1_slides.pdf #work\n11:00 [2]: Lunch\n",
         encoding="utf-8",
     )
 

@@ -131,9 +131,7 @@ class TestCleanupMissingEntries:
 
 
 class TestSyncSingleFile:
-    def test_syncs_entries_to_db(
-        self, conn, log_dir, config
-    ):
+    def test_syncs_entries_to_db(self, conn, log_dir, config):
         day_file = log_dir / "2025-06-15.txt"
         day_file.write_text(
             "2025/06/15/ - Sunday\n"
@@ -155,13 +153,9 @@ class TestSyncSingleFile:
 
 
 class TestSyncModifiedDiaryFiles:
-    def test_syncs_new_files(
-        self, conn, log_dir, config
-    ):
+    def test_syncs_new_files(self, conn, log_dir, config):
         day_file = log_dir / "2025-06-15.txt"
-        day_file.write_text(
-            "14:30: hello #test\n", encoding="utf-8"
-        )
+        day_file.write_text("14:30: hello #test\n", encoding="utf-8")
 
         result = sync_modified_diary_files(
             conn, log_dir, config, datetime(2025, 6, 15, 14, 30)
@@ -172,13 +166,9 @@ class TestSyncModifiedDiaryFiles:
         cursor.execute("SELECT COUNT(*) FROM entries")
         assert cursor.fetchone()[0] == 1
 
-    def test_skips_unmodified_files(
-        self, conn, log_dir, config
-    ):
+    def test_skips_unmodified_files(self, conn, log_dir, config):
         day_file = log_dir / "2025-06-15.txt"
-        day_file.write_text(
-            "14:30 [1]: hello\n", encoding="utf-8"
-        )
+        day_file.write_text("14:30 [1]: hello\n", encoding="utf-8")
 
         sync_modified_diary_files(
             conn, log_dir, config, datetime(2025, 6, 15, 14, 30)
@@ -190,13 +180,9 @@ class TestSyncModifiedDiaryFiles:
 
         assert len(result) == 0
 
-    def test_force_reprocess(
-        self, conn, log_dir, config
-    ):
+    def test_force_reprocess(self, conn, log_dir, config):
         day_file = log_dir / "2025-06-15.txt"
-        day_file.write_text(
-            "14:30: hello\n", encoding="utf-8"
-        )
+        day_file.write_text("14:30: hello\n", encoding="utf-8")
 
         sync_modified_diary_files(
             conn, log_dir, config, datetime(2025, 6, 15, 14, 30)
@@ -207,7 +193,10 @@ class TestSyncModifiedDiaryFiles:
         count_before = cursor.fetchone()[0]
 
         sync_modified_diary_files(
-            conn, log_dir, config, datetime(2025, 6, 15, 14, 30),
+            conn,
+            log_dir,
+            config,
+            datetime(2025, 6, 15, 14, 30),
             force=True,
         )
 

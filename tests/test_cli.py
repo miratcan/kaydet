@@ -807,7 +807,6 @@ def test_reminder_old_entry(setup_kaydet, capsys):
     assert "Over two hours since" in captured.out
 
 
-
 def test_folder_command_opens_main_log_dir(setup_kaydet, mocker):
     """Test that `kaydet --folder` opens the main log directory."""
     fake_log_dir = setup_kaydet["fake_log_dir"]
@@ -871,7 +870,6 @@ def test_reminder_fallback_to_mtime(
 
     captured = capsys.readouterr()
     assert "Over two hours since" in captured.out
-
 
 
 def test_stats_no_log_dir(setup_kaydet, capsys, mock_datetime_factory):
@@ -1052,8 +1050,7 @@ def test_load_config_existing_partial(monkeypatch, tmp_path):
     custom_storage = tmp_path / "custom" / "storage"
     log_dir = tmp_path / ".kaydet"
     config_content = (
-        f"[SETTINGS]\nstorage_dir = {custom_storage}\n"
-        f"log_dir = {log_dir}\n"
+        f"[SETTINGS]\nstorage_dir = {custom_storage}\nlog_dir = {log_dir}\n"
     )
     config_path.write_text(config_content)
 

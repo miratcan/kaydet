@@ -25,12 +25,13 @@ from kaydet.parsers import (
 
 # --- tokenize_query_terms ---
 
+
 def test_tokenize_query_terms_empty():
     assert tokenize_query_terms("") == []
 
 
 def test_tokenize_query_terms_splits_by_whitespace():
-    assert tokenize_query_terms('a b c') == ['a', 'b', 'c']
+    assert tokenize_query_terms("a b c") == ["a", "b", "c"]
 
 
 def test_tokenize_query_terms_respects_quotes():
@@ -39,6 +40,7 @@ def test_tokenize_query_terms_respects_quotes():
 
 
 # --- _parse_base_token ---
+
 
 def test_parse_base_token_word():
     t = _parse_base_token("hello")
@@ -65,6 +67,7 @@ def test_parse_base_token_metadata():
 
 # --- tokenize ---
 
+
 def test_tokenize_basic():
     tokens = tokenize("#work time:>1")
     assert tokens[0].type == "TAG"
@@ -86,6 +89,7 @@ def test_tokenize_exclusion():
 
 # --- normalize_tag ---
 
+
 def test_normalize_tag_strips_hash():
     assert normalize_tag("#Work") == "work"
 
@@ -99,6 +103,7 @@ def test_normalize_tag_invalid():
 
 
 # --- parse_metadata_token ---
+
 
 def test_parse_metadata_token_basic():
     assert parse_metadata_token("status:done") == ("status", "done")
@@ -118,6 +123,7 @@ def test_parse_metadata_token_url_like():
 
 # --- parse_numeric_value ---
 
+
 def test_parse_numeric_value_strips_suffix():
     assert parse_numeric_value("3h") == 3.0
     assert parse_numeric_value("30m") == 30.0
@@ -132,6 +138,7 @@ def test_parse_numeric_value_strips_suffix():
 
 # --- build_numeric_metadata ---
 
+
 def test_build_numeric_metadata():
     result = build_numeric_metadata({"time": "2h", "priority": "high"})
     assert result == {"time": 2.0}
@@ -142,6 +149,7 @@ def test_build_numeric_metadata_empty():
 
 
 # --- partition_entry_tokens ---
+
 
 def test_partition_entry_tokens():
     msg, meta, tags = partition_entry_tokens(["work on #kaydet time:3h"])
@@ -157,6 +165,7 @@ def test_partition_entry_tokens_escaped_hash():
 
 
 # --- format_entry_header ---
+
 
 def test_format_entry_header_basic():
     result = format_entry_header("14:30", "meeting", {}, [])
@@ -192,6 +201,7 @@ def test_format_entry_header_no_message():
 
 # --- parse_stored_entry_remainder ---
 
+
 def test_parse_stored_entry_remainder_basic():
     msg, meta, tags, attachments = parse_stored_entry_remainder(
         "fixed bug status:done #work"
@@ -218,6 +228,7 @@ def test_parse_stored_entry_remainder_empty():
 
 # --- tokenize_query ---
 
+
 def test_tokenize_query_empty():
     text, ex_text, meta, ex_meta, tags, ex_tags = tokenize_query("")
     assert all(x == [] for x in (text, ex_text, meta, ex_meta, tags, ex_tags))
@@ -237,6 +248,7 @@ def test_tokenize_query_all_types():
 
 # --- parse_range_expression ---
 
+
 def test_parse_range_basic():
     assert parse_range_expression("1..3") == (1.0, 3.0)
 
@@ -254,6 +266,7 @@ def test_parse_range_not_a_range():
 
 
 # --- parse_comparison_expression ---
+
 
 def test_parse_comparison_gte():
     assert parse_comparison_expression(">=2") == (">=", 2.0)
@@ -277,6 +290,7 @@ def test_parse_comparison_not_comparison():
 
 # --- parse_day_entries ---
 
+
 def test_parse_day_entries_basic(tmp_path):
     day_file = tmp_path / "2024-01-15.txt"
     day_file.write_text(
@@ -294,9 +308,7 @@ def test_parse_day_entries_basic(tmp_path):
 def test_parse_day_entries_multiline(tmp_path):
     day_file = tmp_path / "2024-06-01.txt"
     day_file.write_text(
-        "10:00 [1]: notes\n"
-        "  continued on next line\n"
-        "  and another\n"
+        "10:00 [1]: notes\n  continued on next line\n  and another\n"
     )
     entries = parse_day_entries(day_file, date(2024, 6, 1))
     assert len(entries) == 1
@@ -325,6 +337,7 @@ def test_parse_day_entries_no_entries(tmp_path):
 
 # --- deduplicate_tags ---
 
+
 def test_deduplicate_tags():
     assert deduplicate_tags(["dev", "work", "dev"], []) == ("dev", "work")
 
@@ -341,6 +354,7 @@ def test_deduplicate_tags_case_insensitive():
 
 # --- extract_tags_from_text ---
 
+
 def test_extract_tags_from_text():
     assert extract_tags_from_text("#hello #world") == ("hello", "world")
 
@@ -355,6 +369,7 @@ def test_extract_tags_from_text_no_tags():
 
 # --- extract_words_from_text ---
 
+
 def test_extract_words_from_text():
     assert extract_words_from_text("Hello, World!") == ["hello", "world"]
 
@@ -364,6 +379,7 @@ def test_extract_words_from_text_empty():
 
 
 # --- count_entries ---
+
 
 def test_count_entries(tmp_path):
     day_file = tmp_path / "diary.txt"
@@ -378,6 +394,7 @@ def test_count_entries_no_entries(tmp_path):
 
 
 # --- resolve_entry_date ---
+
 
 def test_resolve_entry_date():
     p = Path("2024-03-15.txt")
