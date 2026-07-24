@@ -242,41 +242,32 @@ def print_matches(
         # Remove until:VALUE from query string for cleaner display
         display_query = re.sub(r"\buntil:\S+\s*", "", query).strip()
 
-    if display_query:
-        status_msg = (
-            f"\nListed {len(matches)} {entry_label} containing {display_query}"
-        )
-    else:
-        status_msg = f"\nListed {len(matches)} {entry_label}"
-
-    # Add date range info if filters are applied
     has_since = since_value and since_value not in ("0", "all")
     has_until = until_value and until_value not in ("0", "all")
+    has_date_filter = has_since or has_until
+    has_default_filter = bool(default_since_hint) and not display_query
+
+    if display_query:
+        status_msg = (
+            f"\n\U0001f50d {len(matches)} {entry_label}"
+            f" containing {display_query}"
+        )
+    else:
+        status_msg = (
+            f"\n\U0001f50d {len(matches)} {entry_label}"
+        )
 
     if has_since and has_until:
-        # Show date range
         status_msg += f" ({since_value} to {until_value})"
     elif has_since:
         status_msg += f" (since {since_value})"
     elif has_until:
         status_msg += f" (until {until_value})"
 
-    print(status_msg + ".")
+    print(status_msg)
 
-    # Show hint for seeing all entries if date filter is applied
-    if has_since or has_until:
-        if display_query:
-            print(f"Use '{display_query} since:0' to see all entries.")
-        else:
-            print("Use 'since:0' to see all entries.")
-
-    if default_since_hint and not display_query:
-        print(
-            "Note: No filter provided, so showing "
-            f"entries since {default_since_hint}. "
-            "Use '--list --filter \"since:0\"' for the "
-            "full archive (this may be very verbose)."
-        )
+    if has_date_filter or has_default_filter:
+        print("\U0001f4a1 Use since:0 to see all entries.")
 
 
 def search_command(

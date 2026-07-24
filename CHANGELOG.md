@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.41.0] - 2026-07-24
+
+### Changed
+- **Compact list footer:** `--list` footer shortened to `🔍 N entries` + one hint line instead of three verbose lines.
+
 ## [0.40.0] - 2026-07-24
 
 ### Changed
