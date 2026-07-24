@@ -42,7 +42,7 @@ def print_stats(result: dict[str, Any], output_format: str) -> None:
 
         total_entries = result["total_entries"]
         if total_entries == 0:
-            print("\nNo entries recorded for this month yet.")
+            print("\n\U0001f4ad No entries recorded for this month yet")
         else:
             print(f"\nTotal entries this month: {total_entries}")
 
@@ -56,7 +56,7 @@ def print_tags(result: dict[str, Any], output_format: str) -> None:
         if output_format == "json":
             print(json.dumps({"tags": []}))
         else:
-            print("No tags have been recorded yet.")
+            print("\U0001f3f7\ufe0f No tags recorded yet")
         return
 
     if output_format == "json":

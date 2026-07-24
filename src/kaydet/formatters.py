@@ -508,7 +508,7 @@ class TodoFormatter:
             return
 
         if not todos:
-            self.console.print("No todos found.")
+            self.console.print("\U0001f389 No todos found \u2014 all done!")
             return
 
         pending_todos, done_todos = self._partition_by_status(todos)

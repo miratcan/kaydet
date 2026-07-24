@@ -309,7 +309,7 @@ def main() -> None:
                     "You may need to move them manually."
                 )
         else:
-            print("\n✓ Configuration saved.")
+            print("\n\u2705 Configuration saved")
 
         return
 
@@ -346,12 +346,12 @@ def main() -> None:
         )
         result = cursor.fetchone()
         if result is None:
-            print(f"Entry {args.get} not found.")
+            print(f"\U0001f937 Entry {args.get} not found")
             return
         locations = [(result[0], args.get)]
         matches = load_matches(locations, storage_dir, config)
         if not matches:
-            print(f"Entry {args.get} not found.")
+            print(f"\U0001f937 Entry {args.get} not found")
             return
         print_matches(
             matches,
@@ -404,7 +404,7 @@ def main() -> None:
             locations = cursor.fetchall()
 
             if not locations:
-                print(f"No todos found matching '{args.filter}'.")
+                print(f"\U0001f50d No todos found matching '{args.filter}'")
                 return
 
             matches = load_matches(locations, storage_dir, config)
@@ -433,7 +433,7 @@ def main() -> None:
                 )
 
             if not todos:
-                print("No pending todos found matching the filter.")
+                print("\U0001f50d No pending todos found matching that filter")
                 return
 
             format_todo_results(
@@ -443,7 +443,7 @@ def main() -> None:
             # kaydet --todo (no arguments) → list all todos
             todos = list_todos_command(conn, storage_dir, config)
             if not todos:
-                print("No pending todos.")
+                print("\U0001f389 No pending todos \u2014 all done!")
             else:
                 format_todo_results(
                     todos,
@@ -489,7 +489,7 @@ def main() -> None:
             if not res["matches"] and not query:
                 pass
             elif not res["matches"]:
-                print(f"No entries matched '{query}'.")
+                print(f"\U0001f50d No entries matched '{query}'")
             else:
                 print_matches(
                     res["matches"],
@@ -510,7 +510,7 @@ def main() -> None:
         res = search_command(conn, storage_dir, config, args.filter)
         if res.get("success", False):
             if not res["matches"]:
-                print(f"No entries matched '{args.filter}'.")
+                print(f"\U0001f50d No entries matched '{args.filter}'")
             else:
                 print_matches(
                     res["matches"],
@@ -526,13 +526,13 @@ def main() -> None:
         return
 
     if args.edit is not None and args.delete is not None:
-        print("Use either --edit or --delete, not both.")
+        print("\U0001f937 Use either --edit or --delete, not both")
         return
     if args.edit is not None:
         try:
             edit_id = int(args.edit[0])
         except ValueError:
-            print(f"Invalid entry ID: {args.edit[0]}")
+            print(f"\U0001f937 Invalid entry ID: {args.edit[0]}")
             return
         if len(args.edit) > 1:
             # Inline update: --edit ID "new text"

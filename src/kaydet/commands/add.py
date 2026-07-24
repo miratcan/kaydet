@@ -278,7 +278,7 @@ def add_entry_command(args, config, config_dir, log_dir, now, conn):
     if entry_now > now:
         return {
             "success": False,
-            "message": "Cannot create entries in the future.",
+            "message": "\u23f0 Can't log entries in the future",
         }
 
     # Resolve attachment paths early so we fail fast
@@ -293,7 +293,10 @@ def add_entry_command(args, config, config_dir, log_dir, now, conn):
     entry_body = raw_entry.strip()
     has_attachments = bool(attach_paths or grab_paths)
     if not any((entry_body, metadata, explicit_tags, has_attachments)):
-        return {"success": False, "message": "Nothing to save."}
+        return {
+            "success": False,
+            "message": "\U0001f914 Nothing to save \u2014 entry was empty",
+        }
 
     result = create_entry(
         raw_entry=raw_entry,

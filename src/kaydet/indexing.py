@@ -33,7 +33,10 @@ def rebuild_index_if_empty(
     if not any(log_dir.glob(glob_pattern)):
         return
 
-    print("Search index is empty. Rebuilding from existing files...")
+    print(
+        "\U0001f50d Search index is empty."
+        " Rebuilding from existing files..."
+    )
     timestamp = current_time or datetime.now()
     doctor_command(conn, log_dir, config, timestamp)
     print()

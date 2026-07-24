@@ -582,7 +582,7 @@ def test_edit_command_updates_entry(
 
     cli.main()
     output = capsys.readouterr().out
-    assert f"Updated entry {entry_id}" in output
+    assert f"Entry Updated (ID: {entry_id})" in output
 
     day_file = fake_log_dir / "2025-09-30.txt"
     content = day_file.read_text()
@@ -654,7 +654,7 @@ def test_delete_command_removes_entry(
 
     cli.main()
     output = capsys.readouterr().out
-    assert f"Deleted entry {entry_id}" in output
+    assert f"Entry Deleted (ID: {entry_id})" in output
     assert prompted
     assert "First entry to delete" in prompted[0]
 
@@ -769,7 +769,7 @@ def test_reminder_no_previous_entries(setup_kaydet, capsys):
     cli.main()
 
     captured = capsys.readouterr()
-    assert "You haven't written any Kaydet entries yet." in captured.out
+    assert "No entries yet" in captured.out
 
 
 def test_reminder_recent_entry(setup_kaydet, capsys):
@@ -803,10 +803,8 @@ def test_reminder_old_entry(setup_kaydet, capsys):
     cli.main()
 
     captured = capsys.readouterr()
-    assert (
-        "It's been over two hours since your last Kaydet entry."
-        in captured.out
-    )
+    assert "Over two hours since" in captured.out
+
 
 
 def test_folder_command_opens_main_log_dir(setup_kaydet, mocker):
@@ -871,10 +869,8 @@ def test_reminder_fallback_to_mtime(
     cli.main()
 
     captured = capsys.readouterr()
-    assert (
-        "It's been over two hours since your last Kaydet entry."
-        in captured.out
-    )
+    assert "Over two hours since" in captured.out
+
 
 
 def test_stats_no_log_dir(setup_kaydet, capsys, mock_datetime_factory):
@@ -887,7 +883,7 @@ def test_stats_no_log_dir(setup_kaydet, capsys, mock_datetime_factory):
     cli.main()
 
     captured = capsys.readouterr()
-    assert "No diary entries found yet." in captured.out
+    assert "No diary entries found yet" in captured.out
 
 
 def test_stats_over_99_entries(setup_kaydet, capsys, mock_datetime_factory):
@@ -973,7 +969,7 @@ def test_search_no_results(setup_kaydet, capsys):
     cli.main()
 
     captured = capsys.readouterr()
-    assert "No entries matched 'nonexistent'." in captured.out
+    assert "No entries matched 'nonexistent'" in captured.out
 
 
 def test_tags_no_tags(setup_kaydet, capsys):
@@ -987,7 +983,7 @@ def test_tags_no_tags(setup_kaydet, capsys):
     cli.main()
 
     captured = capsys.readouterr()
-    assert "No tags have been recorded yet." in captured.out
+    assert "No tags recorded yet" in captured.out
 
 
 def test_empty_entry_from_editor(setup_kaydet, capsys, mock_datetime_factory):
@@ -1005,7 +1001,7 @@ def test_empty_entry_from_editor(setup_kaydet, capsys, mock_datetime_factory):
     cli.main()
 
     captured = capsys.readouterr()
-    assert "Nothing to save." in captured.out
+    assert "Nothing to save" in captured.out
 
     log_file = fake_log_dir / "2025-09-30.txt"
     assert log_file.exists()
@@ -1288,7 +1284,7 @@ def test_add_entry_with_at_flag(setup_kaydet, mock_datetime_factory, capsys):
         ["kaydet", "A future entry", "--at", "2025-10-26:10:00"],
     )
     cli.main()
-    assert "Cannot create entries in the future" in capsys.readouterr().out
+    assert "Can't log entries in the future" in capsys.readouterr().out
 
     # 5. Test invalid format
     monkeypatch.setattr(

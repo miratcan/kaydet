@@ -43,7 +43,7 @@ def todo_command(
     if not message_text:
         return {
             "success": False,
-            "message": "Todo description cannot be empty.",
+            "message": "\U0001f914 Todo description cannot be empty",
         }
 
     # Add status:pending metadata
@@ -69,10 +69,8 @@ def todo_command(
         "success": True,
         **result,
         "message": (
-            f"Todo created: {result['day_file']} "
-            f"(ID: {result['entry_id']})\n"
-            f"  [{result['entry_id']}] {message_text}\n"
-            "  Status: pending"
+            f"\U0001f4dd Todo Created (ID: {result['entry_id']})\n"
+            f"  [{result['entry_id']}] {message_text}"
         ),
     }
 
@@ -93,27 +91,27 @@ def done_command(
     result = cursor.fetchone()
 
     if not result:
-        raise ValueError(f"Entry {entry_id} not found.")
+        raise ValueError(f"\U0001f937 Entry {entry_id} not found")
 
     source_file = result[0]
     day_file = log_dir / source_file
 
     if not day_file.exists():
-        raise FileNotFoundError(f"File {source_file} not found.")
+        raise FileNotFoundError(f"\U0001f937 File {source_file} not found")
 
     raw_text, lines, had_trailing_newline = read_day_file(day_file)
     try:
         start, end = find_entry_block(lines, entry_id)
     except EntryNotFoundError as err:
         raise ValueError(
-            f"Entry {entry_id} could not be located inside '{source_file}'. "
-            "Run 'kaydet --doctor' to rebuild the index."
+            f"\U0001f937 Entry {entry_id} could not be located inside "
+            f"'{source_file}'. Run 'kaydet --doctor' to rebuild the index."
         ) from err
 
     header_line = lines[start].rstrip()
     match = ENTRY_LINE_PATTERN.match(header_line)
     if not match:
-        raise ValueError(f"Entry {entry_id} has an invalid header.")
+        raise ValueError(f"\U0001f937 Entry {entry_id} has an invalid header")
 
     original_timestamp, _, remainder = match.groups()
     (
@@ -147,10 +145,7 @@ def done_command(
         "entry_id": entry_id,
         "completed_at": completed_time,
         "source_file": source_file,
-        "message": (
-            f"✓ Todo {entry_id} marked as done at {completed_time}\n"
-            f"  Entry updated in {source_file}"
-        ),
+        "message": f"\u2705 Todo {entry_id} Done",
     }
 
 

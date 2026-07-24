@@ -330,7 +330,7 @@ def search_command(
         )
         and not allow_empty
     ):
-        return {"success": False, "error": "Search query is empty."}
+        return {"success": False, "error": "\U0001f50d Search query is empty"}
 
     sql_query, params = build_search_query(
         include_text,

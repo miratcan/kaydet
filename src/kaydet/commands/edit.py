@@ -75,15 +75,15 @@ def edit_entry_command(
     )
     result = cursor.fetchone()
     if result is None:
-        print(f"Entry {entry_id} was not found in the index.")
+        print(f"\U0001f937 Entry {entry_id} was not found in the index.")
         return
 
     (source_file,) = result
     day_file = log_dir / source_file
     if not day_file.exists():
         print(
-            f"Entry {entry_id} references missing file '{source_file}'. "
-            "Run 'kaydet --doctor' to repair the index."
+            f"\U0001f937 Entry {entry_id} references missing file"
+            f" '{source_file}'. Run 'kaydet --doctor' to repair the index."
         )
         return
 
@@ -92,8 +92,8 @@ def edit_entry_command(
         start, end = find_entry_block(lines, entry_id)
     except EntryNotFoundError:
         print(
-            f"Entry {entry_id} could not be located inside '{source_file}'. "
-            "Run 'kaydet --doctor' to rebuild the index."
+            f"\U0001f937 Entry {entry_id} could not be located inside "
+            f"'{source_file}'. Run 'kaydet --doctor' to rebuild the index."
         )
         return
 
@@ -107,20 +107,20 @@ def edit_entry_command(
     edited_lines = edited_text.splitlines()
 
     if edited_lines == original_block:
-        print(f"No changes made to entry {entry_id}.")
+        print(f"\U0001f937 No changes made to entry {entry_id}")
         return
 
     try:
         normalized_block = _normalize_edited_block(entry_id, edited_lines)
     except InvalidEntryEdit as error:
-        print(f"Edit aborted: {error}")
+        print(f"\U0001f937 Edit aborted: {error}")
         return
 
     lines[start:end] = normalized_block
     ensure_newline = had_trailing_newline or edited_text.endswith("\n")
     write_day_file(day_file, lines, ensure_newline)
     sync_modified_diary_files(conn, log_dir, config, now)
-    print(f"Updated entry {entry_id} in {source_file}.")
+    print(f"\u270f\ufe0f Entry Updated (ID: {entry_id})")
 
 
 def update_entry_inline(
@@ -144,15 +144,15 @@ def update_entry_inline(
     )
     result = cursor.fetchone()
     if result is None:
-        print(f"Entry {entry_id} was not found in the index.")
+        print(f"\U0001f937 Entry {entry_id} was not found in the index.")
         return None
 
     (source_file,) = result
     day_file = log_dir / source_file
     if not day_file.exists():
         print(
-            f"Entry {entry_id} references missing file '{source_file}'. "
-            "Run 'kaydet --doctor' to repair the index."
+            f"\U0001f937 Entry {entry_id} references missing file "
+            f"'{source_file}'. Run 'kaydet --doctor' to repair the index."
         )
         return None
 
@@ -161,20 +161,23 @@ def update_entry_inline(
         start, end = find_entry_block(lines, entry_id)
     except EntryNotFoundError:
         print(
-            f"Entry {entry_id} could not be located inside '{source_file}'. "
-            "Run 'kaydet --doctor' to rebuild the index."
+            f"\U0001f937 Entry {entry_id} could not be located inside "
+            f"'{source_file}'. Run 'kaydet --doctor' to rebuild the index."
         )
         return None
 
     original_block = lines[start:end]
     if not original_block:
-        print(f"Entry {entry_id} is empty and cannot be updated.")
+        print(f"\U0001f937 Entry {entry_id} is empty and cannot be updated.")
         return None
 
     header_line = original_block[0].rstrip()
     match = ENTRY_LINE_PATTERN.match(header_line)
     if not match:
-        print(f"Entry {entry_id} has an invalid header and cannot be updated.")
+        print(
+            f"\U0001f937 Entry {entry_id} has an invalid header "
+            "and cannot be updated."
+        )
         return None
 
     original_timestamp, _, remainder = match.groups()
@@ -225,7 +228,7 @@ def update_entry_inline(
     )
     write_day_file(day_file, lines, ensure_newline)
     sync_modified_diary_files(conn, log_dir, config, now)
-    print(f"Updated entry {entry_id} in {source_file}.")
+    print(f"\u270f\ufe0f Entry Updated (ID: {entry_id})")
     return {
         "entry_id": entry_id,
         "day_file": str(day_file),

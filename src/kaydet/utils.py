@@ -98,8 +98,8 @@ def prompt_storage_location() -> Path:
 
     storage_path.mkdir(parents=True, exist_ok=True)
 
-    print(f"\n✓ Kaydet will store entries in: {storage_path}")
-    print(f"✓ Index stored locally in: {get_default_index_path()}\n")
+    print(f"\n\u2705 Kaydet will store entries in: {storage_path}")
+    print(f"\u2705 Index stored locally in: {get_default_index_path()}\n")
 
     return storage_path
 
@@ -294,6 +294,6 @@ def migrate_storage(old_path: Path, new_path: Path) -> None:
             print(f"  ⚠️  Skipping {txt_file.name} (already exists in target)")
         else:
             txt_file.rename(target)
-            print(f"  ✓ Moved {txt_file.name}")
+            print(f"  \u2705 Moved {txt_file.name}")
 
-    print(f"\n✓ Migration complete: {old_path} → {new_path}")
+    print(f"\n\u2705 Migration complete: {old_path} \u2192 {new_path}")
