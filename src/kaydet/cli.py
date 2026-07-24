@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import subprocess  # Used by tests  # noqa: F401
+from collections import Counter
 from datetime import datetime
 from pathlib import Path
 from textwrap import dedent
@@ -199,6 +200,12 @@ def build_parser(
         action="store_true",
         help="Show calendar stats.",
     )
+    query_group.add_argument(
+        "--sum",
+        dest="summarize",
+        action="store_true",
+        help="Show summed numeric metadata for matching entries.",
+    )
 
     # Management
     management_group = parser.add_argument_group("Management")
@@ -257,6 +264,25 @@ def build_parser(
         help="Show version.",
     )
     return parser
+
+
+def print_sums(matches: list) -> None:
+    """Print summed numeric metadata from a list of Entry matches."""
+    totals: Counter[str] = Counter()
+    for match in matches:
+        numbers = getattr(match, "metadata_numbers", {})
+        for key, value in numbers.items():
+            totals[key] += value
+    if not totals:
+        print("\U0001f50d No numeric metadata found to sum")
+        return
+    max_key_width = max(len(k) for k in totals)
+    for key in sorted(totals):
+        value = totals[key]
+        if value == int(value):
+            print(f"  {key:<{max_key_width}}  {int(value)}")
+        else:
+            print(f"  {key:<{max_key_width}}  {value}")
 
 
 def main() -> None:
@@ -490,6 +516,8 @@ def main() -> None:
                 pass
             elif not res["matches"]:
                 print(f"\U0001f50d No entries matched '{query}'")
+            elif args.summarize:
+                print_sums(res["matches"])
             else:
                 print_matches(
                     res["matches"],
@@ -511,6 +539,8 @@ def main() -> None:
         if res.get("success", False):
             if not res["matches"]:
                 print(f"\U0001f50d No entries matched '{args.filter}'")
+            elif args.summarize:
+                print_sums(res["matches"])
             else:
                 print_matches(
                     res["matches"],
@@ -559,6 +589,14 @@ def main() -> None:
                     print(res["message"])
             except (ValueError, FileNotFoundError) as e:
                 print(str(e))
+        return
+
+    if args.summarize:
+        res = search_command(conn, storage_dir, config, "")
+        if res.get("success", False) and res["matches"]:
+            print_sums(res["matches"])
+        else:
+            print("\U0001f50d No entries found to sum")
         return
 
     res = add_entry_command(args, config, config_dir, storage_dir, now, conn)

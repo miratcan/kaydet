@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.42.0] - 2026-07-24
+
+### Added
+- **`--sum` flag:** Sums numeric metadata values across matching entries. Use with `--filter` (e.g., `kaydet --filter "#harcama" --sum` shows `price: 785`). Also available as `summarize_entries` MCP tool.
+
 ## [0.41.0] - 2026-07-24
 
 ### Changed

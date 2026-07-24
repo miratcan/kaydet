@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -184,6 +185,70 @@ class KaydetService:
             "query": query,
             "matches": payload,
             "total": len(payload),
+        }
+
+    def summarize_entries(self, query: str) -> dict[str, Any]:
+        """Search entries and return summed numeric metadata."""
+        now = datetime.now()
+        self._ensure_index(now)
+
+        (
+            include_text,
+            exclude_text,
+            include_meta,
+            exclude_meta,
+            include_tags,
+            exclude_tags,
+        ) = tokenize_query(query)
+
+        if not any(
+            [
+                include_text,
+                exclude_text,
+                include_meta,
+                exclude_meta,
+                include_tags,
+                exclude_tags,
+            ]
+        ):
+            return {"success": False, "error": "Search query is empty."}
+
+        sql_query, params = build_search_query(
+            include_text,
+            exclude_text,
+            include_meta,
+            exclude_meta,
+            include_tags,
+            exclude_tags,
+        )
+        cursor = self.conn.cursor()
+        try:
+            cursor.execute(sql_query, params)
+        except Exception as error:
+            return {
+                "success": False,
+                "error": f"Database query failed: {error}",
+            }
+        locations = cursor.fetchall()
+        if not locations:
+            return {"success": True, "query": query, "sums": {}, "total": 0}
+
+        matches = load_matches(locations, self.log_dir, self.config)
+
+        totals: Counter[str] = Counter()
+        for match in matches:
+            for key, value in match.metadata_numbers.items():
+                totals[key] += value
+
+        sums = {
+            key: int(value) if value == int(value) else value
+            for key, value in sorted(totals.items())
+        }
+        return {
+            "success": True,
+            "query": query,
+            "sums": sums,
+            "total": len(matches),
         }
 
     def get_entry(self, entry_id: int) -> dict[str, Any]:

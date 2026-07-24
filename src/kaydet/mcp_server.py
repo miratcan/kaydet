@@ -198,6 +198,19 @@ async def serve() -> None:
                 },
             ),
             Tool(
+                name="summarize_entries",
+                description=(
+                    "Search entries and return summed numeric metadata values"
+                ),
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string"},
+                    },
+                    "required": ["query"],
+                },
+            ),
+            Tool(
                 name="get_stats",
                 description="Get entry counts for a given month",
                 inputSchema={
@@ -343,6 +356,13 @@ async def serve() -> None:
 
         if name == "suggest_kaydet_tags":
             result = service.suggest_tags(directory=arguments.get("path"))
+            return [TextContent(type="text", text=json.dumps(result))]
+
+        if name == "summarize_entries":
+            query = arguments.get("query", "")
+            if not query:
+                return error_response("Search query is required")
+            result = service.summarize_entries(query)
             return [TextContent(type="text", text=json.dumps(result))]
 
         if name == "get_stats":
