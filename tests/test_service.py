@@ -113,15 +113,21 @@ def test_service_summarize_entries_with_samples(service_env):
     assert sample["text"]
 
 
-def test_service_summarize_is_unit_agnostic(service_env):
-    """Sum uses raw numbers only — no h/m/saat conversion."""
+def test_service_summarize_groups_by_unit_suffix(service_env):
+    """Same key + different unit labels are summed separately."""
     service = service_module.KaydetService.initialize()
-    service.add_entry(text="Deep work #focus", metadata={"time": "2h"})
-    service.add_entry(text="Short block #focus", metadata={"time": "30m"})
-    result = service.summarize_entries("#focus")
+    service.add_entry(text="A #worklog", metadata={"timespent": "1saat"})
+    service.add_entry(text="B #worklog", metadata={"timespent": "2saat"})
+    service.add_entry(text="C #worklog", metadata={"timespent": "30dk"})
+    service.add_entry(text="D #worklog", metadata={"timespent": "1hour"})
+    result = service.summarize_entries("#worklog")
     assert result["success"] is True
-    assert result["sums"]["time"] == 32
-    assert result["sums_display"]["time"] == "32"
+    assert result["sums"]["timespent (saat)"] == 3
+    assert result["sums_display"]["timespent (saat)"] == "3saat"
+    assert result["sums"]["timespent (dk)"] == 30
+    assert result["sums_display"]["timespent (dk)"] == "30dk"
+    assert result["sums"]["timespent (hour)"] == 1
+    assert result["sums_display"]["timespent (hour)"] == "1hour"
 
 
 def test_service_todo_workflow(service_env):

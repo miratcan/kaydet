@@ -1,57 +1,125 @@
 """Aggregate and format numeric metadata sums for --sum / MCP.
 
-Unit-agnostic: only the leading number is summed (``2h`` and ``30m`` both
-contribute their raw numbers — 2 and 30). No language-specific suffix
-conversion; callers own meaning of units.
+Unit-agnostic grouping: values are split into (number, unit-suffix).
+Only identical (key, unit) pairs are summed — no conversion between
+units (``1saat`` and ``30dk`` stay separate lines).
+
+Example::
+
+    timespent:1saat + timespent:2saat + timespent:30dk + timespent:1hour
+    →
+    timespent (dk): 30dk
+    timespent (hour): 1hour
+    timespent (saat): 3saat
 """
 
 from __future__ import annotations
 
+import re
 from collections import Counter
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable
+
+# Leading number + optional letter suffix (any language's letters).
+# Rejects timestamps like 18:51 (colon) and bare non-numeric text.
+_AMOUNT_UNIT_RE = re.compile(
+    r"^([-+]?\d+(?:\.\d+)?)([^\W\d_]*)$",
+    re.UNICODE,
+)
 
 
-def aggregate_sums(matches: Iterable[Any]) -> dict[str, float]:
-    """Sum ``metadata_numbers`` across entries (raw stored floats)."""
-    totals: Counter[str] = Counter()
-    for match in matches:
-        numbers = getattr(match, "metadata_numbers", None) or {}
-        for key, value in numbers.items():
-            totals[key] += value
+def split_amount_unit(raw_value: str) -> tuple[float, str] | None:
+    """Split ``2saat`` → (2.0, ``saat``), ``100`` → (100.0, ``""``).
 
-    return {
-        key: int(value) if value == int(value) else value
-        for key, value in sorted(totals.items())
-    }
+    Suffix is lowercased for stable grouping; no unit semantics applied.
+    """
+    value = raw_value.strip().lower()
+    if not value or ":" in value:
+        return None
+    match = _AMOUNT_UNIT_RE.match(value)
+    if not match:
+        return None
+    return float(match.group(1)), match.group(2)
 
 
-def format_sum_value(value: float) -> str:
-    """Human-readable number (no unit conversion)."""
+def _format_number(value: float) -> str:
     if value == int(value):
         return str(int(value))
     return str(value)
 
 
+def _group_label(key: str, unit: str) -> str:
+    if unit:
+        return f"{key} ({unit})"
+    return key
+
+
+def _group_display(total: float, unit: str) -> str:
+    num = _format_number(total)
+    return f"{num}{unit}" if unit else num
+
+
+def aggregate_sums(
+    matches: Iterable[Any],
+) -> list[dict[str, Any]]:
+    """Sum by (metadata key, unit suffix).
+
+    Returns a sorted list of groups::
+
+        [{"key": "timespent", "unit": "saat", "total": 3,
+          "label": "timespent (saat)", "display": "3saat"}, ...]
+    """
+    totals: Counter[tuple[str, str]] = Counter()
+
+    for match in matches:
+        metadata = getattr(match, "metadata", None) or {}
+        for key, raw in metadata.items():
+            parsed = split_amount_unit(str(raw))
+            if parsed is None:
+                continue
+            amount, unit = parsed
+            totals[(key, unit)] += amount
+
+    groups: list[dict[str, Any]] = []
+    for (key, unit), total in sorted(
+        totals.items(), key=lambda item: (item[0][0], item[0][1])
+    ):
+        total_out: float | int = (
+            int(total) if total == int(total) else total
+        )
+        groups.append(
+            {
+                "key": key,
+                "unit": unit,
+                "total": total_out,
+                "label": _group_label(key, unit),
+                "display": _group_display(float(total_out), unit),
+            }
+        )
+    return groups
+
+
 def format_sums_payload(
     matches: Iterable[Any],
 ) -> dict[str, Any]:
-    """Build structured sum payload (raw + display strings)."""
+    """Build structured sum payload for CLI JSON and MCP."""
     match_list = list(matches)
-    sums = aggregate_sums(match_list)
-    display = {
-        key: format_sum_value(float(value)) for key, value in sums.items()
-    }
+    groups = aggregate_sums(match_list)
+    # Flat maps keyed by label for simple consumers
+    sums = {g["label"]: g["total"] for g in groups}
+    sums_display = {g["label"]: g["display"] for g in groups}
     return {
         "total_entries": len(match_list),
+        "groups": groups,
         "sums": sums,
-        "sums_display": display,
+        "sums_display": sums_display,
     }
 
 
 def print_sums(matches: list) -> None:
-    """Print summed numeric metadata for the CLI (aligned columns)."""
+    """Print summed numeric metadata for the CLI."""
     payload = format_sums_payload(matches)
-    if not payload["sums"]:
+    groups = payload["groups"]
+    if not groups:
         print("\U0001f50d No numeric values found to sum")
         return
 
@@ -59,8 +127,6 @@ def print_sums(matches: list) -> None:
     entry_label = "entry" if n == 1 else "entries"
     print(f"\U0001f4ca {n} {entry_label}")
 
-    sums: Mapping[str, float] = payload["sums"]
-    display: Mapping[str, str] = payload["sums_display"]
-    width = max(len(key) for key in sums)
-    for key in sums:
-        print(f"  {key:<{width}}  {display[key]}")
+    width = max(len(g["label"]) for g in groups)
+    for g in groups:
+        print(f"  {g['label']:<{width}}  {g['display']}")
