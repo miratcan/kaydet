@@ -19,7 +19,7 @@
 > Your AI can read and write your notes too.
 
 <p align="center">
-  <img src="assets/demo.gif" alt="Kaydet demo" width="720">
+  <img src="assets/demo.gif" alt="Kaydet demo — coming soon" width="720">
 </p>
 
 ## Install
@@ -38,7 +38,6 @@ pipx install kaydet[mcp]
 
 ```bash
 uv tool install kaydet    # uv
-brew install kaydet       # Homebrew (coming soon)
 ```
 
 ## Quick Start
@@ -96,7 +95,7 @@ Your AI grounded in your own data. Not generic knowledge — your knowledge.
 
 ### MCP Tools
 
-16 tools including search, filter by metadata, manage todos, get stats, summarize, and more.
+Built-in MCP server with tools for search, metadata filtering, todo management, stats, summarization, and more.
 
 ### Architecture
 
@@ -145,9 +144,10 @@ Google Drive / iCloud / Dropbox
 | **SQLite FTS search** | ✅ FTS5 | ❌ | ❌ grep | ❌ |
 | **Structured metadata** | ✅ `time:>2` | ❌ | ❌ | ❌ |
 | **AI/MCP server** | ✅ | ❌ | ❌ | ❌ |
-| **Plain text files** | ✅ | ✅ | ✅ | ❌ DB-only |
+| **Plain text files** | ✅ | ✅ | ✅ | ❌ |
 | **Todo management** | ✅ | ❌ | ✅ | ❌ |
 | **Edit/delete by ID** | ✅ | ❌ | ❌ | ❌ |
+| **Git sync** | ✅ `--init --sync` | ❌ | ❌ | ❌ |
 | **Language** | Python | Python | Shell | Go |
 
 ### vs Knowledge Apps
@@ -171,7 +171,7 @@ Google Drive / iCloud / Dropbox
 - **File attachments:** Attach files with `--attach` or move with `--grab`
 - **Plain text storage:** Human-readable `.txt` files, one per day
 - **SQLite FTS5 indexing:** Fast full-text search across thousands of entries
-- **Git-friendly:** Version your journal, sync across devices
+- **Git sync:** Built-in `--init`, `--sync`, and `--status` commands
 - **MCP integration:** Connect Claude Desktop, Cursor, and any MCP-compatible AI
 
 ## Usage
@@ -213,6 +213,11 @@ kaydet --edit 42                             # Open in editor
 kaydet --edit 42 "Updated message"           # Inline update
 kaydet --delete 42                           # Delete by ID
 kaydet --delete 42 --yes                     # Skip confirmation
+
+# Sync (Git)
+kaydet --init "https://github.com/you/notes.git"  # Init repo + set remote
+kaydet --sync                                      # Commit + push + pull
+kaydet --status                                    # Show working tree status
 
 # Management
 kaydet --doctor                              # Rebuild search index
@@ -330,13 +335,24 @@ kaydet "Lunch with client #expense amount:850 currency:TRY billable:yes"
 kaydet --filter "billable:yes"  # Generate invoice data
 ```
 
-## Cloud Sync
+## Sync
 
-Kaydet separates storage (plain text files) from index (SQLite database). Only the plain text files are synced — each device builds its own search index locally. This means zero sync conflicts and no infrastructure cost.
+Kaydet separates storage (plain text files) from index (SQLite database). Only the plain text files are synced — each device builds its own search index locally. Zero sync conflicts, no infrastructure cost.
 
-Works with Google Drive, iCloud, Dropbox, Syncthing, or any folder sync tool.
+### Git Sync (Built-in)
 
-See [docs/sync.md](docs/sync.md) for setup instructions.
+```bash
+kaydet --init "https://github.com/you/notes.git"   # one-time setup
+kaydet --sync                                        # commit + push + pull
+```
+
+Runs git in your storage directory. Your diary files, attachments, and metadata are all versioned.
+
+### Cloud Folder Sync
+
+Works with Google Drive, iCloud, Dropbox, Syncthing, or any folder sync tool. Just point `STORAGE_DIR` to your synced folder.
+
+See [docs/sync.md](docs/sync.md) for details.
 
 ## Development
 
