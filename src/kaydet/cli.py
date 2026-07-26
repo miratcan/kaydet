@@ -109,9 +109,10 @@ def build_parser(
         metavar="TEXT",
         help=(
             "With text: create a todo (#todo, status:pending). "
-            "Without text: pure syntactic sugar for --filter '#todo' "
-            "(desugared before any command logic runs). "
-            "'--todo --filter \"#work\"' → --filter '#work #todo'."
+            "Without text: sugar for "
+            "--filter '#todo -status:done' (open todos only). "
+            "'--todo --filter \"#work\"' → "
+            "'#work #todo -status:done'."
         ),
     )
     todo_group.add_argument(
@@ -301,24 +302,27 @@ def build_parser(
     return parser
 
 
+# Bare --todo expands to this exact filter (pending todos only).
+TODO_LIST_FILTER = "#todo -status:done"
+
+
 def expand_cli_sugar(args: argparse.Namespace) -> None:
     """Desugar pure CLI aliases into canonical flags (in place).
 
-    Bare ``--todo`` (no text) is **only** syntactic sugar for
-    ``--filter '#todo'``. After this runs, ``args.todo`` is cleared so
-    the rest of ``main`` cannot treat listing as a special case — the
-    filter path is the single code path.
+    Bare ``--todo`` (no text) is syntactic sugar for
+    ``--filter '#todo -status:done'`` (open todos only). After this runs,
+    ``args.todo`` is cleared so listing uses the normal filter path only.
     """
     if args.todo is None:
         return
     if args.todo:
         # Non-empty: create path — not sugar; leave args.todo as-is.
         return
-    # Bare --todo → append #todo to filter, then forget --todo existed.
+    # Bare --todo → pending-todo filter, then forget --todo existed.
     if args.filter:
-        args.filter = f"{args.filter} #todo"
+        args.filter = f"{args.filter} {TODO_LIST_FILTER}"
     else:
-        args.filter = "#todo"
+        args.filter = TODO_LIST_FILTER
     args.todo = None
 
 

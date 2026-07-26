@@ -1,7 +1,6 @@
 "Search and tags commands."
 
 import re
-import shutil
 import sqlite3
 from collections import defaultdict
 from configparser import SectionProxy
@@ -282,10 +281,10 @@ def print_matches(
         print_no_matches(query, metadata_filters, default_since_hint)
         return
 
-    try:
-        terminal_width = shutil.get_terminal_size().columns
-    except OSError:
-        terminal_width = 80
+    # Single width authority: Rich console (avoids double-wrap vs shutil)
+    if console is None:
+        console = Console()
+    terminal_width = console.width or 80
 
     # Convert matches to SearchResult objects for formatting
     search_results = [

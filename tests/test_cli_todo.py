@@ -10,17 +10,18 @@ from kaydet import cli
 
 
 def test_expand_cli_sugar_bare_todo():
-    """Bare --todo desugars to filter '#todo' and clears args.todo."""
+    """Bare --todo desugars to open-todo filter and clears args.todo."""
     args = argparse.Namespace(todo=[], filter=None)
     cli.expand_cli_sugar(args)
-    assert args.filter == "#todo"
+    assert args.filter == cli.TODO_LIST_FILTER
+    assert args.filter == "#todo -status:done"
     assert args.todo is None
 
 
 def test_expand_cli_sugar_todo_with_existing_filter():
     args = argparse.Namespace(todo=[], filter="#work")
     cli.expand_cli_sugar(args)
-    assert args.filter == "#work #todo"
+    assert args.filter == f"#work {cli.TODO_LIST_FILTER}"
     assert args.todo is None
 
 
@@ -31,10 +32,10 @@ def test_expand_cli_sugar_create_path_untouched():
     assert args.filter is None
 
 
-def test_bare_todo_identical_to_filter_todo(
+def test_bare_todo_identical_to_open_todo_filter(
     setup_kaydet, capsys, mock_datetime_factory
 ):
-    """kaydet --todo and kaydet --filter '#todo' must be byte-identical."""
+    """kaydet --todo ≡ kaydet --filter '#todo -status:done'."""
     monkeypatch = setup_kaydet["monkeypatch"]
 
     mock_datetime_factory(datetime(2025, 10, 27, 10, 0, 0))
@@ -56,20 +57,40 @@ def test_bare_todo_identical_to_filter_todo(
             out.append("Details go in the body paragraph.\n")
     day.write_text("".join(out), encoding="utf-8")
 
+    # Mark another todo done so raw #todo would still match it
+    mock_datetime_factory(datetime(2025, 10, 27, 11, 0, 0))
+    monkeypatch.setattr(
+        sys, "argv", ["kaydet", "--todo", "Already finished task"]
+    )
+    cli.main()
+    capsys.readouterr()
+    content = day.read_text(encoding="utf-8")
+    import re
+
+    ids = re.findall(r"\[(\d+)\]: Already finished", content)
+    assert ids
+    monkeypatch.setattr(sys, "argv", ["kaydet", "--done", ids[0]])
+    cli.main()
+    capsys.readouterr()
+
     monkeypatch.setattr(sys, "argv", ["kaydet", "--todo"])
     cli.main()
     via_todo = capsys.readouterr().out
 
-    monkeypatch.setattr(sys, "argv", ["kaydet", "--filter", "#todo"])
+    monkeypatch.setattr(
+        sys, "argv", ["kaydet", "--filter", cli.TODO_LIST_FILTER]
+    )
     cli.main()
     via_filter = capsys.readouterr().out
 
     assert via_todo == via_filter
+    assert "Ship the release notes" in via_todo
     assert "Details go in the body paragraph." in via_todo
+    assert "Already finished task" not in via_todo
     assert "Pending Todos" not in via_todo
 
 
-def test_todo_with_filter_appends_todo_tag(
+def test_todo_with_filter_appends_open_todo_query(
     setup_kaydet, capsys, mock_datetime_factory
 ):
     monkeypatch = setup_kaydet["monkeypatch"]
@@ -95,7 +116,9 @@ def test_todo_with_filter_appends_todo_tag(
     via_todo = capsys.readouterr().out
 
     monkeypatch.setattr(
-        sys, "argv", ["kaydet", "--filter", "#work #todo"]
+        sys,
+        "argv",
+        ["kaydet", "--filter", f"#work {cli.TODO_LIST_FILTER}"],
     )
     cli.main()
     via_filter = capsys.readouterr().out

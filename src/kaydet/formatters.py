@@ -85,10 +85,11 @@ class TextUtils:
         if not line:
             return [""]
 
+        # break_long_words so URLs/paths cannot overflow the rail width
         wrapper = textwrap.TextWrapper(
-            width=available_width,
-            break_long_words=False,
-            break_on_hyphens=False,
+            width=max(1, available_width),
+            break_long_words=True,
+            break_on_hyphens=True,
         )
         wrapped = wrapper.wrap(line)
         return wrapped if wrapped else [""]
