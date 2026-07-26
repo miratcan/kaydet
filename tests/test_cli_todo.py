@@ -1,39 +1,54 @@
-"""CLI --todo as filter shortcut and create path."""
+"""CLI --todo: create path + bare --todo as pure filter sugar."""
 
 from __future__ import annotations
 
+import argparse
 import sys
 from datetime import datetime
 
 from kaydet import cli
 
 
-def test_bare_todo_is_filter_shortcut(
+def test_expand_cli_sugar_bare_todo():
+    """Bare --todo desugars to filter '#todo' and clears args.todo."""
+    args = argparse.Namespace(todo=[], filter=None)
+    cli.expand_cli_sugar(args)
+    assert args.filter == "#todo"
+    assert args.todo is None
+
+
+def test_expand_cli_sugar_todo_with_existing_filter():
+    args = argparse.Namespace(todo=[], filter="#work")
+    cli.expand_cli_sugar(args)
+    assert args.filter == "#work #todo"
+    assert args.todo is None
+
+
+def test_expand_cli_sugar_create_path_untouched():
+    args = argparse.Namespace(todo=["Buy milk"], filter=None)
+    cli.expand_cli_sugar(args)
+    assert args.todo == ["Buy milk"]
+    assert args.filter is None
+
+
+def test_bare_todo_identical_to_filter_todo(
     setup_kaydet, capsys, mock_datetime_factory
 ):
-    """kaydet --todo lists via search UI (same as --filter '#todo')."""
+    """kaydet --todo and kaydet --filter '#todo' must be byte-identical."""
     monkeypatch = setup_kaydet["monkeypatch"]
 
     mock_datetime_factory(datetime(2025, 10, 27, 10, 0, 0))
     monkeypatch.setattr(
         sys,
         "argv",
-        [
-            "kaydet",
-            "--todo",
-            "Ship the release notes",
-            "priority:high",
-        ],
+        ["kaydet", "--todo", "Ship the release notes", "priority:high"],
     )
     cli.main()
     capsys.readouterr()
 
-    # Manually append a body line to the day file (create_entry is header-only)
     log_dir = setup_kaydet["fake_log_dir"]
     day = log_dir / "2025-10-27.txt"
-    text = day.read_text(encoding="utf-8")
-    # Insert body after the todo header line
-    lines = text.splitlines(keepends=True)
+    lines = day.read_text(encoding="utf-8").splitlines(keepends=True)
     out = []
     for line in lines:
         out.append(line)
@@ -43,13 +58,15 @@ def test_bare_todo_is_filter_shortcut(
 
     monkeypatch.setattr(sys, "argv", ["kaydet", "--todo"])
     cli.main()
-    listed = capsys.readouterr().out
+    via_todo = capsys.readouterr().out
 
-    # Search-style output, not TodoFormatter "Pending Todos" chrome
-    assert "Pending Todos" not in listed
-    assert "Ship the release notes" in listed
-    assert "Details go in the body paragraph." in listed
-    assert "#todo" in listed or "todo" in listed.lower()
+    monkeypatch.setattr(sys, "argv", ["kaydet", "--filter", "#todo"])
+    cli.main()
+    via_filter = capsys.readouterr().out
+
+    assert via_todo == via_filter
+    assert "Details go in the body paragraph." in via_todo
+    assert "Pending Todos" not in via_todo
 
 
 def test_todo_with_filter_appends_todo_tag(
@@ -75,6 +92,14 @@ def test_todo_with_filter_appends_todo_tag(
         sys, "argv", ["kaydet", "--todo", "--filter", "#work"]
     )
     cli.main()
-    out = capsys.readouterr().out
-    assert "Work item only" in out
-    assert "Home chore" not in out
+    via_todo = capsys.readouterr().out
+
+    monkeypatch.setattr(
+        sys, "argv", ["kaydet", "--filter", "#work #todo"]
+    )
+    cli.main()
+    via_filter = capsys.readouterr().out
+
+    assert via_todo == via_filter
+    assert "Work item only" in via_todo
+    assert "Home chore" not in via_todo

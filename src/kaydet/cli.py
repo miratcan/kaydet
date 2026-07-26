@@ -109,10 +109,9 @@ def build_parser(
         metavar="TEXT",
         help=(
             "With text: create a todo (#todo, status:pending). "
-            "Without text: shortcut for --filter '#todo' "
-            "(same search UI, full entry body). "
-            "Combine with --filter: "
-            "'kaydet --todo --filter \"#work\"' → '#work #todo'."
+            "Without text: pure syntactic sugar for --filter '#todo' "
+            "(desugared before any command logic runs). "
+            "'--todo --filter \"#work\"' → --filter '#work #todo'."
         ),
     )
     todo_group.add_argument(
@@ -302,6 +301,27 @@ def build_parser(
     return parser
 
 
+def expand_cli_sugar(args: argparse.Namespace) -> None:
+    """Desugar pure CLI aliases into canonical flags (in place).
+
+    Bare ``--todo`` (no text) is **only** syntactic sugar for
+    ``--filter '#todo'``. After this runs, ``args.todo`` is cleared so
+    the rest of ``main`` cannot treat listing as a special case — the
+    filter path is the single code path.
+    """
+    if args.todo is None:
+        return
+    if args.todo:
+        # Non-empty: create path — not sugar; leave args.todo as-is.
+        return
+    # Bare --todo → append #todo to filter, then forget --todo existed.
+    if args.filter:
+        args.filter = f"{args.filter} #todo"
+    else:
+        args.filter = "#todo"
+    args.todo = None
+
+
 def _handle_search_result(
     res: dict,
     *,
@@ -372,6 +392,7 @@ def main() -> None:
 
     parser = build_parser(config_path, storage_dir)
     args = parser.parse_args()
+    expand_cli_sugar(args)
 
     now = datetime.now()
     console = Console()
@@ -469,21 +490,12 @@ def main() -> None:
         )
         return
 
-    # args.todo with nargs="*" returns:
-    # - None if --todo flag not provided
-    # - [] if --todo with no arguments → list via --filter '#todo'
-    # - ["text", ...] if creating a todo
+    # Create path only (bare --todo already desugared to --filter)
     if args.todo is not None:
-        if args.todo:
-            res = service.create_todo_from_cli(list(args.todo), now=now)
-            if "message" in res:
-                print(res["message"])
-            return
-        # Bare --todo is only a shortcut for filter '#todo' (no special UI)
-        if args.filter:
-            args.filter = f"{args.filter} #todo"
-        else:
-            args.filter = "#todo"
+        res = service.create_todo_from_cli(list(args.todo), now=now)
+        if "message" in res:
+            print(res["message"])
+        return
 
     if args.done is not None:
         for entry_id in args.done:
