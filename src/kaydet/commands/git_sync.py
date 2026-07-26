@@ -2,18 +2,28 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
 COMMIT_MESSAGE = "kaydet: auto-sync"
 
+GIT_ENV = {
+    "GIT_AUTHOR_NAME": "Kaydet",
+    "GIT_AUTHOR_EMAIL": "kaydet@local",
+    "GIT_COMMITTER_NAME": "Kaydet",
+    "GIT_COMMITTER_EMAIL": "kaydet@local",
+}
+
 
 def _run_git(args: list[str], cwd: Path) -> subprocess.CompletedProcess:
+    env = {**os.environ, **GIT_ENV}
     return subprocess.run(
         ["git", *args],
         cwd=cwd,
         capture_output=True,
         text=True,
+        env=env,
     )
 
 
