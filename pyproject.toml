@@ -46,7 +46,7 @@ mcp = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/miratcan/kaydet"
+Homepage = "https://mirat.dev/kaydet/"
 Repository = "https://github.com/miratcan/kaydet"
 Issues = "https://github.com/miratcan/kaydet/issues"
 

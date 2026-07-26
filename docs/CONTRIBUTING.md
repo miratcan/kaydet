@@ -22,7 +22,7 @@ There are many ways to contribute, from writing tutorials or blog posts, improvi
 
 ### Pull Requests
 
--   Fork the repo and create your branch from `main`.
+-   Fork the repo and create your branch from `master`.
 -   If you've added code that should be tested, add tests.
 -   Ensure the test suite passes.
 -   Make sure your code lints.
