@@ -161,10 +161,9 @@ class SearchResultFormatter:
             return
 
         max_id_width = self._calculate_max_id_width(matches)
-        date_padding_width = self._calculate_date_padding_width(max_id_width)
 
         for day, entries in groupby(matches, key=attrgetter("day")):
-            self._print_date_separator(day, date_padding_width)
+            self._print_date_separator(day)
 
             entries_list = list(entries)
             for i, entry in enumerate(entries_list):
@@ -188,40 +187,11 @@ class SearchResultFormatter:
             return 0
         return max(len(str(m.entry_id)) for m in matches if m.entry_id)
 
-    def _calculate_date_padding_width(self, max_id_width: int) -> int:
-        """
-        Calculate padding width for date separators.
-
-        Examples
-        --------
-        >>> console = Console()
-        >>> formatter = SearchResultFormatter(console, 80)
-        >>> formatter._calculate_date_padding_width(3)
-        13
-        """
-        timestamp_width = 5  # "HH:MM"
-        return timestamp_width + 1 + 1 + max_id_width + 1 + 1 + 1
-
-    def _calculate_header_length(
-        self, timestamp: str, max_id_width: int
-    ) -> int:
-        """
-        Calculate length of entry header without markup.
-
-        Examples
-        --------
-        >>> console = Console()
-        >>> formatter = SearchResultFormatter(console, 80)
-        >>> formatter._calculate_header_length("14:30", 3)
-        12
-        """
-        return len(timestamp) + 2 + max_id_width + 3
-
     def _format_entry_header(
         self, timestamp: str, entry_id: int, max_id_width: int
     ) -> str:
         """
-        Format entry header with timestamp and ID.
+        Format entry chrome: time + id only (body follows on next lines).
 
         Examples
         --------
@@ -231,13 +201,13 @@ class SearchResultFormatter:
         >>> config["SETTINGS"] = {}
         >>> formatter = SearchResultFormatter(console, 80, config["SETTINGS"])
         >>> formatter._format_entry_header("14:30", 42, 3)
-        '[green]14:30[/green] [[yellow] 42[/yellow]]:'
+        '[green]14:30[/green] [[yellow] 42[/yellow]]'
         """
         id_str = str(entry_id).rjust(max_id_width)
         color_id = self.config.get("COLOR_ID", "yellow")
         color_date = self.config.get("COLOR_DATE", "green")
         id_suffix = f"[[{color_id}]{id_str}[/{color_id}]]"
-        return f"[{color_date}]{timestamp}[/{color_date}] {id_suffix}:"
+        return f"[{color_date}]{timestamp}[/{color_date}] {id_suffix}"
 
     def _format_metadata_line(self, metadata: dict) -> str:
         """
@@ -267,75 +237,44 @@ class SearchResultFormatter:
         """
         return " ".join(f"#{tag}" for tag in tags)
 
-    def _print_wrapped_text(
-        self, header: str, wrapped_lines: List[str], indentation: int
-    ) -> None:
-        """
-        Print wrapped text with header and indentation.
-
-        Examples
-        --------
-        >>> console = Console()
-        >>> formatter = SearchResultFormatter(console, 80)
-        >>> formatter._print_wrapped_text("Header:", ["First", "Second"], 8)
-        # Prints:
-        # Header: First
-        #         Second
-        """
-        if wrapped_lines:
-            self.console.print(f"{header} {wrapped_lines[0]}")
-            for line in wrapped_lines[1:]:
-                self.console.print(" " * indentation + line)
-        else:
-            self.console.print(header)
-
-    def _print_metadata(self, metadata: dict, indentation: int) -> None:
-        """Print metadata with proper indentation."""
+    def _print_metadata(self, metadata: dict) -> None:
+        """Print metadata (left-aligned, full width)."""
         if not metadata:
             return
         metadata_str = self._format_metadata_line(metadata)
-        padding = " " * indentation
-        self.console.print(f"{padding}[dim]{metadata_str}[/dim]")
+        self.console.print(f"[dim]{metadata_str}[/dim]")
 
-    def _print_tags(self, tags: List[str], indentation: int) -> None:
-        """Print tags with proper indentation."""
+    def _print_tags(self, tags: List[str]) -> None:
+        """Print tags (left-aligned, full width)."""
         if not tags:
             return
         tags_str = self._format_tags_line(tags)
-        padding = " " * indentation
         color_tag = self.config.get("COLOR_TAG", "bold magenta")
-        self.console.print(f"{padding}[{color_tag}]{tags_str}[/{color_tag}]")
+        self.console.print(f"[{color_tag}]{tags_str}[/{color_tag}]")
 
-    def _print_date_separator(
-        self, day: Optional[date], padding_width: int
-    ) -> None:
-        """Print date separator with proper formatting."""
+    def _print_date_separator(self, day: Optional[date]) -> None:
+        """Print left-aligned date separator (not padded to entry chrome)."""
         day_label = day.isoformat() if day else "Undated"
         separator = "=" * len(day_label)
-        padding = " " * padding_width
         color_header = self.config.get("COLOR_HEADER", "bold cyan")
 
         self.console.print(
-            f"\n{padding}[{color_header}]{separator}[/{color_header}]"
+            f"\n[{color_header}]{separator}[/{color_header}]"
         )
         self.console.print(
-            f"{padding}[{color_header}]{day_label}[/{color_header}]"
+            f"[{color_header}]{day_label}[/{color_header}]"
         )
         self.console.print(
-            f"{padding}[{color_header}]{separator}[/{color_header}]\n"
+            f"[{color_header}]{separator}[/{color_header}]\n"
         )
 
-    def _print_attachments(
-        self, attachments: List[str], indentation: int
-    ) -> None:
-        """Print attachment filenames with proper indentation."""
+    def _print_attachments(self, attachments: List[str]) -> None:
+        """Print attachment filenames (left-aligned)."""
         if not attachments:
             return
-        padding = " " * indentation
         for name in attachments:
             self.console.print(
-                f"{padding}[dim]attachment:[/dim] "
-                f"[underline]{name}[/underline]"
+                f"[dim]attachment:[/dim] [underline]{name}[/underline]"
             )
 
     def _print_entry(
@@ -344,22 +283,36 @@ class SearchResultFormatter:
         max_id_width: int,
         is_last: bool,
     ) -> None:
-        """Print a single search result entry."""
+        """Print a single search result entry.
+
+        Layout (left-aligned; body uses full terminal width)::
+
+            13:30 [1500]
+
+            Fix summarize_entries samples bug...
+
+            priority:high status:done
+            #kaydet #todo
+        """
         header = self._format_entry_header(
             entry.timestamp, entry.entry_id, max_id_width
         )
-        header_len = self._calculate_header_length(
-            entry.timestamp, max_id_width
-        )
+        self.console.print(header)
+        self.console.print()
 
         clean_lines = [TextUtils.clean_hashtags(line) for line in entry.lines]
-        available_width = self.terminal_width - header_len
-        wrapped_lines = TextUtils.wrap_text_lines(clean_lines, available_width)
+        wrapped_lines = TextUtils.wrap_text_lines(
+            clean_lines, self.terminal_width
+        )
+        for line in wrapped_lines:
+            self.console.print(line)
 
-        self._print_wrapped_text(header, wrapped_lines, header_len)
-        self._print_metadata(entry.metadata, header_len)
-        self._print_tags(entry.tags, header_len)
-        self._print_attachments(entry.attachments, header_len)
+        if clean_lines:
+            self.console.print()
+
+        self._print_metadata(entry.metadata)
+        self._print_tags(entry.tags)
+        self._print_attachments(entry.attachments)
 
         if not is_last:
             self.console.print()

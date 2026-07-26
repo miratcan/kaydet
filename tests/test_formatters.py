@@ -258,19 +258,44 @@ class TestSearchResultFormatter:
         ]
         format_search_results(matches, 80, mock_config, console=mock_console)
 
-        # Check for color markup for header (bold cyan by default)
-        assert (
-            "[bold cyan]==========[/bold cyan]" in mock_console.printed_text[0]
-        )
-        assert (
-            "[bold cyan]2025-10-29[/bold cyan]" in mock_console.printed_text[1]
-        )
-        # Check for color markup for date (green by default)
-        assert "[green]14:00[/green]" in mock_console.printed_text[3]
-        # Check for color markup for ID (yellow by default)
-        assert "[[yellow]1[/yellow]]:" in mock_console.printed_text[3]
-        # Check for color markup for tags (bold magenta by default)
-        assert (
-            "[bold magenta]#tag1[/bold magenta]"
-            in mock_console.printed_text[4]
-        )
+        joined = "\n".join(mock_console.printed_text)
+        # Date block left-aligned (no leading spaces before ===)
+        assert "[bold cyan]==========[/bold cyan]" in joined
+        assert "[bold cyan]2025-10-29[/bold cyan]" in joined
+        # Chrome line: time + id only (body on following lines)
+        assert "[green]14:00[/green]" in joined
+        assert "[[yellow]1[/yellow]]" in joined
+        assert "Test entry" in joined
+        assert "[bold magenta]#tag1[/bold magenta]" in joined
+
+    def test_search_layout_stacks_body_under_chrome(
+        self, mock_console, mock_config
+    ):
+        """Body is not inlined after HH:MM [id]; date header is not padded."""
+        matches = [
+            SearchResult(
+                entry_id=1500,
+                day=date(2026, 7, 27),
+                timestamp="13:30",
+                lines=[
+                    "Fix summarize_entries samples bug: m.source_date",
+                ],
+                metadata={"priority": "high"},
+                tags=["kaydet"],
+            ),
+        ]
+        format_search_results(matches, 80, mock_config, console=mock_console)
+        lines = mock_console.printed_text
+
+        # Date lines have no leading whitespace before markup
+        date_lines = [ln for ln in lines if "2026-07-27" in ln or "===" in ln]
+        for ln in date_lines:
+            assert not ln.startswith(" "), ln
+
+        # Header chrome alone (no body text on same printed line)
+        chrome = next(ln for ln in lines if "13:30" in ln)
+        assert "Fix summarize" not in chrome
+        assert "1500" in chrome
+
+        body = next(ln for ln in lines if "Fix summarize" in ln)
+        assert "13:30" not in body
