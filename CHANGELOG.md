@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.47.0] - 2026-07-27
+
+### Added
+- **Rail-framed search list:** Each entry shows `HH:MM [id]`, body/meta/tags
+  under a `│` rail, closed with `└─────`. Date headers stay left-aligned.
+- **GitHub-style `--stats` grid:** Weekday × week contribution heat map with
+  green intensity levels; summary is active writing days (motivation), not a
+  raw entry ledger.
+
+### Changed
+- **Bare `--todo`** desugars to `#todo -status:done` (open todos only).
+- **`--sum` display:** Unit only in the label (`cost (tl)  170`); hint when
+  the same key splits across units.
+- **Search wrap:** Long tokens break under the rail; width taken from the
+  Rich console to avoid double-wrap.
+
+### Fixed
+- Search body no longer shares a horizontal pad with date headers (wide IDs
+  cannot push the date block rightward).
+
 ## [0.46.0] - 2026-07-27
 
 ### Added
@@ -16,11 +36,9 @@ All notable changes to this project will be documented in this file.
 ### Changed
 - **CLI routes through `KaydetService`:** Entry CRUD, search, todos, stats,
   tags, doctor, and git init/sync/status share one service layer with MCP.
-- **Bare `--todo` is pure syntactic sugar** for `--filter '#todo'`
-  (desugared after parse; identical output, full entry body).
-- **`--sum` groups by unit suffix without conversion:**
-  `timespent:1saat` + `timespent:30dk` → separate lines `3saat` / `30dk`,
-  never cross-unit math.
+- **Bare `--todo` is pure syntactic sugar** for filter listing (desugared
+  after parse; full entry body via search UI).
+- **`--sum` groups by unit suffix without conversion.**
 - **Search empty-state UX:** Date-window context and `since:0` hints when
   no matches.
 - **MCP tool descriptions:** Richer guidance so models pick
