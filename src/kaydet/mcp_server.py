@@ -200,7 +200,11 @@ async def serve() -> None:
             Tool(
                 name="summarize_entries",
                 description=(
-                    "Search entries and return summed numeric metadata values"
+                    "Search entries with full query syntax (tags, metadata, "
+                    "since:/until: dates) and return summed numeric metadata "
+                    "values plus matching entry excerpts for AI analysis. "
+                    "Examples: 'since:2026-01-01 #expense', "
+                    "'status:done time:>0'"
                 ),
                 inputSchema={
                     "type": "object",
@@ -291,112 +295,114 @@ async def serve() -> None:
                 )
             ]
 
+        def safe_call(service_method, **kwargs) -> list[TextContent]:
+            try:
+                result = service_method(**kwargs)
+                return [TextContent(type="text", text=json.dumps(result))]
+            except Exception as error:
+                return error_response(
+                    f"{name} failed: {type(error).__name__}: {error}"
+                )
+
         if name == "add_entry":
             text = arguments.get("text", "")
             if not text:
                 return error_response("Entry text is required")
-            result = service.add_entry(
+            return safe_call(
+                service.add_entry,
                 text=text,
                 metadata=arguments.get("metadata"),
                 tags=arguments.get("tags"),
                 timestamp=arguments.get("timestamp"),
             )
-            return [TextContent(type="text", text=json.dumps(result))]
 
         if name == "update_entry":
             entry_id = arguments.get("entry_id")
             if entry_id is None:
                 return error_response("entry_id is required")
-            result = service.update_entry(
-                entry_id,
+            return safe_call(
+                service.update_entry,
+                entry_id=entry_id,
                 text=arguments.get("text"),
                 metadata=arguments.get("metadata"),
                 tags=arguments.get("tags"),
                 timestamp=arguments.get("timestamp"),
             )
-            return [TextContent(type="text", text=json.dumps(result))]
 
         if name == "delete_entry":
             entry_id = arguments.get("entry_id")
             if entry_id is None:
                 return error_response("entry_id is required")
-            result = service.delete_entry(entry_id)
-            return [TextContent(type="text", text=json.dumps(result))]
+            return safe_call(service.delete_entry, entry_id=entry_id)
 
         if name == "get_entry":
             entry_id = arguments.get("entry_id")
             if entry_id is None:
                 return error_response("entry_id is required")
-            result = service.get_entry(entry_id)
-            return [TextContent(type="text", text=json.dumps(result))]
+            return safe_call(service.get_entry, entry_id=entry_id)
 
         if name == "search_entries":
             query = arguments.get("query", "")
             if not query:
                 return error_response("Search query is required")
-            result = service.search_entries(query)
-            return [TextContent(type="text", text=json.dumps(result))]
+            return safe_call(service.search_entries, query=query)
 
         if name == "list_recent_entries":
             limit = arguments.get("limit", 10)
-            result = service.list_recent_entries(limit=limit)
-            return [TextContent(type="text", text=json.dumps(result))]
+            return safe_call(service.list_recent_entries, limit=limit)
 
         if name == "entries_by_tag":
             tag = arguments.get("tag")
             if not tag:
                 return error_response("tag is required")
             limit = arguments.get("limit", 10)
-            result = service.entries_by_tag(tag, limit=limit)
-            return [TextContent(type="text", text=json.dumps(result))]
+            return safe_call(service.entries_by_tag, tag=tag, limit=limit)
 
         if name == "list_tags":
-            result = service.list_tags()
-            return [TextContent(type="text", text=json.dumps(result))]
+            return safe_call(service.list_tags)
 
         if name == "suggest_kaydet_tags":
-            result = service.suggest_tags(directory=arguments.get("path"))
-            return [TextContent(type="text", text=json.dumps(result))]
+            return safe_call(
+                service.suggest_tags, directory=arguments.get("path")
+            )
 
         if name == "summarize_entries":
             query = arguments.get("query", "")
             if not query:
                 return error_response("Search query is required")
-            result = service.summarize_entries(query)
-            return [TextContent(type="text", text=json.dumps(result))]
+            return safe_call(service.summarize_entries, query=query)
 
         if name == "get_stats":
-            result = service.get_stats(
+            return safe_call(
+                service.get_stats,
                 year=arguments.get("year"),
                 month=arguments.get("month"),
             )
-            return [TextContent(type="text", text=json.dumps(result))]
 
         if name == "create_todo":
             description = arguments.get("description", "")
             if not description:
                 return error_response("Todo description is required")
-            result = service.create_todo(
+            return safe_call(
+                service.create_todo,
                 description=description,
                 metadata=arguments.get("metadata"),
             )
-            return [TextContent(type="text", text=json.dumps(result))]
 
         if name == "mark_todo_done":
             entry_id = arguments.get("entry_id")
             if entry_id is None:
                 return error_response("entry_id is required")
-            result = service.mark_todo_done(entry_id)
-            return [TextContent(type="text", text=json.dumps(result))]
+            return safe_call(service.mark_todo_done, entry_id=entry_id)
 
         if name == "list_todos":
             raw_status = arguments.get("status", "pending")
             status_filter = None if raw_status == "all" else raw_status
-            result = service.list_todos(
+            return safe_call(
+                service.list_todos,
                 status=status_filter,
                 filter_query=arguments.get("filter"),
             )
-            return [TextContent(type="text", text=json.dumps(result))]
 
         return error_response(f"Unknown tool: {name}")
 

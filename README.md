@@ -75,15 +75,33 @@ Powered by MCP (Model Context Protocol). Connect Claude Desktop, Cursor, or any 
 Then ask your AI:
 
 - "What did I work on this week?"
-- "How did I fix that auth bug last year?"
+- "How much did I spend this month?" (`#expense since:2026-07-01 --sum`)
+- "What did I learn about auth bugs?" (`search_entries + since:`)
 - "Summarize my accomplishments from last sprint"
-- "What expenses did I log in March?"
+- "What expenses did I log in March with cost > 1000?" (`#expense since:2026-03-01 cost:>1000`)
+- "Show me pending high-priority todos" (`list_todos status:pending filter:#work`)
 
 Your AI grounded in your own data. Not generic knowledge — your knowledge.
 
 ### MCP Tools
 
-Built-in MCP server with tools for search, metadata filtering, todo management, stats, summarization, and more.
+Built-in MCP server with 14 tools:
+| Tool | What it does |
+|------|-------------|
+| `add_entry` | Create a new diary entry with text, tags, metadata |
+| `search_entries` | Full FTS5 search with tag, metadata, date filters |
+| `summarize_entries` | Sum numeric metadata across matching entries (supports `since:`, tags) |
+| `list_recent_entries` | Browse recent entries |
+| `entries_by_tag` | Filter entries by a specific tag |
+| `get_entry` | Fetch a single entry by ID |
+| `update_entry` | Edit entry text, tags, or metadata |
+| `delete_entry` | Remove an entry by ID |
+| `create_todo` | Create a todo with optional metadata |
+| `mark_todo_done` | Mark a todo as completed |
+| `list_todos` | List todos by status (pending/done/all) with optional filter |
+| `list_tags` | Show all tags with entry counts |
+| `get_stats` | Get entry counts for a given month |
+| `suggest_kaydet_tags` | Suggest tags based on current project directory |
 
 ### Architecture
 

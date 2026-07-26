@@ -249,6 +249,16 @@ class KaydetService:
             "query": query,
             "sums": sums,
             "total": len(matches),
+            "samples": [
+                {
+                    "id": int(m.entry_id) if m.entry_id else None,
+                    "date": m.source_date.isoformat() if m.source_date else None,
+                    "text": m.text[:200],
+                    "metadata": dict(m.metadata_numbers),
+                    "tags": list(m.tags),
+                }
+                for m in matches[:5]
+            ],
         }
 
     def get_entry(self, entry_id: int) -> dict[str, Any]:
