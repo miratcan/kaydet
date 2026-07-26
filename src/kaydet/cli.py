@@ -33,6 +33,7 @@ from .commands.search import (
     build_search_query,
     load_matches,
     print_matches,
+    print_no_matches,
 )
 from .commands.todo import list_todos_command
 from .formatters import format_todo_results
@@ -208,6 +209,17 @@ def build_parser(
         dest="summarize",
         action="store_true",
         help="Show summed numeric metadata for matching entries.",
+    )
+    query_group.add_argument(
+        "--limit",
+        dest="limit",
+        type=int,
+        metavar="N",
+        default=None,
+        help=(
+            "Show at most N most recent matching entries "
+            "(0 = unlimited). Useful for large result sets."
+        ),
     )
 
     # Sync
@@ -555,16 +567,28 @@ def main() -> None:
 
         # allow_empty=True lets --list show all entries when no filter
         # is provided
+        # --sum needs full match set for correct totals
+        search_limit = None if args.summarize else args.limit
         res = search_command(
-            conn, storage_dir, config, query, allow_empty=True
+            conn,
+            storage_dir,
+            config,
+            query,
+            allow_empty=True,
+            limit=search_limit,
         )
         if res.get("success", False):
-            if not res["matches"] and not query:
-                pass
-            elif not res["matches"]:
-                print(f"\U0001f50d No entries matched '{query}'")
-            elif args.summarize:
-                print_sums(res["matches"])
+            if args.summarize:
+                if res["matches"]:
+                    print_sums(res["matches"])
+                else:
+                    print("\U0001f50d No numeric values found to sum")
+            elif not res["matches"] and args.output_format != "json":
+                print_no_matches(
+                    query,
+                    metadata_filters=res.get("metadata_filters"),
+                    default_since_hint=default_since_hint,
+                )
             else:
                 print_matches(
                     res["matches"],
@@ -574,6 +598,8 @@ def main() -> None:
                     console=console,
                     default_since_hint=default_since_hint,
                     metadata_filters=res.get("metadata_filters"),
+                    total=res.get("total"),
+                    limit=res.get("limit"),
                 )
         else:
             if "error" in res:
@@ -582,12 +608,25 @@ def main() -> None:
 
     # Handle standalone --filter (shorthand for --list --filter)
     if args.filter:
-        res = search_command(conn, storage_dir, config, args.filter)
+        search_limit = None if args.summarize else args.limit
+        res = search_command(
+            conn,
+            storage_dir,
+            config,
+            args.filter,
+            limit=search_limit,
+        )
         if res.get("success", False):
-            if not res["matches"]:
-                print(f"\U0001f50d No entries matched '{args.filter}'")
-            elif args.summarize:
-                print_sums(res["matches"])
+            if args.summarize:
+                if res["matches"]:
+                    print_sums(res["matches"])
+                else:
+                    print("\U0001f50d No numeric values found to sum")
+            elif not res["matches"] and args.output_format != "json":
+                print_no_matches(
+                    args.filter,
+                    metadata_filters=res.get("metadata_filters"),
+                )
             else:
                 print_matches(
                     res["matches"],
@@ -596,6 +635,8 @@ def main() -> None:
                     config,
                     console=console,
                     metadata_filters=res.get("metadata_filters"),
+                    total=res.get("total"),
+                    limit=res.get("limit"),
                 )
         else:
             if "error" in res:

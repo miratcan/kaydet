@@ -123,6 +123,51 @@ def test_service_get_stats(mcp_env):
     assert stats["total_entries"] == 2
 
 
+def test_service_search_respects_limit(mcp_env):
+    """search_entries default/explicit limit returns truncated flag."""
+    service = service_module.KaydetService.initialize()
+
+    for i in range(5):
+        service.add_entry(text=f"Note number {i} #batch")
+
+    limited = service.search_entries("#batch", limit=2)
+    assert limited["success"] is True
+    assert limited["total"] == 5
+    assert limited["shown"] == 2
+    assert limited["truncated"] is True
+    assert len(limited["matches"]) == 2
+
+    unlimited = service.search_entries("#batch", limit=0)
+    assert unlimited["total"] == 5
+    assert unlimited["shown"] == 5
+    assert unlimited["truncated"] is False
+
+
+def test_service_summarize_entries_with_samples(mcp_env):
+    """summarize_entries must return samples without crashing on date."""
+    service = service_module.KaydetService.initialize()
+
+    service.add_entry(
+        text="Taxi home #expense",
+        metadata={"cost": "120"},
+    )
+    service.add_entry(
+        text="Coffee #expense",
+        metadata={"cost": "45"},
+    )
+
+    result = service.summarize_entries("#expense")
+    assert result["success"] is True
+    assert result["total"] == 2
+    assert result["sums"]["cost"] == 165
+    assert len(result["samples"]) == 2
+    sample = result["samples"][0]
+    assert sample["date"] == "2025-10-27"
+    assert "cost" in sample["metadata"]
+    assert sample["id"] is not None
+    assert sample["text"]
+
+
 def test_service_todo_workflow(mcp_env):
     """Test creating, listing, and marking todos as done."""
     service = service_module.KaydetService.initialize()

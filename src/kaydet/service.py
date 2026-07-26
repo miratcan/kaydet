@@ -16,6 +16,7 @@ from .commands.edit import update_entry_inline
 from .commands.search import (
     build_search_query,
     load_matches,
+    search_command,
     tokenize_query,
 )
 from .commands.stats import collect_month_counts
@@ -129,62 +130,43 @@ class KaydetService:
             return {"success": False, "error": "Entry not updated."}
         return {"success": True, **result}
 
-    def search_entries(self, query: str) -> dict[str, Any]:
+    def search_entries(
+        self, query: str, *, limit: int | None = 50
+    ) -> dict[str, Any]:
+        """Search entries. Default limit=50 protects MCP/token budgets.
+
+        Pass ``limit=0`` or ``limit=None`` for unlimited results.
+        """
         now = datetime.now()
         self._ensure_index(now)
 
-        (
-            include_text,
-            exclude_text,
-            include_meta,
-            exclude_meta,
-            include_tags,
-            exclude_tags,
-        ) = tokenize_query(query)
-
-        if not any(
-            [
-                include_text,
-                exclude_text,
-                include_meta,
-                exclude_meta,
-                include_tags,
-                exclude_tags,
-            ]
-        ):
-            return {"success": False, "error": "Search query is empty."}
-
-        sql_query, params = build_search_query(
-            include_text,
-            exclude_text,
-            include_meta,
-            exclude_meta,
-            include_tags,
-            exclude_tags,
+        result = search_command(
+            self.conn,
+            self.log_dir,
+            self.config,
+            query,
+            limit=limit,
         )
-        cursor = self.conn.cursor()
-        try:
-            cursor.execute(sql_query, params)
-        except Exception as error:  # pragma: no cover - sqlite errors rare
-            return {
-                "success": False,
-                "error": f"Database query failed: {error}",
-            }
-        locations = cursor.fetchall()
-        if not locations:
-            return {"success": True, "query": query, "matches": [], "total": 0}
+        if not result.get("success"):
+            return result
 
-        matches = load_matches(locations, self.log_dir, self.config)
-        matches.sort(
+        matches = result["matches"]
+        # Newest first for API consumers (MCP/AI)
+        matches = sorted(
+            matches,
             key=lambda entry: int(entry.entry_id or 0),
             reverse=True,
         )
         payload = [match.to_dict() for match in matches]
+        total = result.get("total", len(payload))
         return {
             "success": True,
             "query": query,
             "matches": payload,
-            "total": len(payload),
+            "total": total,
+            "shown": len(payload),
+            "limit": result.get("limit"),
+            "truncated": result.get("truncated", False),
         }
 
     def summarize_entries(self, query: str) -> dict[str, Any]:
@@ -252,7 +234,7 @@ class KaydetService:
             "samples": [
                 {
                     "id": int(m.entry_id) if m.entry_id else None,
-                    "date": m.source_date.isoformat() if m.source_date else None,
+                    "date": m.day.isoformat() if m.day else None,
                     "text": m.text[:200],
                     "metadata": dict(m.metadata_numbers),
                     "tags": list(m.tags),

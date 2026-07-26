@@ -969,6 +969,26 @@ def test_search_no_results(setup_kaydet, capsys):
 
     captured = capsys.readouterr()
     assert "No entries matched 'nonexistent'" in captured.out
+    assert "since:0" in captured.out or "widen search" in captured.out
+
+
+def test_list_empty_shows_default_month_window(
+    setup_kaydet, capsys, mock_datetime_factory
+):
+    """Bare --list with no entries should mention the month window."""
+    fake_log_dir = setup_kaydet["fake_log_dir"]
+    monkeypatch = setup_kaydet["monkeypatch"]
+    fake_log_dir.mkdir(exist_ok=True)
+
+    mock_datetime_factory(datetime(2025, 10, 27, 12, 0, 0))
+    monkeypatch.setattr(sys, "argv", ["kaydet", "--list"])
+
+    cli.main()
+
+    captured = capsys.readouterr()
+    assert "No entries found" in captured.out
+    assert "this month by default" in captured.out
+    assert "since:0" in captured.out
 
 
 def test_tags_no_tags(setup_kaydet, capsys):

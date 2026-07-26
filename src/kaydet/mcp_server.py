@@ -141,11 +141,25 @@ async def serve() -> None:
             ),
             Tool(
                 name="search_entries",
-                description="Search diary entries",
+                description=(
+                    "Search diary entries with full query syntax. "
+                    "Examples: '#work since:2026-07-01', "
+                    "'status:done time:>2', 'auth -#noise'. "
+                    "Returns at most `limit` most recent matches "
+                    "(default 50). Use limit=0 for all matches."
+                ),
                 inputSchema={
                     "type": "object",
                     "properties": {
                         "query": {"type": "string"},
+                        "limit": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": (
+                                "Max matches to return (default 50). "
+                                "0 = unlimited."
+                            ),
+                        },
                     },
                     "required": ["query"],
                 },
@@ -345,7 +359,10 @@ async def serve() -> None:
             query = arguments.get("query", "")
             if not query:
                 return error_response("Search query is required")
-            return safe_call(service.search_entries, query=query)
+            limit = arguments.get("limit", 50)
+            return safe_call(
+                service.search_entries, query=query, limit=limit
+            )
 
         if name == "list_recent_entries":
             limit = arguments.get("limit", 10)

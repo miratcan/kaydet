@@ -122,7 +122,10 @@ kaydet --filter "since:0"
 # All entries (removes default date limit)
 ```
 
-**Note:** By default, searches are limited to recent entries. Use `since:0` to search all history.
+**Notes:**
+- Bare `kaydet --list` (no filter) defaults to the current calendar month (`since:YYYY-MM-01`).
+- Explicit `--filter` searches the full index unless you add `since:` / `until:`.
+- When a date window is active, kaydet prints a footer: use `since:0` for all history.
 
 ## Examples
 

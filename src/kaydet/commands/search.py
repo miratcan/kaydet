@@ -171,6 +171,86 @@ def load_matches(
     return matches
 
 
+def _date_window_from_filters(
+    metadata_filters: Optional[List[Tuple[str, str]]],
+    default_since_hint: Optional[str] = None,
+) -> tuple[Optional[str], Optional[str], bool]:
+    """Return (since, until, is_default_month_window)."""
+    since_value = None
+    until_value = None
+    if metadata_filters:
+        for key, value in metadata_filters:
+            if key == "since":
+                since_value = value
+            elif key == "until":
+                until_value = value
+    is_default = bool(default_since_hint) and (
+        since_value is None or since_value == default_since_hint
+    )
+    if is_default and since_value is None:
+        since_value = default_since_hint
+    return since_value, until_value, is_default
+
+
+def _display_query(query: str) -> str:
+    """Strip since:/until: tokens for human-facing query display."""
+    display = re.sub(r"\bsince:\S+\s*", "", query).strip()
+    display = re.sub(r"\buntil:\S+\s*", "", display).strip()
+    return display
+
+
+def _date_window_phrase(
+    since_value: Optional[str],
+    until_value: Optional[str],
+    is_default: bool,
+) -> Optional[str]:
+    """Human-readable date window fragment, or None if unrestricted."""
+    has_since = since_value and since_value not in ("0", "all")
+    has_until = until_value and until_value not in ("0", "all")
+    if has_since and has_until:
+        return f"{since_value} to {until_value}"
+    if has_since:
+        if is_default:
+            return f"since {since_value} · this month by default"
+        return f"since {since_value}"
+    if has_until:
+        return f"until {until_value}"
+    return None
+
+
+def print_no_matches(
+    query: str,
+    metadata_filters: Optional[List[Tuple[str, str]]] = None,
+    default_since_hint: Optional[str] = None,
+) -> None:
+    """Print empty search result with date-window context when relevant."""
+    display_query = _display_query(query)
+    since_value, until_value, is_default = _date_window_from_filters(
+        metadata_filters, default_since_hint
+    )
+    window = _date_window_phrase(since_value, until_value, is_default)
+
+    if display_query:
+        msg = f"\U0001f50d No entries matched '{display_query}'"
+    else:
+        msg = "\U0001f50d No entries found"
+
+    if window:
+        msg += f" ({window})"
+    print(msg)
+
+    restricted = bool(window)
+    if restricted:
+        print(
+            "\U0001f4a1 Showing a date window — "
+            "use since:0 for all history."
+        )
+    else:
+        print(
+            "\U0001f4a1 Tip: add since:YYYY-MM-DD or since:0 to widen search."
+        )
+
+
 def print_matches(
     matches,
     query: str,
@@ -179,15 +259,22 @@ def print_matches(
     console: Optional[Console] = None,
     metadata_filters: Optional[List[Tuple[str, str]]] = None,
     default_since_hint: Optional[str] = None,
+    total: Optional[int] = None,
+    limit: Optional[int] = None,
 ) -> None:
     """Render matches either as JSON or a terminal-friendly listing."""
+    result_total = total if total is not None else len(matches)
+    truncated = result_total > len(matches)
     if output_format == "json":
         print(
             json.dumps(
                 {
                     "query": query,
                     "matches": [match.to_dict() for match in matches],
-                    "total": len(matches),
+                    "total": result_total,
+                    "shown": len(matches),
+                    "limit": limit,
+                    "truncated": truncated,
                 },
                 indent=2,
                 ensure_ascii=False,
@@ -196,6 +283,7 @@ def print_matches(
         return
 
     if not matches:
+        print_no_matches(query, metadata_filters, default_since_hint)
         return
 
     try:
@@ -220,33 +308,13 @@ def print_matches(
     # Use the formatter to display results
     format_search_results(search_results, terminal_width, config, console)
 
-    # Extract since/until filter info if present
-    since_value = None
-    until_value = None
-    if metadata_filters:
-        for key, value in metadata_filters:
-            if key == "since":
-                since_value = value
-            elif key == "until":
-                until_value = value
+    since_value, until_value, is_default = _date_window_from_filters(
+        metadata_filters, default_since_hint
+    )
+    display_query = _display_query(query)
+    window = _date_window_phrase(since_value, until_value, is_default)
 
-    # Build status message at the bottom (terminal scrolls up)
     entry_label = "entry" if len(matches) == 1 else "entries"
-
-    # Clean query: remove since:/until: filters from display (shown separately)
-    display_query = query
-    if "since:" in query:
-        # Remove since:VALUE from query string for cleaner display
-        display_query = re.sub(r"\bsince:\S+\s*", "", query).strip()
-    if "until:" in query:
-        # Remove until:VALUE from query string for cleaner display
-        display_query = re.sub(r"\buntil:\S+\s*", "", query).strip()
-
-    has_since = since_value and since_value not in ("0", "all")
-    has_until = until_value and until_value not in ("0", "all")
-    has_date_filter = has_since or has_until
-    has_default_filter = bool(default_since_hint) and not display_query
-
     if display_query:
         status_msg = (
             f"\n\U0001f50d {len(matches)} {entry_label}"
@@ -255,17 +323,36 @@ def print_matches(
     else:
         status_msg = f"\n\U0001f50d {len(matches)} {entry_label}"
 
-    if has_since and has_until:
-        status_msg += f" ({since_value} to {until_value})"
-    elif has_since:
-        status_msg += f" (since {since_value})"
-    elif has_until:
-        status_msg += f" (until {until_value})"
+    if truncated:
+        status_msg += f" (showing latest {len(matches)} of {result_total})"
+    if window:
+        status_msg += f" ({window})"
 
     print(status_msg)
 
-    if has_date_filter or has_default_filter:
-        print("\U0001f4a1 Use since:0 to see all entries.")
+    if truncated:
+        print(
+            "\U0001f4a1 Results truncated — raise --limit or use --limit 0 "
+            "for all."
+        )
+    if window:
+        print(
+            "\U0001f4a1 Showing a date window — "
+            "use since:0 for all history."
+        )
+
+
+def apply_match_limit(matches: list, limit: Optional[int]) -> tuple[list, int]:
+    """Keep the most recent ``limit`` matches (chronological order preserved).
+
+    Returns ``(sliced_matches, total_before_limit)``.
+    ``limit`` of None or <= 0 means no limit.
+    """
+    total = len(matches)
+    if limit is None or limit <= 0 or total <= limit:
+        return matches, total
+    # matches are sorted oldest→newest; keep the tail (most recent)
+    return matches[-limit:], total
 
 
 def search_command(
@@ -274,6 +361,7 @@ def search_command(
     config: SectionProxy,
     query: str,
     allow_empty: bool = False,
+    limit: Optional[int] = None,
 ) -> dict:
     """Search diary entries using the SQLite index and return matches."""
     rebuild_index_if_empty(conn, log_dir, config)
@@ -332,11 +420,15 @@ def search_command(
 
     locations = fetch_entry_locations(conn, sql_query, params)
     matches = load_matches(locations, log_dir, config)
+    matches, total = apply_match_limit(matches, limit)
 
     return {
         "success": True,
         "query": query,
         "matches": matches,
+        "total": total,
+        "limit": limit,
+        "truncated": total > len(matches),
         "metadata_filters": original_metadata_filters,
     }
 
