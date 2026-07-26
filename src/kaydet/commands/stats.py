@@ -18,7 +18,7 @@ def stats_command(
     if not log_dir.exists():
         return {
             "success": False,
-            "error": "\U0001f4ed No diary entries found yet",
+            "error": "\U0001f4ca No diary entries found yet",
         }
 
     day_pattern = config.get(
@@ -29,7 +29,7 @@ def stats_command(
     if not any(log_dir.glob(glob_pattern)):
         return {
             "success": False,
-            "error": "\U0001f4ed No diary entries found yet",
+            "error": "\U0001f4ca No diary entries found yet",
         }
 
     year = now.year

@@ -166,8 +166,10 @@ def test_stats_over_99_entries(setup_kaydet, capsys, mock_datetime_factory):
     captured = capsys.readouterr()
     output = captured.out
 
-    assert " 5[**]" in output
+    assert " 5[99+]" in output
     assert "Total entries this month: 100" in output
+    assert "99+" in output
+    assert "100 or more" in output
 
 
 def test_legacy_tag_parsing(setup_kaydet, capsys):

@@ -362,7 +362,7 @@ def _handle_search_result(
             if args.output_format == "json":
                 print_json_err("No numeric values found to sum")
             else:
-                print("\U0001f50d No numeric values found to sum")
+                print("\U0001f4ca No numeric values found to sum")
         return
 
     if not res["matches"] and args.output_format != "json":
@@ -601,7 +601,7 @@ def main() -> None:
         if res.get("success", False) and res["matches"]:
             print_sums(res["matches"])
         else:
-            print("\U0001f50d No entries found to sum")
+            print("\U0001f4ca No entries found to sum")
         return
 
     res = service.add_from_cli(args, now=now)

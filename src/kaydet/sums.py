@@ -8,9 +8,11 @@ Example::
 
     timespent:1saat + timespent:2saat + timespent:30dk + timespent:1hour
     →
-    timespent (dk): 30dk
-    timespent (hour): 1hour
-    timespent (saat): 3saat
+    timespent (dk)    30
+    timespent (hour)  1
+    timespent (saat)  3
+
+Unit lives in the label only (no ``3saat`` repetition on the value).
 """
 
 from __future__ import annotations
@@ -54,8 +56,8 @@ def _group_label(key: str, unit: str) -> str:
 
 
 def _group_display(total: float, unit: str) -> str:
-    num = _format_number(total)
-    return f"{num}{unit}" if unit else num
+    """Value column: number only (unit already shown in the label)."""
+    return _format_number(total)
 
 
 def aggregate_sums(
@@ -66,7 +68,7 @@ def aggregate_sums(
     Returns a sorted list of groups::
 
         [{"key": "timespent", "unit": "saat", "total": 3,
-          "label": "timespent (saat)", "display": "3saat"}, ...]
+          "label": "timespent (saat)", "display": "3"}, ...]
     """
     totals: Counter[tuple[str, str]] = Counter()
 
@@ -115,12 +117,20 @@ def format_sums_payload(
     }
 
 
+def _has_split_units(groups: list[dict[str, Any]]) -> bool:
+    """True when the same metadata key appears with 2+ unit suffixes."""
+    by_key: Counter[str] = Counter()
+    for g in groups:
+        by_key[g["key"]] += 1
+    return any(n > 1 for n in by_key.values())
+
+
 def print_sums(matches: list) -> None:
     """Print summed numeric metadata for the CLI."""
     payload = format_sums_payload(matches)
     groups = payload["groups"]
     if not groups:
-        print("\U0001f50d No numeric values found to sum")
+        print("\U0001f4ca No numeric values found to sum")
         return
 
     n = payload["total_entries"]
@@ -130,3 +140,8 @@ def print_sums(matches: list) -> None:
     width = max(len(g["label"]) for g in groups)
     for g in groups:
         print(f"  {g['label']:<{width}}  {g['display']}")
+
+    if _has_split_units(groups):
+        print(
+            "\U0001f4a1 Same key, different units — not combined."
+        )

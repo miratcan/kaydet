@@ -42,11 +42,11 @@ def test_aggregate_groups_by_unit_no_conversion():
     ]
     groups = {g["label"]: g for g in aggregate_sums(matches)}
     assert groups["timespent (saat)"]["total"] == 3
-    assert groups["timespent (saat)"]["display"] == "3saat"
+    assert groups["timespent (saat)"]["display"] == "3"
     assert groups["timespent (dk)"]["total"] == 30
-    assert groups["timespent (dk)"]["display"] == "30dk"
+    assert groups["timespent (dk)"]["display"] == "30"
     assert groups["timespent (hour)"]["total"] == 1
-    assert groups["timespent (hour)"]["display"] == "1hour"
+    assert groups["timespent (hour)"]["display"] == "1"
     assert len(groups) == 3
 
 
@@ -58,7 +58,7 @@ def test_bare_numbers_group_without_unit():
     ]
     groups = {g["label"]: g for g in aggregate_sums(matches)}
     assert groups["cost"]["display"] == "100"
-    assert groups["cost (tl)"]["display"] == "75tl"
+    assert groups["cost (tl)"]["display"] == "75"
 
 
 def test_print_sums_worklog_example(capsys):
@@ -71,9 +71,21 @@ def test_print_sums_worklog_example(capsys):
     print_sums(matches)
     out = capsys.readouterr().out
     assert "4 entries" in out
-    assert "timespent (saat)" in out and "3saat" in out
-    assert "timespent (dk)" in out and "30dk" in out
-    assert "timespent (hour)" in out and "1hour" in out
+    assert "timespent (saat)" in out
+    assert "timespent (dk)" in out
+    assert "timespent (hour)" in out
+    # Unit only in label, not repeated on value
+    assert "3saat" not in out
+    assert re_search_number_column(out, "3")
+    assert "not combined" in out.lower()
+
+
+def re_search_number_column(out: str, number: str) -> bool:
+    """True if a line ends with the bare number (value column)."""
+    for line in out.splitlines():
+        if line.rstrip().endswith(number) and "(" in line:
+            return True
+    return False
 
 
 def test_format_sums_payload_shape():
@@ -81,5 +93,5 @@ def test_format_sums_payload_shape():
     payload = format_sums_payload(matches)
     assert payload["total_entries"] == 2
     assert payload["sums"]["n (km)"] == 3
-    assert payload["sums_display"]["n (km)"] == "3km"
+    assert payload["sums_display"]["n (km)"] == "3"
     assert payload["groups"][0]["unit"] == "km"

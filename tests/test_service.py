@@ -104,7 +104,7 @@ def test_service_summarize_entries_with_samples(service_env):
     assert result["success"] is True
     assert result["total"] == 2
     assert result["sums"]["cost"] == 165
-    assert result["sums_display"]["cost"] == "165"
+    assert result["sums_display"]["cost"] == "165"  # bare number, no unit
     assert len(result["samples"]) == 2
     sample = result["samples"][0]
     assert sample["date"] == "2025-10-27"
@@ -123,11 +123,11 @@ def test_service_summarize_groups_by_unit_suffix(service_env):
     result = service.summarize_entries("#worklog")
     assert result["success"] is True
     assert result["sums"]["timespent (saat)"] == 3
-    assert result["sums_display"]["timespent (saat)"] == "3saat"
+    assert result["sums_display"]["timespent (saat)"] == "3"
     assert result["sums"]["timespent (dk)"] == 30
-    assert result["sums_display"]["timespent (dk)"] == "30dk"
+    assert result["sums_display"]["timespent (dk)"] == "30"
     assert result["sums"]["timespent (hour)"] == 1
-    assert result["sums_display"]["timespent (hour)"] == "1hour"
+    assert result["sums_display"]["timespent (hour)"] == "1"
 
 
 def test_service_todo_workflow(service_env):

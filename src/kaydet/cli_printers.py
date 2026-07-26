@@ -7,6 +7,23 @@ from typing import Any
 
 from .json_output import print_json_err, print_json_ok
 
+# Calendar cell width: keep week rows aligned
+#   empty  → "dd  ·  "  (7)
+#   count  → "dd[nn] "  (7)
+#   100+   → "dd[99+]"  (7)
+_CELL_WIDTH = 7
+
+
+def _format_day_cell(day: int, count: int) -> str:
+    """Format one calendar day cell (fixed width)."""
+    if count == 0:
+        # Quiet empty day: no empty brackets
+        return f"{day:2d}  ·  "
+    if count < 100:
+        return f"{day:2d}[{count:2d}] "
+    # 100+ — readable marker (not opaque **)
+    return f"{day:2d}[99+]"
+
 
 def print_stats(result: dict[str, Any], output_format: str) -> None:
     """Print monthly calendar stats."""
@@ -36,26 +53,26 @@ def print_stats(result: dict[str, Any], output_format: str) -> None:
         result["year"], result["month"]
     )
     counts = result["days"]
+    saw_capped = False
     for week in month_calendar:
         cells = []
         for day in week:
             if day == 0:
-                cells.append("      ")
+                cells.append(" " * _CELL_WIDTH)
                 continue
             count = counts.get(day, 0)
-            if count == 0:
-                cells.append(f"{day:2d}[  ]")
-            elif count < 100:
-                cells.append(f"{day:2d}[{count:2d}]")
-            else:
-                cells.append(f"{day:2d}[**]")
+            if count >= 100:
+                saw_capped = True
+            cells.append(_format_day_cell(day, count))
         print(" ".join(cells))
 
     total_entries = result["total_entries"]
     if total_entries == 0:
-        print("\n\U0001f4ad No entries recorded for this month yet")
+        print("\n\U0001f4ca No entries recorded for this month yet")
     else:
-        print(f"\nTotal entries this month: {total_entries}")
+        print(f"\n\U0001f4ca Total entries this month: {total_entries}")
+        if saw_capped:
+            print("   99+ = 100 or more entries that day")
 
 
 def print_tags(result: dict[str, Any], output_format: str) -> None:
@@ -70,7 +87,7 @@ def print_tags(result: dict[str, Any], output_format: str) -> None:
         return
 
     if not rows:
-        print("\U0001f3f7\ufe0f No tags recorded yet")
+        print("\U0001f4ca No tags recorded yet")
         return
 
     for t in rows:
