@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import subprocess  # Used by tests  # noqa: F401
-from collections import Counter
 from datetime import datetime, timedelta
 from pathlib import Path
 from textwrap import dedent
@@ -20,6 +19,7 @@ from .json_output import print_json_err, print_json_ok
 from .parsers import extract_tags_from_text  # noqa: F401
 from .service import KaydetService
 from .startfile import startfile
+from .sums import format_sums_payload, print_sums
 from .utils import (
     DEFAULT_SETTINGS,  # noqa: F401
     load_config,
@@ -303,26 +303,6 @@ def build_parser(
     return parser
 
 
-def print_sums(matches: list) -> None:
-    """Print summed numeric metadata from a list of Entry matches."""
-    totals: Counter[str] = Counter()
-    for match in matches:
-        numbers = getattr(match, "metadata_numbers", {})
-        for key, value in numbers.items():
-            totals[key] += value
-    if not totals:
-        print("\U0001f50d No numeric values found to sum")
-        return
-    entry_label = "entry" if len(matches) == 1 else "entries"
-    print(f"\U0001f4ca {len(matches)} {entry_label}")
-    for key in sorted(totals):
-        value = totals[key]
-        if value == int(value):
-            print(f"  {key}: {int(value)}")
-        else:
-            print(f"  {key}: {value}")
-
-
 def _handle_search_result(
     res: dict,
     *,
@@ -343,21 +323,14 @@ def _handle_search_result(
 
     if args.summarize:
         if res["matches"]:
+            payload = format_sums_payload(res["matches"])
             if args.output_format == "json":
-                totals: Counter[str] = Counter()
-                for match in res["matches"]:
-                    numbers = getattr(match, "metadata_numbers", {})
-                    for key, value in numbers.items():
-                        totals[key] += value
-                sums = {
-                    key: int(value) if value == int(value) else value
-                    for key, value in sorted(totals.items())
-                }
                 print_json_ok(
                     {
                         "query": query,
-                        "total": len(res["matches"]),
-                        "sums": sums,
+                        "total": payload["total_entries"],
+                        "sums": payload["sums"],
+                        "sums_display": payload["sums_display"],
                     }
                 )
             else:

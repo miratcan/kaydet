@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -27,6 +26,7 @@ from .commands.stats import collect_month_counts, stats_command
 from .commands.todo import done_command, todo_command
 from .indexing import rebuild_index_if_empty
 from .parsers import parse_day_entries, resolve_entry_date
+from .sums import format_sums_payload
 from .sync import sync_modified_diary_files
 from .utils import load_config
 
@@ -258,22 +258,21 @@ class KaydetService:
 
         matches = result["matches"]
         if not matches:
-            return {"success": True, "query": query, "sums": {}, "total": 0}
+            return {
+                "success": True,
+                "query": query,
+                "sums": {},
+                "sums_display": {},
+                "total": 0,
+            }
 
-        totals: Counter[str] = Counter()
-        for match in matches:
-            for key, value in match.metadata_numbers.items():
-                totals[key] += value
-
-        sums = {
-            key: int(value) if value == int(value) else value
-            for key, value in sorted(totals.items())
-        }
+        payload = format_sums_payload(matches)
         return {
             "success": True,
             "query": query,
-            "sums": sums,
-            "total": len(matches),
+            "sums": payload["sums"],
+            "sums_display": payload["sums_display"],
+            "total": payload["total_entries"],
             "samples": [
                 {
                     "id": int(m.entry_id) if m.entry_id else None,

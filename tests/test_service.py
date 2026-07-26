@@ -104,12 +104,23 @@ def test_service_summarize_entries_with_samples(service_env):
     assert result["success"] is True
     assert result["total"] == 2
     assert result["sums"]["cost"] == 165
+    assert result["sums_display"]["cost"] == "165"
     assert len(result["samples"]) == 2
     sample = result["samples"][0]
     assert sample["date"] == "2025-10-27"
     assert "cost" in sample["metadata"]
     assert sample["id"] is not None
     assert sample["text"]
+
+
+def test_service_summarize_duration_display(service_env):
+    service = service_module.KaydetService.initialize()
+    service.add_entry(text="Deep work #focus", metadata={"time": "2h"})
+    service.add_entry(text="Short block #focus", metadata={"time": "30m"})
+    result = service.summarize_entries("#focus")
+    assert result["success"] is True
+    assert result["sums"]["time"] == 150
+    assert result["sums_display"]["time"] == "2h 30m"
 
 
 def test_service_todo_workflow(service_env):
