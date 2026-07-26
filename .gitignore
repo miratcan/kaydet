@@ -17,9 +17,15 @@ UNKNOWN.egg-info/
 *.bak
 .pip/
 
-# Recording artifacts
+# Accidental shell-expansion junk (e.g. unquoted $HOME in scripts)
+\$HOME/
+
+# Recording artifacts (vhs/tape intermediates)
 assets/tmp/
 assets/.record-backup/
 assets/*.gif
+# README embeds assets/demo.gif — keep it trackable despite the glob
+!assets/demo.gif
+# GitHub Pages uses docs/demo.gif (copy of the README demo)
 assets/kaydet-demo.webm
 assets/kaydet-demo.mp4
