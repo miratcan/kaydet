@@ -1,12 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-LANG="${1:-tr}"
-case "$LANG" in
-    tr) TAPE="kaydet-demo.tape" ;;
-    en) TAPE="kaydet-demo-en.tape" ;;
-    *)  echo "Usage: $0 {tr|en}" >&2; exit 1 ;;
-esac
+TAPE="${1:-demo.tape}"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TMP_DIR="$SCRIPT_DIR/tmp"
@@ -46,7 +41,7 @@ else
     echo "index_dir = ${TMP_DIR}" >> "$CONFIG_FILE"
 fi
 
-echo "==> Running VHS demo (${LANG})..."
+echo "==> Running VHS demo: ${TAPE}..."
 cd "$SCRIPT_DIR"
 vhs "$TAPE"
 

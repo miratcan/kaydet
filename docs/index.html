@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kaydet — Never lose a solution twice</title>
+  <meta name="description" content="Terminal note-taking for developers. Capture work logs, ideas, and structured metadata in plain text. Search everything with SQLite FTS.">
+  <style>
+    :root {
+      --bg: #282a36;
+      --fg: #f8f8f2;
+      --muted: #6272a4;
+      --accent: #bd93f9;
+      --green: #50fa7b;
+      --cyan: #8be9fd;
+      --selection: #44475a;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.6;
+    }
+    .container { max-width: 880px; margin: 0 auto; padding: 0 24px; }
+    header {
+      text-align: center;
+      padding: 80px 0 48px;
+    }
+    h1 {
+      font-size: 3rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 12px;
+    }
+    h1 span { color: var(--accent); }
+    .tagline {
+      font-size: 1.15rem;
+      color: var(--muted);
+      max-width: 600px;
+      margin: 0 auto 24px;
+    }
+    .badges { margin-bottom: 32px; }
+    .badges img { height: 22px; margin: 0 3px; vertical-align: middle; }
+    .install {
+      display: inline-block;
+      background: var(--selection);
+      color: var(--green);
+      font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', monospace;
+      padding: 12px 28px;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      text-decoration: none;
+      border: 1px solid var(--muted);
+      transition: border-color 0.2s;
+    }
+    .install:hover { border-color: var(--green); }
+    .demo {
+      text-align: center;
+      padding: 32px 0 64px;
+    }
+    .demo img {
+      max-width: 100%;
+      border-radius: 10px;
+      border: 1px solid var(--selection);
+      box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+    }
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 24px;
+      padding-bottom: 64px;
+    }
+    .feature {
+      background: var(--selection);
+      padding: 24px;
+      border-radius: 10px;
+    }
+    .feature h3 {
+      font-size: 1rem;
+      color: var(--cyan);
+      margin-bottom: 8px;
+    }
+    .feature p {
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+    .quickstart {
+      background: #1e1f29;
+      border-radius: 10px;
+      padding: 32px;
+      margin-bottom: 64px;
+    }
+    .quickstart h2 {
+      font-size: 1.1rem;
+      color: var(--accent);
+      margin-bottom: 16px;
+    }
+    .quickstart code {
+      display: block;
+      font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      line-height: 2;
+      color: var(--fg);
+    }
+    .quickstart .comment { color: var(--muted); }
+    .quickstart .cmd { color: var(--green); }
+    footer {
+      text-align: center;
+      padding: 32px 0 48px;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+    @media (max-width: 600px) {
+      h1 { font-size: 2rem; }
+      header { padding: 48px 0 32px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>kay<span>det</span></h1>
+      <p class="tagline">Terminal note-taking for developers. Never lose a solution twice.</p>
+      <div class="badges">
+        <img src="https://img.shields.io/github/license/miratcan/kaydet.svg" alt="MIT">
+        <img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python 3.10+">
+        <img src="https://img.shields.io/github/stars/miratcan/kaydet?style=social" alt="Stars">
+      </div>
+      <a class="install" href="https://github.com/miratcan/kaydet#install">pip install kaydet</a>
+    </header>
+
+    <div class="demo">
+      <img src="../assets/demo.gif" alt="Kaydet demo">
+    </div>
+
+    <div class="features">
+      <div class="feature">
+        <h3>Zero friction</h3>
+        <p>One command from your terminal. No app windows, no context switching, no loading screens.</p>
+      </div>
+      <div class="feature">
+        <h3>Plain text ownership</h3>
+        <p>Daily .txt files you can grep, version with git, sync however you like. No lock-in.</p>
+      </div>
+      <div class="feature">
+        <h3>Queryable database</h3>
+        <p>SQLite FTS5 with full-text search, structured metadata, and numeric comparisons.</p>
+      </div>
+      <div class="feature">
+        <h3>AI-native</h3>
+        <p>Built-in MCP server. Your AI can search years of your notes in seconds.</p>
+      </div>
+      <div class="feature">
+        <h3>Structured metadata</h3>
+        <p>Key:value syntax with comparisons like <code>time:&gt;2</code>, ranges, and sum aggregation.</p>
+      </div>
+      <div class="feature">
+        <h3>Todo management</h3>
+        <p>Built-in <code>--todo</code> and <code>--done</code> commands. Track tasks without leaving the terminal.</p>
+      </div>
+    </div>
+
+    <div class="quickstart">
+      <h2>Quick Start</h2>
+      <code><span class="comment"># Capture a note</span></code>
+      <code><span class="cmd">$</span> kaydet "Fixed auth race condition #dev commit:a3f89d"</code>
+      <code>&nbsp;</code>
+      <code><span class="comment"># Search by tag or metadata</span></code>
+      <code><span class="cmd">$</span> kaydet --filter "#dev"</code>
+      <code><span class="cmd">$</span> kaydet --filter "time:&gt;2"</code>
+      <code>&nbsp;</code>
+      <code><span class="comment"># Track todos</span></code>
+      <code><span class="cmd">$</span> kaydet --todo "Review PR #work priority:high"</code>
+      <code><span class="cmd">$</span> kaydet --done 42</code>
+      <code>&nbsp;</code>
+      <code><span class="comment"># Structured metadata with math</span></code>
+      <code><span class="cmd">$</span> kaydet --filter "#expense" --sum</code>
+    </div>
+
+    <footer>
+      Built by <a href="https://github.com/miratcan">Mirat Can Bayrak</a> &middot;
+      <a href="https://github.com/miratcan/kaydet">GitHub</a>
+    </footer>
+  </div>
+</body>
+</html>
