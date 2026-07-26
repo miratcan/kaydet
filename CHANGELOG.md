@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.45.0] - 2026-07-26
+
+### Added
+- **Demo GIF:** English 16:9 animated demo for README (854×480, Dracula theme, 10fps).
+- **GitHub Pages landing page:** `mirat.dev/kaydet/` with site theme, demo embed, and install link.
+
+### Changed
+- **Homepage URL:** Updated to `mirat.dev/kaydet/` in repo settings and `pyproject.toml`.
+- **record.sh:** Simplified to GIF-only output; accepts tape name as argument.
+- **docs/CONTRIBUTING.md:** Fixed branch name from `main` to `master`.
+- **README:** Removed unused MCP usage screenshot placeholder.
+
 ## [0.44.0] - 2026-07-24
 
 ### Changed
