@@ -216,7 +216,7 @@ def test_search_multiline_result(setup_kaydet, capsys):
     assert "The first line" in output
     # Body lines are left-aligned (no indent under HH:MM [id] chrome)
     assert "This is the second line." in output
-    assert "    And a third." in output
+    assert "And a third." in output
 
 
 def test_search_with_colon_containing_text(
