@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import subprocess  # Used by tests  # noqa: F401
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from textwrap import dedent
 
@@ -158,11 +158,30 @@ def build_parser(
             See docs/QUERY_SYNTAX.md for full documentation.
             """),
     )
-    query_group.add_argument(
+    date_window = query_group.add_mutually_exclusive_group()
+    date_window.add_argument(
         "--today",
         dest="today",
         action="store_true",
         help="List today's entries only (shorthand for since:YYYY-MM-DD).",
+    )
+    date_window.add_argument(
+        "--week",
+        dest="week",
+        action="store_true",
+        help=(
+            "List this week's entries (since Monday of the current "
+            "ISO week; shorthand for since:YYYY-MM-DD)."
+        ),
+    )
+    date_window.add_argument(
+        "--month",
+        dest="month",
+        action="store_true",
+        help=(
+            "List this month's entries (since the 1st; "
+            "shorthand for since:YYYY-MM-01)."
+        ),
     )
     query_group.add_argument(
         "--get",
@@ -521,13 +540,22 @@ def main() -> None:
                 print(res["message"])
         return
 
-    # Handle --today: add today's date as a since: filter
+    # Date shorthands: inject since: and enable list mode
+    since_date = None
     if args.today:
-        today_since = f"since:{now.date().isoformat()}"
+        since_date = now.date()
+    elif args.week:
+        # Monday of the current ISO week
+        since_date = now.date() - timedelta(days=now.date().weekday())
+    elif args.month:
+        since_date = now.date().replace(day=1)
+
+    if since_date is not None:
+        since_token = f"since:{since_date.isoformat()}"
         if args.filter:
-            args.filter = f"{args.filter} {today_since}"
+            args.filter = f"{args.filter} {since_token}"
         else:
-            args.filter = today_since
+            args.filter = since_token
         if not args.list_entries:
             args.list_entries = True
 

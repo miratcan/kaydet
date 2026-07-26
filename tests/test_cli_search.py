@@ -3,6 +3,8 @@ from __future__ import annotations
 import sys
 from datetime import datetime
 
+import pytest
+
 from kaydet import cli
 
 
@@ -273,3 +275,76 @@ def test_search_with_colon_containing_text(
     assert "commit:38edf60" in output
     assert "Meeting" not in output
     assert "http://example.com" not in output
+
+
+def test_week_shorthand_filters_to_monday(
+    setup_kaydet, capsys, mock_datetime_factory
+):
+    """--week lists entries since Monday of the current ISO week."""
+    fake_log_dir = setup_kaydet["fake_log_dir"]
+    monkeypatch = setup_kaydet["monkeypatch"]
+    fake_log_dir.mkdir(exist_ok=True)
+
+    # Wednesday 2025-10-29 → week starts Monday 2025-10-27
+    mock_datetime_factory(datetime(2025, 10, 26, 10, 0, 0))  # Sunday prior
+    monkeypatch.setattr(sys, "argv", ["kaydet", "Before this week"])
+    cli.main()
+    capsys.readouterr()
+
+    mock_datetime_factory(datetime(2025, 10, 27, 10, 0, 0))  # Monday
+    monkeypatch.setattr(sys, "argv", ["kaydet", "Monday note"])
+    cli.main()
+    capsys.readouterr()
+
+    mock_datetime_factory(datetime(2025, 10, 29, 15, 0, 0))  # Wednesday
+    monkeypatch.setattr(sys, "argv", ["kaydet", "Wednesday note"])
+    cli.main()
+    capsys.readouterr()
+
+    monkeypatch.setattr(sys, "argv", ["kaydet", "--week"])
+    cli.main()
+    output = capsys.readouterr().out
+    assert "Monday note" in output
+    assert "Wednesday note" in output
+    assert "Before this week" not in output
+    assert "since 2025-10-27" in output
+
+
+def test_month_shorthand_filters_to_first(
+    setup_kaydet, capsys, mock_datetime_factory
+):
+    """--month lists entries since the 1st of the current month."""
+    fake_log_dir = setup_kaydet["fake_log_dir"]
+    monkeypatch = setup_kaydet["monkeypatch"]
+    fake_log_dir.mkdir(exist_ok=True)
+
+    mock_datetime_factory(datetime(2025, 9, 30, 10, 0, 0))
+    monkeypatch.setattr(sys, "argv", ["kaydet", "September leftover"])
+    cli.main()
+    capsys.readouterr()
+
+    mock_datetime_factory(datetime(2025, 10, 1, 9, 0, 0))
+    monkeypatch.setattr(sys, "argv", ["kaydet", "October first"])
+    cli.main()
+    capsys.readouterr()
+
+    mock_datetime_factory(datetime(2025, 10, 15, 12, 0, 0))
+    monkeypatch.setattr(sys, "argv", ["kaydet", "Mid October"])
+    cli.main()
+    capsys.readouterr()
+
+    monkeypatch.setattr(sys, "argv", ["kaydet", "--month"])
+    cli.main()
+    output = capsys.readouterr().out
+    assert "October first" in output
+    assert "Mid October" in output
+    assert "September leftover" not in output
+    assert "since 2025-10-01" in output
+
+
+def test_week_and_today_are_mutually_exclusive(setup_kaydet, capsys):
+    """--week and --today cannot be combined."""
+    monkeypatch = setup_kaydet["monkeypatch"]
+    monkeypatch.setattr(sys, "argv", ["kaydet", "--week", "--today"])
+    with pytest.raises(SystemExit):
+        cli.main()
