@@ -1,25 +1,15 @@
 # Never lose a solution twice.
 
-<div align="center">
-  <img src="assets/logo.png" alt="Kaydet Logo" width="400">
-  <br><br>
-</div>
+Kaydet (pronounced "kai-det", Turkish for "record") is a **terminal note-taking app** for developers. Capture **work logs**, **daily notes**, and **developer journals** in plain text. Instantly search everything with SQLite FTS. Your AI can read and write your notes too.
 
 [![Tests](https://github.com/miratcan/kaydet/workflows/Tests/badge.svg)](https://github.com/miratcan/kaydet/actions)
 [![Coverage](https://img.shields.io/badge/coverage-83%25-brightgreen.svg)](https://github.com/miratcan/kaydet/actions/workflows/test.yml)
 [![License](https://img.shields.io/github/license/miratcan/kaydet.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
-[![Maintained](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/miratcan/kaydet/graphs/commit-activity)
-[![GitHub stars](https://img.shields.io/github/stars/miratcan/kaydet?style=social)](https://github.com/miratcan/kaydet/stargazers)
-
-> Kaydet ("record" in Turkish) is a **terminal note-taking app** for developers.
-> Capture **work logs**, **daily notes**, and **developer journals** in plain text.
-> Instantly search everything with SQLite FTS.
-> Your AI can read and write your notes too.
+[![Stars](https://img.shields.io/github/stars/miratcan/kaydet?style=social)](https://github.com/miratcan/kaydet/stargazers)
 
 <p align="center">
-  <img src="assets/demo.gif" alt="Kaydet demo — coming soon" width="720">
+  <img src="assets/demo.gif" alt="Kaydet demo" width="720">
 </p>
 
 ## Install
