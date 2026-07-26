@@ -4,6 +4,7 @@ from .add import add_entry_command
 from .delete import delete_entry_command
 from .doctor import doctor_command
 from .edit import edit_entry_command
+from .git_sync import git_init, git_status, git_sync
 from .reminder import reminder_command
 from .search import search_command, tags_command
 from .stats import stats_command
@@ -15,6 +16,9 @@ __all__ = [
     "doctor_command",
     "done_command",
     "edit_entry_command",
+    "git_init",
+    "git_status",
+    "git_sync",
     "list_todos_command",
     "reminder_command",
     "search_command",

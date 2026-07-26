@@ -19,6 +19,9 @@ from .commands import (
     doctor_command,
     done_command,
     edit_entry_command,
+    git_init,
+    git_status,
+    git_sync,
     reminder_command,
     search_command,
     stats_command,
@@ -207,6 +210,33 @@ def build_parser(
         help="Show summed numeric metadata for matching entries.",
     )
 
+    # Sync
+    sync_group = parser.add_argument_group("Sync")
+    sync_group.add_argument(
+        "--init",
+        dest="git_init",
+        type=str,
+        nargs="?",
+        const="",
+        metavar="REMOTE_URL",
+        help=(
+            "Initialize git repo in storage directory. "
+            "Optionally add remote URL."
+        ),
+    )
+    sync_group.add_argument(
+        "--sync",
+        dest="git_sync",
+        action="store_true",
+        help="Commit all changes, push, and pull.",
+    )
+    sync_group.add_argument(
+        "--status",
+        dest="git_status",
+        action="store_true",
+        help="Show working tree status.",
+    )
+
     # Management
     management_group = parser.add_argument_group("Management")
     management_group.add_argument(
@@ -350,6 +380,22 @@ def main() -> None:
             " This may take a moment."
         )
         print_doctor(doctor_command(conn, storage_dir, config, now))
+        return
+
+    if args.git_init is not None:
+        remote = args.git_init if args.git_init else None
+        res = git_init(storage_dir, remote_url=remote)
+        print(res["message"])
+        return
+
+    if args.git_sync:
+        res = git_sync(storage_dir)
+        print(res["message"])
+        return
+
+    if args.git_status:
+        res = git_status(storage_dir)
+        print(res["message"])
         return
 
     sync_modified_diary_files(conn, storage_dir, config, now)
