@@ -1,6 +1,5 @@
 "Search and tags commands."
 
-import json
 import re
 import shutil
 import sqlite3
@@ -18,6 +17,7 @@ from ..formatters import (
     format_search_results,
 )
 from ..indexing import rebuild_index_if_empty
+from ..json_output import print_json_ok
 from ..parsers import (
     parse_comparison_expression,
     parse_day_entries,
@@ -266,19 +266,15 @@ def print_matches(
     result_total = total if total is not None else len(matches)
     truncated = result_total > len(matches)
     if output_format == "json":
-        print(
-            json.dumps(
-                {
-                    "query": query,
-                    "matches": [match.to_dict() for match in matches],
-                    "total": result_total,
-                    "shown": len(matches),
-                    "limit": limit,
-                    "truncated": truncated,
-                },
-                indent=2,
-                ensure_ascii=False,
-            )
+        print_json_ok(
+            {
+                "query": query,
+                "matches": [match.to_dict() for match in matches],
+                "total": result_total,
+                "shown": len(matches),
+                "limit": limit,
+                "truncated": truncated,
+            }
         )
         return
 

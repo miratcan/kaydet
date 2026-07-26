@@ -57,7 +57,9 @@ class TestFormatTodoResults:
         format_todo_results(
             [], "json", config=mock_config, console=mock_console
         )
-        assert '"todos": []' in mock_console.printed_text[0]
+        out = mock_console.printed_text[0]
+        assert '"success": true' in out
+        assert '"todos": []' in out
 
     def test_format_pending_todos_text(self, mock_console, mock_config):
         """Test formatting pending todos in text format."""
@@ -185,10 +187,13 @@ class TestFormatTodoResults:
             todos, "json", config=mock_config, console=mock_console
         )
 
-        assert '"todos"' in mock_console.printed_text[0]
-        assert '"id": 1' in mock_console.printed_text[0]
-        assert '"status": "pending"' in mock_console.printed_text[0]
-        assert '"description": "Test todo"' in mock_console.printed_text[0]
+        out = mock_console.printed_text[0]
+        assert '"success": true' in out
+        assert '"data"' in out
+        assert '"todos"' in out
+        assert '"id": 1' in out
+        assert '"status": "pending"' in out
+        assert '"description": "Test todo"' in out
 
     def test_todo_without_completed_at(self, mock_console, mock_config):
         """Test formatting todo without completed_at field."""

@@ -16,6 +16,7 @@ from .cli_printers import print_doctor, print_stats, print_tags
 from .commands.reminder import reminder_command
 from .commands.search import print_matches, print_no_matches
 from .formatters import format_todo_results
+from .json_output import print_json_err, print_json_ok
 from .parsers import extract_tags_from_text  # noqa: F401
 from .service import KaydetService
 from .startfile import startfile
@@ -314,15 +315,39 @@ def _handle_search_result(
 ) -> None:
     """Render a service.query() result for CLI."""
     if not res.get("success", False):
-        if "error" in res:
-            print(res["error"])
+        error = res.get("error", "Search failed")
+        if args.output_format == "json":
+            print_json_err(error)
+        else:
+            print(error)
         return
 
     if args.summarize:
         if res["matches"]:
-            print_sums(res["matches"])
+            if args.output_format == "json":
+                totals: Counter[str] = Counter()
+                for match in res["matches"]:
+                    numbers = getattr(match, "metadata_numbers", {})
+                    for key, value in numbers.items():
+                        totals[key] += value
+                sums = {
+                    key: int(value) if value == int(value) else value
+                    for key, value in sorted(totals.items())
+                }
+                print_json_ok(
+                    {
+                        "query": query,
+                        "total": len(res["matches"]),
+                        "sums": sums,
+                    }
+                )
+            else:
+                print_sums(res["matches"])
         else:
-            print("\U0001f50d No numeric values found to sum")
+            if args.output_format == "json":
+                print_json_err("No numeric values found to sum")
+            else:
+                print("\U0001f50d No numeric values found to sum")
         return
 
     if not res["matches"] and args.output_format != "json":
@@ -397,11 +422,12 @@ def main() -> None:
         return
 
     if args.doctor:
-        print(
-            "Rebuilding search index from diary files..."
-            " This may take a moment."
-        )
-        print_doctor(service.doctor(now=now))
+        if args.output_format != "json":
+            print(
+                "Rebuilding search index from diary files..."
+                " This may take a moment."
+            )
+        print_doctor(service.doctor(now=now), args.output_format)
         return
 
     if args.git_init is not None:
@@ -437,7 +463,11 @@ def main() -> None:
     if args.get is not None:
         res = service.load_entry(args.get)
         if not res.get("success"):
-            print(f"\U0001f937 Entry {args.get} not found")
+            msg = f"\U0001f937 Entry {args.get} not found"
+            if args.output_format == "json":
+                print_json_err(f"Entry {args.get} not found")
+            else:
+                print(msg)
             return
         print_matches(
             res["matches"],

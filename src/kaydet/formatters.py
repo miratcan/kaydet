@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import re
 import textwrap
 from configparser import SectionProxy
@@ -12,6 +11,8 @@ from operator import attrgetter
 from typing import List, Optional
 
 from rich.console import Console
+
+from .json_output import json_ok
 
 
 class SearchResult:
@@ -395,7 +396,7 @@ class SearchResultJSONFormatter:
             SearchResultJSONFormatter._format_as_dict(match)
             for match in matches
         ]
-        return json.dumps({"matches": results}, indent=2, ensure_ascii=False)
+        return json_ok({"matches": results})
 
     @staticmethod
     def _extract_tags_from_lines(lines: List[str]) -> List[str]:
@@ -502,9 +503,7 @@ class TodoFormatter:
             Either "text" or "json"
         """
         if output_format == "json":
-            self.console.print(
-                json.dumps({"todos": todos}, indent=2, ensure_ascii=False)
-            )
+            self.console.print(json_ok({"todos": todos}))
             return
 
         if not todos:
