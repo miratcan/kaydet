@@ -190,9 +190,9 @@ def list_todos_command(
                 status = entry.metadata.get("status", "pending")
                 completed_at = entry.metadata.get("completed_at", "")
 
-                # Get the first line as description
+                lines = list(entry.lines)
                 description = (
-                    entry.lines[0] if entry.lines else "(no description)"
+                    lines[0] if lines else "(no description)"
                 )
 
                 todos.append(
@@ -205,6 +205,10 @@ def list_todos_command(
                         "status": status,
                         "completed_at": completed_at,
                         "description": description,
+                        "lines": lines,
+                        "text": entry.text,
+                        "tags": list(entry.tags),
+                        "metadata": dict(entry.metadata),
                     }
                 )
                 break

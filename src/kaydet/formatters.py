@@ -694,6 +694,13 @@ class TodoFormatter:
         )
         self.console.print(header)
 
+        # Body lines after the first (same content as --filter search view)
+        body_lines = todo.get("lines") or []
+        if len(body_lines) > 1:
+            dim_start, dim_end = self._get_dim_markup(is_completed)
+            for line in body_lines[1:]:
+                self.console.print(f"    {dim_start}{line}{dim_end}")
+
         created_line = self._format_created_line(
             todo["date"], todo["timestamp"]
         )

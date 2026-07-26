@@ -14,7 +14,6 @@ from . import __description__, __version__
 from .cli_printers import print_doctor, print_stats, print_tags
 from .commands.reminder import reminder_command
 from .commands.search import print_matches, print_no_matches
-from .formatters import format_todo_results
 from .json_output import print_json_err, print_json_ok
 from .parsers import extract_tags_from_text  # noqa: F401
 from .service import KaydetService
@@ -109,11 +108,11 @@ def build_parser(
         nargs="*",
         metavar="TEXT",
         help=(
-            "Create a new todo entry "
-            "(e.g., 'kaydet --todo \"Buy groceries #home\"'). "
-            "Use without arguments to list todos, or combine "
-            "with --filter to narrow results "
-            "(e.g., 'kaydet --todo --filter \"#work\"')."
+            "With text: create a todo (#todo, status:pending). "
+            "Without text: shortcut for --filter '#todo' "
+            "(same search UI, full entry body). "
+            "Combine with --filter: "
+            "'kaydet --todo --filter \"#work\"' → '#work #todo'."
         ),
     )
     todo_group.add_argument(
@@ -472,39 +471,19 @@ def main() -> None:
 
     # args.todo with nargs="*" returns:
     # - None if --todo flag not provided
-    # - [] (empty list) if --todo provided without arguments
-    # - ["text", "here"] if --todo provided with arguments
+    # - [] if --todo with no arguments → list via --filter '#todo'
+    # - ["text", ...] if creating a todo
     if args.todo is not None:
-        has_todo_text = bool(args.todo)
-
-        if has_todo_text:
+        if args.todo:
             res = service.create_todo_from_cli(list(args.todo), now=now)
             if "message" in res:
                 print(res["message"])
+            return
+        # Bare --todo is only a shortcut for filter '#todo' (no special UI)
+        if args.filter:
+            args.filter = f"{args.filter} #todo"
         else:
-            filter_query = args.filter if args.filter else None
-            if filter_query:
-                print(f"Filtering todos: {filter_query} #todo\n")
-            res = service.list_todos(
-                status="pending",
-                filter_query=filter_query,
-            )
-            todos = res.get("todos", [])
-            if not todos:
-                if filter_query:
-                    print(
-                        f"\U0001f50d No todos found matching '{filter_query}'"
-                    )
-                else:
-                    print("\U0001f389 No pending todos \u2014 all done!")
-            else:
-                format_todo_results(
-                    todos,
-                    args.output_format,
-                    config=config,
-                    console=console,
-                )
-        return
+            args.filter = "#todo"
 
     if args.done is not None:
         for entry_id in args.done:

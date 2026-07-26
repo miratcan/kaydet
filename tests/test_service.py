@@ -148,6 +148,8 @@ def test_service_todo_workflow(service_env):
     assert todos["todos"][0]["id"] == todo_id
     assert todos["todos"][0]["status"] == "pending"
     assert "Write unit tests" in todos["todos"][0]["description"]
+    assert "lines" in todos["todos"][0]
+    assert "text" in todos["todos"][0]
 
     # Mark todo as done
     done_result = service.mark_todo_done(todo_id)

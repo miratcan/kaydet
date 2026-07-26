@@ -215,6 +215,31 @@ class TestFormatTodoResults:
         assert "Completed:" not in mock_console.printed_text[3]
         assert "Task without completion time" in mock_console.printed_text[1]
 
+    def test_todo_body_lines_are_printed(self, mock_console, mock_config):
+        """Body lines after the first description line should appear."""
+        todos = [
+            {
+                "id": 7,
+                "date": "2025-10-29",
+                "timestamp": "14:00",
+                "status": "pending",
+                "completed_at": "",
+                "description": "Write the report",
+                "lines": [
+                    "Write the report",
+                    "Include Q3 numbers",
+                    "Send to finance",
+                ],
+            },
+        ]
+        format_todo_results(
+            todos, "text", config=mock_config, console=mock_console
+        )
+        joined = "\n".join(mock_console.printed_text)
+        assert "Write the report" in joined
+        assert "Include Q3 numbers" in joined
+        assert "Send to finance" in joined
+
 
 class TestSearchResultFormatter:
     """Tests for SearchResultFormatter class."""

@@ -625,10 +625,9 @@ class KaydetService:
                     if status and filter_query and entry_status != status:
                         continue
                     completed_at = entry.metadata.get("completed_at", "")
+                    lines = list(entry.lines)
                     description = (
-                        entry.lines[0]
-                        if entry.lines
-                        else "(no description)"
+                        lines[0] if lines else "(no description)"
                     )
 
                     date_str = (
@@ -642,6 +641,10 @@ class KaydetService:
                             "status": entry_status,
                             "completed_at": completed_at,
                             "description": description,
+                            "lines": lines,
+                            "text": entry.text,
+                            "tags": list(entry.tags),
+                            "metadata": dict(entry.metadata),
                         }
                     )
                     break
