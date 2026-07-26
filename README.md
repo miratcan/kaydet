@@ -1,4 +1,4 @@
-# Kaydet — Capture • Query • Remember
+# Never lose a solution twice.
 
 <div align="center">
   <img src="assets/logo.png" alt="Kaydet Logo" width="400">
@@ -12,13 +12,11 @@
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![Maintained](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/miratcan/kaydet/graphs/commit-activity)
 [![GitHub stars](https://img.shields.io/github/stars/miratcan/kaydet?style=social)](https://github.com/miratcan/kaydet/stargazers)
-[![Last commit](https://img.shields.io/github/last-commit/miratcan/kaydet)](https://github.com/miratcan/kaydet/commits/master)
 
-> Your personal memory database. Capture anything. Query everything. Let AI remember.
->
-> Plain text storage · SQLite search · MCP integration
-
-Kaydet is not a diary you read—it's a database you query. Capture thoughts, track work, log life—all from your terminal, in plain text.
+> Kaydet ("record" in Turkish) is a **terminal note-taking app** for developers.
+> Capture **work logs**, **daily notes**, and **developer journals** in plain text.
+> Instantly search everything with SQLite FTS.
+> Your AI can read and write your notes too.
 
 <p align="center">
   <img src="assets/demo.gif" alt="Kaydet demo" width="720">
@@ -30,53 +28,51 @@ Kaydet is not a diary you read—it's a database you query. Capture thoughts, tr
 pipx install kaydet
 ```
 
-With MCP support for AI integration:
+With AI (MCP) support:
 
 ```bash
 pipx install kaydet[mcp]
 ```
 
-> The `kaydet-mcp` command is always installed, but requires the `[mcp]` extra
-> to run (otherwise it fails with an import error).
-
 **Also available via:**
 
 ```bash
 uv tool install kaydet    # uv
+brew install kaydet       # Homebrew (coming soon)
 ```
 
 ## Quick Start
 
 ```bash
-# Capture a thought
-kaydet "Fixed auth bug #work commit:abc123 time:2h status:done"
+# Capture a solution (terminal notes, instantly)
+kaydet "Fixed auth race condition commit:abc123 issue:312"
+
+# 6 months later — find it
+kaydet --filter auth
+
+# Log what you worked on (work log / developer diary)
+kaydet "Deep work on ETL pipeline #work time:3h focus:high"
+
+# Todo from the command line (CLI notes + tasks)
+kaydet --todo "Write unit tests priority:high"
+kaydet --done 42
 
 # Search by metadata
 kaydet --filter "status:done"
-kaydet --filter "time:>1"
+kaydet --filter "time:>2"
 
-# List all tags
-kaydet --tags
+# Open today's entry in your editor
+kaydet --today
 
-# Open in editor
-kaydet --editor
-
-# Edit or delete by ID
-kaydet --edit 42
-kaydet --delete 42
-
-# Attach files
-kaydet "Meeting notes" --attach notes.pdf
-kaydet "Screenshot attached" --grab screen.png  # also removes original
+# See your stats (plain text notes, searchable)
+kaydet --stats
 ```
 
 ## AI Integration
 
-Kaydet's MCP server connects your personal archive to Claude Desktop and any MCP-compatible AI.
+Your AI assistant can search years of your notes in seconds.
 
-<p align="center">
-  <img src="assets/tui-ai-demo.gif" alt="AI querying kaydet for billing hours" width="720">
-</p>
+Powered by MCP (Model Context Protocol). Connect Claude Desktop, Cursor, or any MCP-compatible tool:
 
 ```json
 // claude_desktop_config.json
@@ -92,10 +88,15 @@ Kaydet's MCP server connects your personal archive to Claude Desktop and any MCP
 Then ask your AI:
 
 - "What did I work on this week?"
-- "How consistent was my fitness routine last month?"
+- "How did I fix that auth bug last year?"
 - "Summarize my accomplishments from last sprint"
+- "What expenses did I log in March?"
 
-Your AI assistant grounded in your own data.
+Your AI grounded in your own data. Not generic knowledge — your knowledge.
+
+### MCP Tools
+
+16 tools including search, filter by metadata, manage todos, get stats, summarize, and more.
 
 ### Architecture
 
@@ -109,79 +110,69 @@ Your AI assistant grounded in your own data.
 │     kaydet-mcp      │
 └────────┬────────────┘
          │
-    ┌────┴────┐
-    │         │
-┌───▼───┐ ┌───▼──────────┐
-│ daily │ │ SQLite index │
-│ .txt  │ │ (local only, │
-│ files │ │  rebuilt     │
-│       │ │  from text)  │
-└───┬───┘ └──────────────┘
-    │
-    ▼
+     ┌───┴───┐
+┌────▼───┐ ┌─▼────────────┐
+│ daily  │ │ SQLite index │
+│ .txt   │ │ (FTS5 full-  │
+│ files  │ │  text search)│
+└────┬───┘ └──────────────┘
+     │
+     ▼
 Google Drive / iCloud / Dropbox
 ```
 
-### MCP Tools
-
-- `suggest_kaydet_tags` – Suggest tags by reading `.kaydet.tags` in the current project
-  or falling back to the directory name.
-- 13 tools total: search, filter by metadata, manage todos, get stats, and more.
-
 ## Why Kaydet?
 
-**Zero Friction**
-One command from your terminal. No app windows, no context switching, no loading screens.
+**Never lose a solution twice.** How many times have you fixed a bug, then six months later faced the same problem with no memory of how you solved it? Kaydet is your external memory — a **searchable notes** database that lives in your terminal.
 
-**Plain Text Ownership**
-Daily `.txt` files you can grep, version with git, sync however you like. No proprietary formats, no lock-in. Your data outlives any app.
+**Zero friction.** One command from your terminal. No app windows, no context switching, no loading screens. The fastest **CLI notes** workflow you'll find.
 
-**Queryable Database**
-SQLite index with full-text search, metadata extraction, and numeric comparisons. Search `time:>2` to find long work sessions, `status:done` to find completed tasks.
+**Plain text ownership.** Daily `.txt` files you can grep, version with git, sync however you like. Your data outlives any app. True **plain text notes** with no lock-in.
 
-**Personal AI Memory Layer**
-Built-in MCP server gives your AI assistant direct access to your archive. It's not a chatbot with generic knowledge—it's an AI that knows your life.
+**Queryable database.** SQLite FTS5 index with full-text search, structured metadata (`time:>2`, `status:done`), and numeric comparisons. Real **SQLite FTS** search across thousands of entries.
+
+**AI-native.** Your AI can read and write your notes. It's not a chatbot with generic knowledge — it's an AI that knows your work history. The only **AI notes** app built for the terminal.
 
 ## How Kaydet Compares
 
 ### vs CLI Tools
 
-| | kaydet | jrnl | nb | dnote |
+| | kaydet | jrnl | nb | Toney |
 |---|---|---|---|---|
-| **CLI journal** | ✅ | ✅ | ❌ notebook | ❌ |
-| **SQLite FTS5 search** | ✅ | ❌ | ❌ grep | ✅ |
-| **Structured metadata** (`time:>2`) | ✅ | ❌ | ❌ | ❌ |
+| **Terminal notes** | ✅ | ✅ | ✅ | ✅ |
+| **Developer diary** | ✅ | ❌ notebook | ❌ notebook | ❌ |
+| **Work log** | ✅ daily files | ❌ | ❌ | ❌ |
+| **SQLite FTS search** | ✅ FTS5 | ❌ | ❌ grep | ❌ |
+| **Structured metadata** | ✅ `time:>2` | ❌ | ❌ | ❌ |
+| **AI/MCP server** | ✅ | ❌ | ❌ | ❌ |
 | **Plain text files** | ✅ | ✅ | ✅ | ❌ DB-only |
-| **Daily file structure** | ✅ | ❌ | ❌ | ❌ |
-| **Todo management** | ✅ | ❌ | ❌ | ❌ |
-| **MCP/AI server** | ✅ | ❌ | ❌ | ❌ |
+| **Todo management** | ✅ | ❌ | ✅ | ❌ |
 | **Edit/delete by ID** | ✅ | ❌ | ❌ | ❌ |
-| **Color output** | ✅ | ✅ | ✅ | ❌ |
 | **Language** | Python | Python | Shell | Go |
 
 ### vs Knowledge Apps
 
-| | kaydet | Notion | Obsidian |
+| | kaydet | Obsidian | Notion |
 |---|---|---|---|
-| **Offline first** | ✅ | ❌ | ✅ |
-| **Plain text ownership** | ✅ | ❌ | ✅ |
+| **Terminal-native** | ✅ | ❌ | ❌ |
+| **Offline first** | ✅ | ✅ | ❌ |
+| **Plain text** | ✅ | ✅ | ❌ |
 | **Git-friendly** | ✅ | ❌ | ❌ |
-| **CLI-native workflow** | ✅ | ❌ | ❌ |
 | **AI access (MCP)** | ✅ | partial | partial |
 | **Structured metadata queries** | ✅ | ❌ | ❌ |
 | **Zero friction capture** | ✅ | ❌ | ❌ |
 
 ## Features
 
-- **Todo management**: Built-in task tracking with `--todo` and `--done` commands
-- **Structured metadata**: `key:value` syntax with numeric comparisons (`time:>2`, `status:done`)
-- **Smart tagging**: Hashtags (`#work`) and metadata in one natural string
-- **Edit/delete by ID**: Stable numeric identifiers for every entry
-- **File attachments**: Attach files with `--attach` or move with `--grab`
-- **Plain text storage**: Human-readable `.txt` files, one per day
-- **SQLite indexing**: Fast search across thousands of entries
-- **Git-friendly**: Version your journal, sync across devices
-- **MCP integration**: Connect to Claude Desktop and other AI tools
+- **Todo management:** Built-in task tracking with `--todo` and `--done`
+- **Structured metadata:** `key:value` syntax with numeric comparisons (`time:>2`, `status:done`, `priority:high`)
+- **Smart tagging:** Hashtags (`#work`, `#bug`) and metadata in one natural string
+- **Edit/delete by ID:** Stable numeric identifiers for every entry
+- **File attachments:** Attach files with `--attach` or move with `--grab`
+- **Plain text storage:** Human-readable `.txt` files, one per day
+- **SQLite FTS5 indexing:** Fast full-text search across thousands of entries
+- **Git-friendly:** Version your journal, sync across devices
+- **MCP integration:** Connect Claude Desktop, Cursor, and any MCP-compatible AI
 
 ## Usage
 
@@ -202,14 +193,14 @@ kaydet "Screenshot" --grab screen.png        # copies + removes original
 kaydet --filter "#work"
 kaydet --filter "project:kaydet status:done"
 kaydet --filter "time:>2"
-kaydet --list                                # list all entries
-kaydet --today                               # today's entries
+kaydet --list                                # list today's entries
+kaydet --today                               # open today's file in editor
 kaydet --get 42                              # show entry by ID
 
 # Todo Management
 kaydet --todo "Write unit tests priority:high"
 kaydet --done 42                             # Mark todo as done
-kaydet --todo                                # List todos
+kaydet --todo                                # List pending todos
 
 # View
 kaydet --tags                                # List all tags with counts
@@ -266,10 +257,10 @@ Entries are stored as plain text with this format:
 
 Kaydet parses `key:value` pairs and supports:
 
-- **Exact match**: `status:done`, `project:kaydet`
-- **Numeric comparison**: `time:>2`, `time:>=1.5`, `time:<5`
-- **Ranges**: `time:1..3` (between 1 and 3 hours)
-- **Duration parsing**: `2h` → `2.0`, `90m` → `1.5`, `2.5h` → `2.5`
+- **Exact match:** `status:done`, `project:kaydet`
+- **Numeric comparison:** `time:>2`, `time:>=1.5`, `time:<5`
+- **Ranges:** `time:1..3` (between 1 and 3 hours)
+- **Duration parsing:** `2h` → `2.0`, `90m` → `1.5`, `2.5h` → `2.5`
 
 ### Configuration
 
@@ -310,10 +301,15 @@ Any [Rich color string](https://rich.readthedocs.io/en/stable/style.html#color-n
 
 ## Use Cases
 
-**Work Logging**
+**Work Logging / Developer Diary**
 ```bash
 kaydet "Shipped analytics feature #work commit:a3f89d pr:142 status:done time:4h"
 kaydet "Investigating prod timeout #oncall status:wip time:1.5h"
+```
+
+**Debug History (never lose a solution twice)**
+```bash
+kaydet "Auth race condition fixed — was missing mutex on token refresh commit:abc123"
 ```
 
 **Time Tracking**
@@ -336,7 +332,7 @@ kaydet --filter "billable:yes"  # Generate invoice data
 
 ## Cloud Sync
 
-Kaydet separates storage (plain text files) from index (SQLite database). Only the plain text files are synced—each device builds its own search index locally. This means zero sync conflicts and no infrastructure cost.
+Kaydet separates storage (plain text files) from index (SQLite database). Only the plain text files are synced — each device builds its own search index locally. This means zero sync conflicts and no infrastructure cost.
 
 Works with Google Drive, iCloud, Dropbox, Syncthing, or any folder sync tool.
 
@@ -363,16 +359,15 @@ MIT License. See [LICENSE](LICENSE) for details.
 ## Links
 
 - [GitHub Repository](https://github.com/miratcan/kaydet)
-- [Blog: Why plain text + SQLite beat every cloud note app](https://mirat.dev/articles/nine-years-of-kaydet/)
 - [docs/AGENTS.md](docs/AGENTS.md) — agents must read this before interacting with the repo
 
 ## Star History
 
 <a href="https://www.star-history.com/?repos=miratcan%2Fkaydet&type=date&legend=top-left">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=miratcan/kaydet&type=date&theme=dark&legend=top-left&sealed_token=LbYJy5zZl4ZwffHJEH0Fvputlu2yci0QE3UqAKAQ2XPgadh-bZVXzdTxWucL3N_ksbRbm3TgQNLJpXKLhzkRMYn-TRyAEbfGQnmNcyqp1je6UpWEf0ukPtMDLseHVNPZAhHtDfbWI12Iw7mth6jcOyVSsZUUltfwQExyoE9noQiDW9VPTIka18B30Hjs" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=miratcan/kaydet&type=date&legend=top-left&sealed_token=LbYJy5zZl4ZwffHJEH0Fvputlu2yci0QE3UqAKAQ2XPgadh-bZVXzdTxWucL3N_ksbRbm3TgQNLJpXKLhzkRMYn-TRyAEbfGQnmNcyqp1je6UpWEf0ukPtMDLseHVNPZAhHtDfbWI12Iw7mth6jcOyVSsZUUltfwQExyoE9noQiDW9VPTIka18B30Hjs" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=miratcan/kaydet&type=date&legend=top-left&sealed_token=LbYJy5zZl4ZwffHJEH0Fvputlu2yci0QE3UqAKAQ2XPgadh-bZVXzdTxWucL3N_ksbRbm3TgQNLJpXKLhzkRMYn-TRyAEbfGQnmNcyqp1je6UpWEf0ukPtMDLseHVNPZAhHtDfbWI12Iw7mth6jcOyVSsZUUltfwQExyoE9noQiDW9VPTIka18B30Hjs" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=miratcan/kaydet&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=miratcan/kaydet&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=miratcan/kaydet&type=date" />
  </picture>
 </a>
 

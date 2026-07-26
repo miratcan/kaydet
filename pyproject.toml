@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "kaydet"
 dynamic = ["version", "readme"]
-description = "Simple and terminal-based personal diary app for your shell."
+description = "Terminal note-taking app for developers. CLI notes, work logs, daily journal, with SQLite FTS search and MCP AI integration."
 authors = [{name = "Mirat Can Bayrak"}]
 license-files = ["LICENSE"]
 keywords = ["diary", "terminal", "cli"]
