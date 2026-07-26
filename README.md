@@ -1,6 +1,6 @@
 # Never lose a solution twice.
 
-Kaydet (pronounced "kai-det", Turkish for "record") is a **terminal note-taking app** for developers. Capture **work logs**, **daily notes**, and **developer journals** in plain text. Instantly search everything with SQLite FTS. Your AI can read and write your notes too.
+Kaydet (pronounced "kai-det", Turkish for "record") is a terminal note-taking application for developers. Capture work logs, ideas, daily notes, and structured metadata in plain text. Instantly search everything with SQLite FTS, and let your AI search your history too.
 
 [![Tests](https://github.com/miratcan/kaydet/workflows/Tests/badge.svg)](https://github.com/miratcan/kaydet/actions)
 [![Coverage](https://img.shields.io/badge/coverage-83%25-brightgreen.svg)](https://github.com/miratcan/kaydet/actions/workflows/test.yml)
@@ -61,6 +61,10 @@ kaydet --stats
 
 Your AI assistant can search years of your notes in seconds.
 
+<p align="center">
+  <img src="assets/ai-search.png" alt="AI searching kaydet history" width="720">
+</p>
+
 Powered by MCP (Model Context Protocol). Connect Claude Desktop, Cursor, or any MCP-compatible tool:
 
 ```json
@@ -120,7 +124,7 @@ Google Drive / iCloud / Dropbox
 
 **Queryable database.** SQLite FTS5 index with full-text search, structured metadata (`time:>2`, `status:done`), and numeric comparisons. Real **SQLite FTS** search across thousands of entries.
 
-**AI-native.** Your AI can read and write your notes. It's not a chatbot with generic knowledge — it's an AI that knows your work history. The only **AI notes** app built for the terminal.
+**AI-native.** Your AI can read and write your notes. It's not a chatbot with generic knowledge — it's an AI that knows your work history. Built from day one with AI integration.
 
 ## How Kaydet Compares
 
@@ -137,7 +141,7 @@ Google Drive / iCloud / Dropbox
 | **Plain text files** | ✅ | ✅ | ✅ | ❌ |
 | **Todo management** | ✅ | ❌ | ✅ | ❌ |
 | **Edit/delete by ID** | ✅ | ❌ | ❌ | ❌ |
-| **Git sync** | ✅ `--init --sync` | ❌ | ❌ | ❌ |
+| **Git sync** | ✅ `--init --sync` | ❌ | ✅ (automatic) | ❌ |
 | **Language** | Python | Python | Shell | Go |
 
 ### vs Knowledge Apps
@@ -327,7 +331,7 @@ kaydet --filter "billable:yes"  # Generate invoice data
 
 ## Sync
 
-Kaydet separates storage (plain text files) from index (SQLite database). Only the plain text files are synced — each device builds its own search index locally. Zero sync conflicts, no infrastructure cost.
+Kaydet separates storage (plain text files) from index (SQLite database). Only the plain text files are synced — each device builds its own search index locally. Minimal sync conflicts, no infrastructure cost.
 
 ### Git Sync (Built-in)
 
