@@ -14,8 +14,8 @@ __author__ = "Mirat Can Bayrak"
 __copyright__ = "Copyright 2016, Planet Earth"
 __version__ = "0.45.0"
 __description__ = (
-    "Simple and terminal-based personal diary app designed to help you "
-    "preserve your daily thoughts, experiences, and memories."
+    "Terminal note-taking app for developers. CLI notes, work logs, "
+    "daily journal, with SQLite FTS search and MCP AI integration."
 )
 
 from .cli import main
