@@ -113,14 +113,15 @@ def test_service_summarize_entries_with_samples(service_env):
     assert sample["text"]
 
 
-def test_service_summarize_duration_display(service_env):
+def test_service_summarize_is_unit_agnostic(service_env):
+    """Sum uses raw numbers only — no h/m/saat conversion."""
     service = service_module.KaydetService.initialize()
     service.add_entry(text="Deep work #focus", metadata={"time": "2h"})
     service.add_entry(text="Short block #focus", metadata={"time": "30m"})
     result = service.summarize_entries("#focus")
     assert result["success"] is True
-    assert result["sums"]["time"] == 150
-    assert result["sums_display"]["time"] == "2h 30m"
+    assert result["sums"]["time"] == 32
+    assert result["sums_display"]["time"] == "32"
 
 
 def test_service_todo_workflow(service_env):
