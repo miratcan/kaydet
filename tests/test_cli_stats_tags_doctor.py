@@ -48,9 +48,12 @@ def test_stats_command(setup_kaydet, capsys, mock_datetime_factory):
     output = captured.out
 
     assert "September 2025" in output
-    assert " 1[ 3]" in output
-    assert "15[ 5]" in output
-    assert "Total entries this month: 8" in output
+    # GitHub-style heat grid (weekdays as rows)
+    assert "Mo  " in output
+    assert "less → more" in output
+    # Two active days this month (1st and 15th)
+    assert "2 of 30 days" in output or "2 of" in output
+    assert "with writing" in output
 
 
 def test_tags_command(setup_kaydet, capsys, mock_datetime_factory):
@@ -149,8 +152,10 @@ def test_stats_no_log_dir(setup_kaydet, capsys, mock_datetime_factory):
     assert "No diary entries found yet" in captured.out
 
 
-def test_stats_over_99_entries(setup_kaydet, capsys, mock_datetime_factory):
-    """Test --stats command for a day with 100+ entries."""
+def test_stats_busy_day_shows_heat(
+    setup_kaydet, capsys, mock_datetime_factory
+):
+    """Busy days render as heat, not raw entry counts."""
     fake_log_dir = setup_kaydet["fake_log_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
     fake_log_dir.mkdir(exist_ok=True)
@@ -166,10 +171,10 @@ def test_stats_over_99_entries(setup_kaydet, capsys, mock_datetime_factory):
     captured = capsys.readouterr()
     output = captured.out
 
-    assert " 5[99+]" in output
-    assert "Total entries this month: 100" in output
-    assert "99+" in output
-    assert "100 or more" in output
+    assert "█" in output  # heaviest heat for the busy day
+    assert "1 day with writing" in output or "days with writing" in output
+    assert "[99+]" not in output
+    assert "Total entries this month: 100" not in output
 
 
 def test_legacy_tag_parsing(setup_kaydet, capsys):
@@ -250,7 +255,7 @@ def test_stats_ignores_directories(
 
     captured = capsys.readouterr()
     # Check that only the file is counted and the directory is ignored
-    assert "Total entries this month: 1" in captured.out
+    assert "with writing" in captured.out
 
 
 def test_read_diary_with_bad_encoding(
@@ -273,4 +278,4 @@ def test_read_diary_with_bad_encoding(
 
     captured = capsys.readouterr()
     output = captured.out
-    assert "Total entries this month: 2" in output
+    assert "with writing" in output

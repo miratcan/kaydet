@@ -7,26 +7,52 @@ from typing import Any
 
 from .json_output import print_json_err, print_json_ok
 
-# Calendar cell width: keep week rows aligned
-#   empty  → "dd  ·  "  (7)
-#   count  → "dd[nn] "  (7)
-#   100+   → "dd[99+]"  (7)
-_CELL_WIDTH = 7
+# GitHub-style contribution intensity (empty → heavy)
+_HEAT = ("·", "░", "▒", "▓", "█")
+_WEEKDAYS = ("Mo", "Tu", "We", "Th", "Fr", "Sa", "Su")
 
 
-def _format_day_cell(day: int, count: int) -> str:
-    """Format one calendar day cell (fixed width)."""
-    if count == 0:
-        # Quiet empty day: no empty brackets
-        return f"{day:2d}  ·  "
-    if count < 100:
-        return f"{day:2d}[{count:2d}] "
-    # 100+ — readable marker (not opaque **)
-    return f"{day:2d}[99+]"
+def _heat_glyph(count: int, month_max: int) -> str:
+    """Map a day's entry count to a contribution-grid level."""
+    if count <= 0:
+        return _HEAT[0]
+    if month_max <= 1:
+        return _HEAT[1]
+    ratio = count / month_max
+    if ratio <= 0.25:
+        return _HEAT[1]
+    if ratio <= 0.50:
+        return _HEAT[2]
+    if ratio <= 0.75:
+        return _HEAT[3]
+    return _HEAT[4]
+
+
+def _print_contribution_grid(
+    year: int, month: int, counts: dict[int, int]
+) -> None:
+    """Print a GitHub-like weekday × week heat map for one month."""
+    cal = calendar.Calendar(firstweekday=calendar.MONDAY)
+    weeks = cal.monthdayscalendar(year, month)
+    month_max = max(counts.values()) if counts else 0
+
+    # One row per weekday (GitHub contribution graph orientation)
+    for wd, label in enumerate(_WEEKDAYS):
+        cells: list[str] = []
+        for week in weeks:
+            day = week[wd]
+            if day == 0:
+                cells.append(" ")
+            else:
+                cells.append(_heat_glyph(counts.get(day, 0), month_max))
+        print(f"{label}  {' '.join(cells)}")
+
+    print()
+    print(f"  {' '.join(_HEAT)}  less → more")
 
 
 def print_stats(result: dict[str, Any], output_format: str) -> None:
-    """Print monthly calendar stats."""
+    """Print monthly writing activity (motivation grid, not a ledger)."""
     if not result.get("success"):
         error = result.get("error", "Error")
         if output_format == "json":
@@ -47,32 +73,30 @@ def print_stats(result: dict[str, Any], output_format: str) -> None:
         )
         return
 
-    print(result["month_name"])
-    print("Mo Tu We Th Fr Sa Su")
-    month_calendar = calendar.Calendar().monthdayscalendar(
-        result["year"], result["month"]
-    )
-    counts = result["days"]
-    saw_capped = False
-    for week in month_calendar:
-        cells = []
-        for day in week:
-            if day == 0:
-                cells.append(" " * _CELL_WIDTH)
-                continue
-            count = counts.get(day, 0)
-            if count >= 100:
-                saw_capped = True
-            cells.append(_format_day_cell(day, count))
-        print(" ".join(cells))
+    year = result["year"]
+    month = result["month"]
+    raw_days = result["days"] or {}
+    counts = {int(k): int(v) for k, v in raw_days.items()}
 
-    total_entries = result["total_entries"]
-    if total_entries == 0:
-        print("\n\U0001f4ca No entries recorded for this month yet")
+    days_in_month = calendar.monthrange(year, month)[1]
+    active_days = sum(
+        1 for d in range(1, days_in_month + 1) if counts.get(d, 0) > 0
+    )
+
+    print(result["month_name"])
+    print()
+    _print_contribution_grid(year, month, counts)
+    print()
+
+    if active_days == 0:
+        print("\U0001f4ca No writing yet this month — one line is enough")
+    elif active_days == 1:
+        print("\U0001f4ca 1 day with writing this month")
     else:
-        print(f"\n\U0001f4ca Total entries this month: {total_entries}")
-        if saw_capped:
-            print("   99+ = 100 or more entries that day")
+        print(
+            f"\U0001f4ca {active_days} of {days_in_month} days "
+            f"with writing this month"
+        )
 
 
 def print_tags(result: dict[str, Any], output_format: str) -> None:
