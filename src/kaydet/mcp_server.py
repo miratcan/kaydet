@@ -70,7 +70,12 @@ async def serve() -> None:
         return [
             Tool(
                 name="add_entry",
-                description="Add a new diary entry",
+                description=(
+                    "Add a new diary entry. Text may include #tags and "
+                    "key:value metadata inline (e.g. 'Fixed auth #bug "
+                    "time:2h'). Optional metadata/tags args merge with "
+                    "inline tokens."
+                ),
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -142,16 +147,26 @@ async def serve() -> None:
             Tool(
                 name="search_entries",
                 description=(
-                    "Search diary entries with full query syntax. "
+                    "Primary search tool. Full query syntax: "
+                    "#tag, key:value, key:>N, key:N..M, -exclude, "
+                    "since:YYYY-MM-DD, until:YYYY-MM-DD. "
                     "Examples: '#work since:2026-07-01', "
-                    "'status:done time:>2', 'auth -#noise'. "
+                    "'status:done time:>2', 'auth -#noise', "
+                    "'#expense cost:>100'. Prefer this over "
+                    "entries_by_tag for tag filters (query='#tag'). "
                     "Returns at most `limit` most recent matches "
                     "(default 50). Use limit=0 for all matches."
                 ),
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "query": {"type": "string"},
+                        "query": {
+                            "type": "string",
+                            "description": (
+                                "Search query. Combine tags, text, "
+                                "metadata filters, and since:/until:."
+                            ),
+                        },
                         "limit": {
                             "type": "integer",
                             "minimum": 0,
@@ -166,7 +181,10 @@ async def serve() -> None:
             ),
             Tool(
                 name="list_recent_entries",
-                description="List the most recent entries",
+                description=(
+                    "List the most recent entries by id (newest first). "
+                    "Use search_entries with since: for date windows."
+                ),
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -176,11 +194,21 @@ async def serve() -> None:
             ),
             Tool(
                 name="entries_by_tag",
-                description="List recent entries for a tag",
+                description=(
+                    "List recent entries for a single tag. "
+                    "Prefer search_entries with query='#tag' "
+                    "(supports extra filters and since:). "
+                    "Kept for simple tag-only browsing."
+                ),
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "tag": {"type": "string"},
+                        "tag": {
+                            "type": "string",
+                            "description": (
+                                "Tag name without # (e.g. 'work')."
+                            ),
+                        },
                         "limit": {"type": "integer", "minimum": 1},
                     },
                     "required": ["tag"],
@@ -188,7 +216,10 @@ async def serve() -> None:
             ),
             Tool(
                 name="list_tags",
-                description="List all tags with counts",
+                description=(
+                    "List all tags with entry counts. Useful before "
+                    "search_entries to discover tag names."
+                ),
                 inputSchema={
                     "type": "object",
                     "properties": {},
@@ -214,23 +245,35 @@ async def serve() -> None:
             Tool(
                 name="summarize_entries",
                 description=(
-                    "Search entries with full query syntax (tags, metadata, "
-                    "since:/until: dates) and return summed numeric metadata "
-                    "values plus matching entry excerpts for AI analysis. "
+                    "Sum numeric metadata across matching entries. "
+                    "Uses the same query syntax as search_entries. "
+                    "Values are grouped by unit suffix with no conversion: "
+                    "timespent:1saat + timespent:30dk → separate lines "
+                    "'3saat' and '30dk', not a single converted total. "
+                    "Returns sums, sums_display, and sample entries. "
                     "Examples: 'since:2026-01-01 #expense', "
-                    "'status:done time:>0'"
+                    "'#worklog timespent:*'"
                 ),
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "query": {"type": "string"},
+                        "query": {
+                            "type": "string",
+                            "description": (
+                                "Filter for entries to sum "
+                                "(tags, metadata, since:/until:)."
+                            ),
+                        },
                     },
                     "required": ["query"],
                 },
             ),
             Tool(
                 name="get_stats",
-                description="Get entry counts for a given month",
+                description=(
+                    "Calendar entry counts for a month "
+                    "(defaults to current month)."
+                ),
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -245,7 +288,10 @@ async def serve() -> None:
             ),
             Tool(
                 name="create_todo",
-                description="Create a new todo entry with status:pending",
+                description=(
+                    "Create a todo (#todo, status:pending). "
+                    "Description may include #tags and key:value metadata."
+                ),
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -260,7 +306,10 @@ async def serve() -> None:
             ),
             Tool(
                 name="mark_todo_done",
-                description="Mark a todo entry as done",
+                description=(
+                    "Mark a todo as done by entry id "
+                    "(sets status:done + completed_at)."
+                ),
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -272,7 +321,9 @@ async def serve() -> None:
             Tool(
                 name="list_todos",
                 description=(
-                    "List todos. By default only pending todos are shown."
+                    "List todos by status (default: pending). "
+                    "Optional filter uses search syntax "
+                    "(e.g. '#work', 'priority:high')."
                 ),
                 inputSchema={
                     "type": "object",
