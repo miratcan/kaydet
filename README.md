@@ -59,12 +59,6 @@ kaydet --stats
 
 ## AI Integration
 
-Your AI assistant can search years of your notes in seconds.
-
-<p align="center">
-  <img src="assets/ai-search.png" alt="AI searching kaydet history" width="720">
-</p>
-
 Powered by MCP (Model Context Protocol). Connect Claude Desktop, Cursor, or any MCP-compatible tool:
 
 ```json
