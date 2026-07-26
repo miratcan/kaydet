@@ -51,6 +51,7 @@ def test_stats_command(setup_kaydet, capsys, mock_datetime_factory):
     # GitHub-style heat grid (weekdays as rows)
     assert "Mo  " in output
     assert "less → more" in output
+    assert "■" in output  # contribution squares
     # Two active days this month (1st and 15th)
     assert "2 of 30 days" in output or "2 of" in output
     assert "with writing" in output
@@ -171,7 +172,7 @@ def test_stats_busy_day_shows_heat(
     captured = capsys.readouterr()
     output = captured.out
 
-    assert "█" in output  # heaviest heat for the busy day
+    assert "■" in output  # heat squares (color is terminal markup)
     assert "1 day with writing" in output or "days with writing" in output
     assert "[99+]" not in output
     assert "Total entries this month: 100" not in output

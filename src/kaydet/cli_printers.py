@@ -5,31 +5,50 @@ from __future__ import annotations
 import calendar
 from typing import Any
 
+from rich.console import Console
+
 from .json_output import print_json_err, print_json_ok
 
-# GitHub-style contribution intensity (empty → heavy)
-_HEAT = ("·", "░", "▒", "▓", "█")
+# GitHub contribution greens (dark-terminal friendly)
+# level 0 empty → level 4 heaviest
+_HEAT_GLYPHS = ("■", "■", "■", "■", "■")
+_HEAT_STYLES = (
+    "bright_black",  # empty
+    "#0e4429",  # lightest green
+    "#006d32",
+    "#26a641",
+    "#39d353",  # brightest
+)
 _WEEKDAYS = ("Mo", "Tu", "We", "Th", "Fr", "Sa", "Su")
 
 
-def _heat_glyph(count: int, month_max: int) -> str:
-    """Map a day's entry count to a contribution-grid level."""
+def _heat_level(count: int, month_max: int) -> int:
+    """Map a day's entry count to heat level 0..4."""
     if count <= 0:
-        return _HEAT[0]
+        return 0
     if month_max <= 1:
-        return _HEAT[1]
+        return 1
     ratio = count / month_max
     if ratio <= 0.25:
-        return _HEAT[1]
+        return 1
     if ratio <= 0.50:
-        return _HEAT[2]
+        return 2
     if ratio <= 0.75:
-        return _HEAT[3]
-    return _HEAT[4]
+        return 3
+    return 4
+
+
+def _styled_cell(level: int) -> str:
+    glyph = _HEAT_GLYPHS[level]
+    style = _HEAT_STYLES[level]
+    return f"[{style}]{glyph}[/{style}]"
 
 
 def _print_contribution_grid(
-    year: int, month: int, counts: dict[int, int]
+    year: int,
+    month: int,
+    counts: dict[int, int],
+    console: Console,
 ) -> None:
     """Print a GitHub-like weekday × week heat map for one month."""
     cal = calendar.Calendar(firstweekday=calendar.MONDAY)
@@ -44,11 +63,13 @@ def _print_contribution_grid(
             if day == 0:
                 cells.append(" ")
             else:
-                cells.append(_heat_glyph(counts.get(day, 0), month_max))
-        print(f"{label}  {' '.join(cells)}")
+                level = _heat_level(counts.get(day, 0), month_max)
+                cells.append(_styled_cell(level))
+        console.print(f"{label}  {' '.join(cells)}")
 
-    print()
-    print(f"  {' '.join(_HEAT)}  less → more")
+    legend = " ".join(_styled_cell(i) for i in range(5))
+    console.print()
+    console.print(f"  {legend}  [dim]less → more[/dim]")
 
 
 def print_stats(result: dict[str, Any], output_format: str) -> None:
@@ -83,17 +104,20 @@ def print_stats(result: dict[str, Any], output_format: str) -> None:
         1 for d in range(1, days_in_month + 1) if counts.get(d, 0) > 0
     )
 
-    print(result["month_name"])
-    print()
-    _print_contribution_grid(year, month, counts)
-    print()
+    console = Console()
+    console.print(f"[bold]{result['month_name']}[/bold]")
+    console.print()
+    _print_contribution_grid(year, month, counts, console)
+    console.print()
 
     if active_days == 0:
-        print("\U0001f4ca No writing yet this month — one line is enough")
+        console.print(
+            "\U0001f4ca No writing yet this month — one line is enough"
+        )
     elif active_days == 1:
-        print("\U0001f4ca 1 day with writing this month")
+        console.print("\U0001f4ca 1 day with writing this month")
     else:
-        print(
+        console.print(
             f"\U0001f4ca {active_days} of {days_in_month} days "
             f"with writing this month"
         )
