@@ -2,6 +2,39 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.46.0] - 2026-07-27
+
+### Added
+- **`--week` / `--month`:** Date shorthands (like `--today`) for listing the
+  current ISO week or calendar month.
+- **`--limit N`:** Cap search results to the N most recent matches
+  (CLI + MCP `search_entries`, default MCP limit 50).
+- **Consistent `--format json` envelope:**
+  `{"success": true, "data": ...}` / `{"success": false, "error": "..."}`
+  for search, sum, stats, tags, todos, and doctor.
+
+### Changed
+- **CLI routes through `KaydetService`:** Entry CRUD, search, todos, stats,
+  tags, doctor, and git init/sync/status share one service layer with MCP.
+- **Bare `--todo` is pure syntactic sugar** for `--filter '#todo'`
+  (desugared after parse; identical output, full entry body).
+- **`--sum` groups by unit suffix without conversion:**
+  `timespent:1saat` + `timespent:30dk` → separate lines `3saat` / `30dk`,
+  never cross-unit math.
+- **Search empty-state UX:** Date-window context and `since:0` hints when
+  no matches.
+- **MCP tool descriptions:** Richer guidance so models pick
+  `search_entries` as the primary query tool; document unit-grouped sum.
+
+### Fixed
+- **`summarize_entries` samples:** Use `Entry.day` (was broken
+  `source_date` AttributeError).
+
+### Chore
+- Split monolithic `test_cli.py` into domain modules; add `test_service.py`.
+- Repo hygiene: ignore accidental `$HOME/` junk; keep `assets/demo.gif`
+  trackable for README while ignoring other recording GIFs.
+
 ## [0.45.0] - 2026-07-26
 
 ### Added
