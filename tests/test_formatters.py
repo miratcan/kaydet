@@ -259,43 +259,48 @@ class TestSearchResultFormatter:
         format_search_results(matches, 80, mock_config, console=mock_console)
 
         joined = "\n".join(mock_console.printed_text)
-        # Date block left-aligned (no leading spaces before ===)
         assert "[bold cyan]==========[/bold cyan]" in joined
         assert "[bold cyan]2025-10-29[/bold cyan]" in joined
-        # Chrome line: time + id only (body on following lines)
         assert "[green]14:00[/green]" in joined
         assert "[[yellow]1[/yellow]]" in joined
         assert "Test entry" in joined
         assert "[bold magenta]#tag1[/bold magenta]" in joined
+        assert "│" in joined
+        assert "└─────" in joined
 
-    def test_search_layout_stacks_body_under_chrome(
-        self, mock_console, mock_config
-    ):
-        """Body is not inlined after HH:MM [id]; date header is not padded."""
+    def test_search_layout_rail_block(self, mock_console, mock_config):
+        """Body hangs under a rail; chrome is alone; date is unpadded."""
         matches = [
             SearchResult(
-                entry_id=1500,
+                entry_id=1504,
                 day=date(2026, 7, 27),
-                timestamp="13:30",
+                timestamp="00:27",
                 lines=[
-                    "Fix summarize_entries samples bug: m.source_date",
+                    "Split test_cli.py + add tests/test_service.py",
                 ],
-                metadata={"priority": "high"},
-                tags=["kaydet"],
+                metadata={"priority": "medium", "status": "done"},
+                tags=["kaydet", "todo"],
             ),
         ]
         format_search_results(matches, 80, mock_config, console=mock_console)
         lines = mock_console.printed_text
 
-        # Date lines have no leading whitespace before markup
         date_lines = [ln for ln in lines if "2026-07-27" in ln or "===" in ln]
         for ln in date_lines:
             assert not ln.startswith(" "), ln
 
-        # Header chrome alone (no body text on same printed line)
-        chrome = next(ln for ln in lines if "13:30" in ln)
-        assert "Fix summarize" not in chrome
-        assert "1500" in chrome
+        chrome = next(ln for ln in lines if "00:27" in ln)
+        assert "Split test" not in chrome
+        assert "1504" in chrome
 
-        body = next(ln for ln in lines if "Fix summarize" in ln)
-        assert "13:30" not in body
+        body = next(ln for ln in lines if "Split test" in ln)
+        assert body.startswith("│ ")
+        assert "00:27" not in body
+
+        meta = next(ln for ln in lines if "priority:medium" in ln)
+        assert meta.startswith("│ ")
+
+        tags = next(ln for ln in lines if "#kaydet" in ln)
+        assert tags.startswith("│ ")
+
+        assert any(ln.strip() == "└─────" for ln in lines)

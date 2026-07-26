@@ -114,7 +114,27 @@ class TextUtils:
 
 
 class SearchResultFormatter:
-    """Formatter for search results with proper alignment and wrapping."""
+    """Formatter for search results with a tree/rail entry chrome.
+
+    Layout::
+
+        ==========
+        2026-07-27
+        ==========
+
+        00:27 [1504]
+        │ Split test_cli.py + add tests/test_service.py
+        │
+        │ priority:medium status:done
+        │ #kaydet #todo
+        └─────
+    """
+
+    # Content hangs under a vertical rail so each entry reads as one block.
+    _RAIL = "│"
+    _RAIL_LINE = "│ "  # rail + space before text
+    _RAIL_END = "└─────"
+    _RAIL_PREFIX_WIDTH = 2  # len("│ ")
 
     def __init__(
         self, console: Console, terminal_width: int, config: SectionProxy
@@ -139,18 +159,7 @@ class SearchResultFormatter:
         """
         Format and print search results in a human-readable format.
 
-        Groups entries by date and formats them with proper alignment.
-
-        Examples
-        --------
-        >>> console = Console()
-        >>> formatter = SearchResultFormatter(console, 80)
-        >>> matches = [
-        ...     SearchResult(1, date(2025, 10, 29), "10:00", ["Entry 1"]),
-        ...     SearchResult(2, date(2025, 10, 29), "11:00", ["Entry 2"]),
-        ... ]
-        >>> formatter.format(matches)
-        # Prints date header followed by formatted entries
+        Groups entries by date; each entry is a rail-framed block.
 
         Parameters
         ----------
@@ -171,18 +180,7 @@ class SearchResultFormatter:
                 self._print_entry(entry, max_id_width, is_last)
 
     def _calculate_max_id_width(self, matches: List[SearchResult]) -> int:
-        """
-        Calculate maximum ID width for alignment.
-
-        Examples
-        --------
-        >>> console = Console()
-        >>> formatter = SearchResultFormatter(console, 80)
-        >>> matches = [SearchResult(5, None, "10:00", []),
-        ...            SearchResult(123, None, "11:00", [])]
-        >>> formatter._calculate_max_id_width(matches)
-        3
-        """
+        """Calculate maximum ID width for alignment within a result set."""
         if not matches:
             return 0
         return max(len(str(m.entry_id)) for m in matches if m.entry_id)
@@ -190,19 +188,7 @@ class SearchResultFormatter:
     def _format_entry_header(
         self, timestamp: str, entry_id: int, max_id_width: int
     ) -> str:
-        """
-        Format entry chrome: time + id only (body follows on next lines).
-
-        Examples
-        --------
-        >>> from configparser import ConfigParser
-        >>> console = Console()
-        >>> config = ConfigParser()
-        >>> config["SETTINGS"] = {}
-        >>> formatter = SearchResultFormatter(console, 80, config["SETTINGS"])
-        >>> formatter._format_entry_header("14:30", 42, 3)
-        '[green]14:30[/green] [[yellow] 42[/yellow]]'
-        """
+        """Format entry chrome: time + id only (body hangs on the rail)."""
         id_str = str(entry_id).rjust(max_id_width)
         color_id = self.config.get("COLOR_ID", "yellow")
         color_date = self.config.get("COLOR_DATE", "green")
@@ -210,50 +196,27 @@ class SearchResultFormatter:
         return f"[{color_date}]{timestamp}[/{color_date}] {id_suffix}"
 
     def _format_metadata_line(self, metadata: dict) -> str:
-        """
-        Format metadata dictionary as a string.
-
-        Examples
-        --------
-        >>> console = Console()
-        >>> formatter = SearchResultFormatter(console, 80)
-        >>> formatter._format_metadata_line(
-        ...     {"status": "done", "priority": "high"}
-        ... )
-        'status:done priority:high'
-        """
+        """Format metadata dictionary as a string."""
         return " ".join(f"{key}:{value}" for key, value in metadata.items())
 
     def _format_tags_line(self, tags: List[str]) -> str:
-        """
-        Format tags list as a string.
-
-        Examples
-        --------
-        >>> console = Console()
-        >>> formatter = SearchResultFormatter(console, 80)
-        >>> formatter._format_tags_line(["work", "urgent"])
-        '#work #urgent'
-        """
+        """Format tags list as a string."""
         return " ".join(f"#{tag}" for tag in tags)
 
-    def _print_metadata(self, metadata: dict) -> None:
-        """Print metadata (left-aligned, full width)."""
-        if not metadata:
-            return
-        metadata_str = self._format_metadata_line(metadata)
-        self.console.print(f"[dim]{metadata_str}[/dim]")
+    def _rail_width(self) -> int:
+        """Usable text width under the rail prefix."""
+        return max(8, self.terminal_width - self._RAIL_PREFIX_WIDTH)
 
-    def _print_tags(self, tags: List[str]) -> None:
-        """Print tags (left-aligned, full width)."""
-        if not tags:
-            return
-        tags_str = self._format_tags_line(tags)
-        color_tag = self.config.get("COLOR_TAG", "bold magenta")
-        self.console.print(f"[{color_tag}]{tags_str}[/{color_tag}]")
+    def _print_rail(self, text: str = "", markup: bool = False) -> None:
+        """Print one rail line; empty text yields a lone ``│``."""
+        if text:
+            # markup strings already include Rich tags
+            self.console.print(f"{self._RAIL_LINE}{text}")
+        else:
+            self.console.print(self._RAIL)
 
     def _print_date_separator(self, day: Optional[date]) -> None:
-        """Print left-aligned date separator (not padded to entry chrome)."""
+        """Print left-aligned date separator (outside entry rails)."""
         day_label = day.isoformat() if day else "Undated"
         separator = "=" * len(day_label)
         color_header = self.config.get("COLOR_HEADER", "bold cyan")
@@ -268,51 +231,50 @@ class SearchResultFormatter:
             f"[{color_header}]{separator}[/{color_header}]\n"
         )
 
-    def _print_attachments(self, attachments: List[str]) -> None:
-        """Print attachment filenames (left-aligned)."""
-        if not attachments:
-            return
-        for name in attachments:
-            self.console.print(
-                f"[dim]attachment:[/dim] [underline]{name}[/underline]"
-            )
-
     def _print_entry(
         self,
         entry: SearchResult,
         max_id_width: int,
         is_last: bool,
     ) -> None:
-        """Print a single search result entry.
-
-        Layout (left-aligned; body uses full terminal width)::
-
-            13:30 [1500]
-
-            Fix summarize_entries samples bug...
-
-            priority:high status:done
-            #kaydet #todo
-        """
+        """Print a single search result as a rail-framed block."""
         header = self._format_entry_header(
             entry.timestamp, entry.entry_id, max_id_width
         )
         self.console.print(header)
-        self.console.print()
 
         clean_lines = [TextUtils.clean_hashtags(line) for line in entry.lines]
         wrapped_lines = TextUtils.wrap_text_lines(
-            clean_lines, self.terminal_width
+            clean_lines, self._rail_width()
         )
         for line in wrapped_lines:
-            self.console.print(line)
+            self._print_rail(line)
 
-        if clean_lines:
-            self.console.print()
+        has_meta = bool(entry.metadata)
+        has_tags = bool(entry.tags)
+        has_attach = bool(entry.attachments)
+        has_footer = has_meta or has_tags or has_attach
 
-        self._print_metadata(entry.metadata)
-        self._print_tags(entry.tags)
-        self._print_attachments(entry.attachments)
+        # One breathing rail between body and meta/tags when both exist
+        if clean_lines and has_footer:
+            self._print_rail()
+
+        if has_meta:
+            meta = self._format_metadata_line(entry.metadata)
+            self._print_rail(f"[dim]{meta}[/dim]")
+
+        if has_tags:
+            tags_str = self._format_tags_line(entry.tags)
+            color_tag = self.config.get("COLOR_TAG", "bold magenta")
+            self._print_rail(f"[{color_tag}]{tags_str}[/{color_tag}]")
+
+        if has_attach:
+            for name in entry.attachments:
+                self._print_rail(
+                    f"[dim]attachment:[/dim] [underline]{name}[/underline]"
+                )
+
+        self.console.print(self._RAIL_END)
 
         if not is_last:
             self.console.print()
