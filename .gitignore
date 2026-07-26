@@ -16,3 +16,10 @@ build/
 UNKNOWN.egg-info/
 *.bak
 .pip/
+
+# Recording artifacts
+assets/tmp/
+assets/.record-backup/
+assets/*.gif
+assets/kaydet-demo.webm
+assets/kaydet-demo.mp4
