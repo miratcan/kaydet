@@ -7,20 +7,24 @@ from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Iterable
 
 from . import database
-from .commands.add import EmptyEntryError, create_entry
+from .commands.add import EmptyEntryError, add_entry_command, create_entry
 from .commands.delete import delete_entry_command
-from .commands.edit import update_entry_inline
+from .commands.doctor import doctor_command
+from .commands.edit import edit_entry_command, update_entry_inline
+from .commands.git_sync import git_init, git_status, git_sync
 from .commands.search import (
     build_search_query,
     load_matches,
     search_command,
+    tags_command,
     tokenize_query,
 )
-from .commands.stats import collect_month_counts
-from .commands.todo import done_command
+from .commands.stats import collect_month_counts, stats_command
+from .commands.todo import done_command, todo_command
 from .indexing import rebuild_index_if_empty
 from .parsers import parse_day_entries, resolve_entry_date
 from .sync import sync_modified_diary_files
@@ -29,18 +33,23 @@ from .utils import load_config
 
 @dataclass
 class KaydetService:
-    """Programmatic interface over Kaydet command logic."""
+    """Programmatic interface over Kaydet command logic.
+
+    CLI and MCP both route through this layer so behaviour stays aligned.
+    """
 
     config: Any
+    config_path: Path
     config_dir: Path
     log_dir: Path
+    index_dir: Path
     conn: Any
 
     @classmethod
     def initialize(cls) -> KaydetService:
         (
             config,
-            _config_path,
+            config_path,
             config_dir,
             storage_dir,
             index_dir,
@@ -50,14 +59,43 @@ class KaydetService:
         database.initialize_database(conn)
         return cls(
             config=config,
+            config_path=config_path,
             config_dir=config_dir,
             log_dir=storage_dir,
+            index_dir=index_dir,
             conn=conn,
         )
 
-    def _ensure_index(self, now: datetime) -> None:
-        sync_modified_diary_files(self.conn, self.log_dir, self.config, now)
-        rebuild_index_if_empty(self.conn, self.log_dir, self.config, now)
+    def _ensure_index(self, now: datetime | None = None) -> datetime:
+        moment = now or datetime.now()
+        sync_modified_diary_files(
+            self.conn, self.log_dir, self.config, moment
+        )
+        rebuild_index_if_empty(
+            self.conn, self.log_dir, self.config, moment
+        )
+        return moment
+
+    # --- Doctor / git -------------------------------------------------
+
+    def doctor(self, now: datetime | None = None) -> dict[str, Any]:
+        moment = now or datetime.now()
+        return doctor_command(
+            self.conn, self.log_dir, self.config, moment
+        )
+
+    def git_init(
+        self, remote_url: str | None = None
+    ) -> dict[str, Any]:
+        return git_init(self.log_dir, remote_url=remote_url)
+
+    def git_sync(self) -> dict[str, Any]:
+        return git_sync(self.log_dir)
+
+    def git_status(self) -> dict[str, Any]:
+        return git_status(self.log_dir)
+
+    # --- Entries ------------------------------------------------------
 
     def add_entry(
         self,
@@ -91,18 +129,43 @@ class KaydetService:
             return {"success": False, "error": str(error)}
         return {"success": True, **result}
 
-    def delete_entry(self, entry_id: int) -> dict[str, Any]:
-        now = datetime.now()
-        result = delete_entry_command(
-            self.conn,
-            self.log_dir,
+    def add_from_cli(
+        self, args: Any, now: datetime | None = None
+    ) -> dict[str, Any]:
+        """Add an entry from argparse Namespace (attach/editor/--at)."""
+        moment = now or datetime.now()
+        return add_entry_command(
+            args,
             self.config,
-            entry_id,
-            assume_yes=True,
-            now=now,
+            self.config_dir,
+            self.log_dir,
+            moment,
+            self.conn,
         )
+
+    def delete_entry(
+        self, entry_id: int, *, assume_yes: bool = True
+    ) -> dict[str, Any]:
+        now = datetime.now()
+        try:
+            result = delete_entry_command(
+                self.conn,
+                self.log_dir,
+                self.config,
+                entry_id,
+                assume_yes=assume_yes,
+                now=now,
+            )
+        except (ValueError, FileNotFoundError) as error:
+            return {
+                "success": False,
+                "error": str(error),
+                "message": str(error),
+            }
         if result is None:
             return {"success": False, "error": "Entry not deleted."}
+        if "success" in result:
+            return result
         return {"success": True, **result}
 
     def update_entry(
@@ -130,28 +193,46 @@ class KaydetService:
             return {"success": False, "error": "Entry not updated."}
         return {"success": True, **result}
 
-    def search_entries(
-        self, query: str, *, limit: int | None = 50
+    def edit_in_editor(
+        self, entry_id: int, now: datetime | None = None
+    ) -> None:
+        """Open the configured editor for an entry (prints status)."""
+        moment = now or datetime.now()
+        edit_entry_command(
+            self.conn, self.log_dir, self.config, entry_id, moment
+        )
+
+    def query(
+        self,
+        query: str,
+        *,
+        allow_empty: bool = False,
+        limit: int | None = None,
+        now: datetime | None = None,
     ) -> dict[str, Any]:
-        """Search entries. Default limit=50 protects MCP/token budgets.
-
-        Pass ``limit=0`` or ``limit=None`` for unlimited results.
-        """
-        now = datetime.now()
+        """Search returning Entry objects (for CLI rendering)."""
         self._ensure_index(now)
-
-        result = search_command(
+        return search_command(
             self.conn,
             self.log_dir,
             self.config,
             query,
+            allow_empty=allow_empty,
             limit=limit,
         )
+
+    def search_entries(
+        self, query: str, *, limit: int | None = 50
+    ) -> dict[str, Any]:
+        """Search entries as dicts. Default limit=50 for MCP/token budgets.
+
+        Pass ``limit=0`` or ``limit=None`` for unlimited results.
+        """
+        result = self.query(query, limit=limit)
         if not result.get("success"):
             return result
 
         matches = result["matches"]
-        # Newest first for API consumers (MCP/AI)
         matches = sorted(
             matches,
             key=lambda entry: int(entry.entry_id or 0),
@@ -171,51 +252,13 @@ class KaydetService:
 
     def summarize_entries(self, query: str) -> dict[str, Any]:
         """Search entries and return summed numeric metadata."""
-        now = datetime.now()
-        self._ensure_index(now)
+        result = self.query(query)
+        if not result.get("success"):
+            return result
 
-        (
-            include_text,
-            exclude_text,
-            include_meta,
-            exclude_meta,
-            include_tags,
-            exclude_tags,
-        ) = tokenize_query(query)
-
-        if not any(
-            [
-                include_text,
-                exclude_text,
-                include_meta,
-                exclude_meta,
-                include_tags,
-                exclude_tags,
-            ]
-        ):
-            return {"success": False, "error": "Search query is empty."}
-
-        sql_query, params = build_search_query(
-            include_text,
-            exclude_text,
-            include_meta,
-            exclude_meta,
-            include_tags,
-            exclude_tags,
-        )
-        cursor = self.conn.cursor()
-        try:
-            cursor.execute(sql_query, params)
-        except Exception as error:
-            return {
-                "success": False,
-                "error": f"Database query failed: {error}",
-            }
-        locations = cursor.fetchall()
-        if not locations:
+        matches = result["matches"]
+        if not matches:
             return {"success": True, "query": query, "sums": {}, "total": 0}
-
-        matches = load_matches(locations, self.log_dir, self.config)
 
         totals: Counter[str] = Counter()
         for match in matches:
@@ -243,27 +286,38 @@ class KaydetService:
             ],
         }
 
-    def get_entry(self, entry_id: int) -> dict[str, Any]:
-        """Return a single entry by its numeric identifier."""
-        now = datetime.now()
-        self._ensure_index(now)
-
+    def load_entry(self, entry_id: int) -> dict[str, Any]:
+        """Load a single entry as Entry objects for CLI rendering."""
+        self._ensure_index()
         cursor = self.conn.cursor()
         cursor.execute(
             "SELECT source_file FROM entries WHERE id = ?", (entry_id,)
         )
-        result = cursor.fetchone()
-        if result is None:
-            return {"success": False, "error": f"Entry {entry_id} not found."}
-
-        locations = [(result[0], entry_id)]
-        matches = load_matches(locations, self.log_dir, self.config)
+        row = cursor.fetchone()
+        if row is None:
+            return {
+                "success": False,
+                "error": f"Entry {entry_id} not found.",
+            }
+        matches = load_matches(
+            [(row[0], entry_id)], self.log_dir, self.config
+        )
         if not matches:
-            return {"success": False, "error": f"Entry {entry_id} not found."}
+            return {
+                "success": False,
+                "error": f"Entry {entry_id} not found.",
+            }
+        return {"success": True, "matches": matches}
 
-        return {"success": True, "entry": matches[0].to_dict()}
+    def get_entry(self, entry_id: int) -> dict[str, Any]:
+        """Return a single entry by its numeric identifier (dict)."""
+        result = self.load_entry(entry_id)
+        if not result.get("success"):
+            return result
+        return {"success": True, "entry": result["matches"][0].to_dict()}
 
     def list_tags(self) -> dict[str, Any]:
+        """Tag list for MCP (keys: tag, count)."""
         cursor = self.conn.cursor()
         cursor.execute(
             (
@@ -276,6 +330,11 @@ class KaydetService:
         rows = cursor.fetchall()
         tags = [{"tag": name, "count": count} for name, count in rows]
         return {"success": True, "tags": tags}
+
+    def tags(self) -> dict[str, Any]:
+        """Tag list for CLI printers (keys: name, count)."""
+        self._ensure_index()
+        return tags_command(self.conn)
 
     @staticmethod
     def _normalize_directory_tag(name: str) -> str:
@@ -308,7 +367,7 @@ class KaydetService:
         if tags_file.is_file():
             try:
                 lines = tags_file.read_text(encoding="utf-8").splitlines()
-            except OSError as error:  # pragma: no cover - filesystem edge case
+            except OSError as error:  # pragma: no cover
                 return {
                     "success": False,
                     "error": f"Failed to read {tags_file}: {error}",
@@ -363,6 +422,13 @@ class KaydetService:
             "total_entries": total,
         }
 
+    def monthly_stats(
+        self, now: datetime | None = None
+    ) -> dict[str, Any]:
+        """Calendar stats for the CLI --stats command."""
+        moment = now or datetime.now()
+        return stats_command(self.log_dir, self.config, moment)
+
     def list_recent_entries(self, limit: int = 10) -> dict[str, Any]:
         now = datetime.now()
         self._ensure_index(now)
@@ -404,6 +470,8 @@ class KaydetService:
         payload = [match.to_dict() for match in matches]
         return {"success": True, "entries": payload}
 
+    # --- Todos --------------------------------------------------------
+
     def create_todo(
         self, description: str, metadata: dict[str, str] | None = None
     ) -> dict[str, Any]:
@@ -427,24 +495,40 @@ class KaydetService:
             return {"success": False, "error": str(error)}
         return {"success": True, **result}
 
+    def create_todo_from_cli(
+        self,
+        tokens: list[str],
+        now: datetime | None = None,
+    ) -> dict[str, Any]:
+        """Create a todo from CLI token list (supports inline metadata)."""
+        moment = now or datetime.now()
+        args = SimpleNamespace(todo=tokens)
+        return todo_command(
+            args,
+            self.config,
+            self.config_dir,
+            self.log_dir,
+            moment,
+            self.conn,
+        )
+
     def mark_todo_done(self, entry_id: int) -> dict[str, Any]:
         """Mark a todo entry as done by updating its status."""
         now = datetime.now()
         try:
-            done_command(
+            return done_command(
                 self.conn,
                 self.log_dir,
                 self.config,
                 entry_id,
                 now,
             )
-            return {
-                "success": True,
-                "entry_id": entry_id,
-                "message": f"Todo {entry_id} marked as done",
-            }
         except Exception as error:
-            return {"success": False, "error": str(error)}
+            return {
+                "success": False,
+                "error": str(error),
+                "message": str(error),
+            }
 
     def list_todos(
         self,
@@ -543,7 +627,9 @@ class KaydetService:
                         continue
                     completed_at = entry.metadata.get("completed_at", "")
                     description = (
-                        entry.lines[0] if entry.lines else "(no description)"
+                        entry.lines[0]
+                        if entry.lines
+                        else "(no description)"
                     )
 
                     date_str = (

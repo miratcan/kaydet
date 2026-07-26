@@ -11,39 +11,14 @@ from textwrap import dedent
 
 from rich.console import Console
 
-from . import __description__, __version__, database
+from . import __description__, __version__
 from .cli_printers import print_doctor, print_stats, print_tags
-from .commands import (
-    add_entry_command,
-    delete_entry_command,
-    doctor_command,
-    done_command,
-    edit_entry_command,
-    git_init,
-    git_status,
-    git_sync,
-    reminder_command,
-    search_command,
-    stats_command,
-    tags_command,
-    todo_command,
-)
-from .commands.edit import update_entry_inline
-from .commands.search import (
-    build_search_query,
-    load_matches,
-    print_matches,
-    print_no_matches,
-)
-from .commands.todo import list_todos_command
+from .commands.reminder import reminder_command
+from .commands.search import print_matches, print_no_matches
 from .formatters import format_todo_results
-from .indexing import rebuild_index_if_empty
-from .parsers import (
-    extract_tags_from_text,  # noqa: F401
-    tokenize_query,
-)
+from .parsers import extract_tags_from_text  # noqa: F401
+from .service import KaydetService
 from .startfile import startfile
-from .sync import sync_modified_diary_files
 from .utils import (
     DEFAULT_SETTINGS,  # noqa: F401
     load_config,
@@ -328,9 +303,57 @@ def print_sums(matches: list) -> None:
             print(f"  {key}: {value}")
 
 
+def _handle_search_result(
+    res: dict,
+    *,
+    query: str,
+    args: argparse.Namespace,
+    config: object,
+    console: Console,
+    default_since_hint: str | None = None,
+) -> None:
+    """Render a service.query() result for CLI."""
+    if not res.get("success", False):
+        if "error" in res:
+            print(res["error"])
+        return
+
+    if args.summarize:
+        if res["matches"]:
+            print_sums(res["matches"])
+        else:
+            print("\U0001f50d No numeric values found to sum")
+        return
+
+    if not res["matches"] and args.output_format != "json":
+        print_no_matches(
+            query,
+            metadata_filters=res.get("metadata_filters"),
+            default_since_hint=default_since_hint,
+        )
+        return
+
+    print_matches(
+        res["matches"],
+        query,
+        args.output_format,
+        config,
+        console=console,
+        default_since_hint=default_since_hint,
+        metadata_filters=res.get("metadata_filters"),
+        total=res.get("total"),
+        limit=res.get("limit"),
+    )
+
+
 def main() -> None:
     """Application entry point for the kaydet CLI."""
-    config, config_path, config_dir, storage_dir, index_dir = load_config()
+    service = KaydetService.initialize()
+    config = service.config
+    config_path = service.config_path
+    config_dir = service.config_dir
+    storage_dir = service.log_dir
+
     parser = build_parser(config_path, storage_dir)
     args = parser.parse_args()
 
@@ -344,21 +367,13 @@ def main() -> None:
         startfile(str(storage_dir))
         return
     if args.edit_config:
-        # Save old storage path
         old_storage_dir = storage_dir
-
-        # Open config in editor
         open_file_in_editor(config_path, config["EDITOR"])
-
-        # Reload config to check for changes
-        new_config, _, _, new_storage_dir, _ = load_config()
-
-        # Check if storage path changed
+        _new_config, _, _, new_storage_dir, _ = load_config()
         if old_storage_dir != new_storage_dir:
             print("\nStorage path changed:")
             print(f"  Old: {old_storage_dir}")
             print(f"  New: {new_storage_dir}")
-
             try:
                 response = (
                     input("\nMove files to new location? [y/N]: ")
@@ -379,67 +394,53 @@ def main() -> None:
                 )
         else:
             print("\n\u2705 Configuration saved")
-
         return
-
-    db_path = index_dir / database.INDEX_FILENAME
-    conn = database.get_db_connection(db_path)
-    database.initialize_database(conn)
 
     if args.doctor:
         print(
             "Rebuilding search index from diary files..."
             " This may take a moment."
         )
-        print_doctor(doctor_command(conn, storage_dir, config, now))
+        print_doctor(service.doctor(now=now))
         return
 
     if args.git_init is not None:
         remote = args.git_init if args.git_init else None
-        res = git_init(storage_dir, remote_url=remote)
+        res = service.git_init(remote_url=remote)
         print(res["message"])
         return
 
     if args.git_sync:
-        res = git_sync(storage_dir)
+        res = service.git_sync()
         print(res["message"])
         return
 
     if args.git_status:
-        res = git_status(storage_dir)
+        res = service.git_status()
         print(res["message"])
         return
 
-    sync_modified_diary_files(conn, storage_dir, config, now)
-    rebuild_index_if_empty(conn, storage_dir, config, now)
+    # Ensure index is warm for remaining commands
+    service._ensure_index(now)
 
     if args.stats:
         print_stats(
-            stats_command(storage_dir, config, now),
+            service.monthly_stats(now=now),
             args.output_format,
         )
         return
 
     if args.list_tags:
-        print_tags(tags_command(conn), args.output_format)
+        print_tags(service.tags(), args.output_format)
         return
 
     if args.get is not None:
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT source_file FROM entries WHERE id = ?", (args.get,)
-        )
-        result = cursor.fetchone()
-        if result is None:
-            print(f"\U0001f937 Entry {args.get} not found")
-            return
-        locations = [(result[0], args.get)]
-        matches = load_matches(locations, storage_dir, config)
-        if not matches:
+        res = service.load_entry(args.get)
+        if not res.get("success"):
             print(f"\U0001f937 Entry {args.get} not found")
             return
         print_matches(
-            matches,
+            res["matches"],
             f"id:{args.get}",
             args.output_format,
             config,
@@ -451,84 +452,29 @@ def main() -> None:
     # - None if --todo flag not provided
     # - [] (empty list) if --todo provided without arguments
     # - ["text", "here"] if --todo provided with arguments
-    # Check --todo BEFORE --filter to handle --todo --filter correctly
     if args.todo is not None:
         has_todo_text = bool(args.todo)
 
         if has_todo_text:
-            res = todo_command(
-                args, config, config_dir, storage_dir, now, conn
-            )
+            res = service.create_todo_from_cli(list(args.todo), now=now)
             if "message" in res:
                 print(res["message"])
-        elif args.filter:
-            # Filter todos and display in todo format
-            combined_query = f"{args.filter} #todo"
-            print(f"Filtering todos: {combined_query}\n")
-
-            (
-                include_text,
-                exclude_text,
-                include_meta,
-                exclude_meta,
-                include_tags,
-                exclude_tags,
-            ) = tokenize_query(combined_query)
-
-            sql_query, params = build_search_query(
-                include_text,
-                exclude_text,
-                include_meta,
-                exclude_meta,
-                include_tags,
-                exclude_tags,
-            )
-
-            cursor = conn.cursor()
-            cursor.execute(sql_query, params)
-            locations = cursor.fetchall()
-
-            if not locations:
-                print(f"\U0001f50d No todos found matching '{args.filter}'")
-                return
-
-            matches = load_matches(locations, storage_dir, config)
-
-            # Convert search results to todo format
-            todos = []
-            for match in matches:
-                status = match.metadata.get("status", "pending")
-                if status == "done":
-                    continue
-                completed_at = match.metadata.get("completed_at", "")
-                description = (
-                    match.lines[0] if match.lines else "(no description)"
-                )
-                date_str = match.day.isoformat() if match.day else "unknown"
-
-                todos.append(
-                    {
-                        "id": int(match.entry_id) if match.entry_id else 0,
-                        "date": date_str,
-                        "timestamp": match.timestamp,
-                        "status": status,
-                        "completed_at": completed_at,
-                        "description": description,
-                    }
-                )
-
-            if not todos:
-                print("\U0001f50d No pending todos found matching that filter")
-                return
-
-            format_todo_results(
-                todos, args.output_format, config=config, console=console
-            )
         else:
-            # kaydet --todo (no arguments) → list all todos
-            todos = list_todos_command(conn, storage_dir, config)
+            filter_query = args.filter if args.filter else None
+            if filter_query:
+                print(f"Filtering todos: {filter_query} #todo\n")
+            res = service.list_todos(
+                status="pending",
+                filter_query=filter_query,
+            )
+            todos = res.get("todos", [])
             if not todos:
-                print("\U0001f389 No pending todos \u2014 all done!")
+                if filter_query:
+                    print(
+                        f"\U0001f50d No todos found matching '{filter_query}'"
+                    )
+                else:
+                    print("\U0001f389 No pending todos \u2014 all done!")
             else:
                 format_todo_results(
                     todos,
@@ -540,7 +486,7 @@ def main() -> None:
 
     if args.done is not None:
         for entry_id in args.done:
-            res = done_command(conn, storage_dir, config, entry_id, now)
+            res = service.mark_todo_done(entry_id)
             if "message" in res:
                 print(res["message"])
         return
@@ -552,7 +498,6 @@ def main() -> None:
             args.filter = f"{args.filter} {today_since}"
         else:
             args.filter = today_since
-        # Enable list mode if not already set
         if not args.list_entries:
             args.list_entries = True
 
@@ -565,82 +510,38 @@ def main() -> None:
             query = f"since:{month_start}"
             default_since_hint = month_start
 
-        # allow_empty=True lets --list show all entries when no filter
-        # is provided
-        # --sum needs full match set for correct totals
         search_limit = None if args.summarize else args.limit
-        res = search_command(
-            conn,
-            storage_dir,
-            config,
+        res = service.query(
             query,
             allow_empty=True,
             limit=search_limit,
+            now=now,
         )
-        if res.get("success", False):
-            if args.summarize:
-                if res["matches"]:
-                    print_sums(res["matches"])
-                else:
-                    print("\U0001f50d No numeric values found to sum")
-            elif not res["matches"] and args.output_format != "json":
-                print_no_matches(
-                    query,
-                    metadata_filters=res.get("metadata_filters"),
-                    default_since_hint=default_since_hint,
-                )
-            else:
-                print_matches(
-                    res["matches"],
-                    query,
-                    args.output_format,
-                    config,
-                    console=console,
-                    default_since_hint=default_since_hint,
-                    metadata_filters=res.get("metadata_filters"),
-                    total=res.get("total"),
-                    limit=res.get("limit"),
-                )
-        else:
-            if "error" in res:
-                print(res["error"])
+        _handle_search_result(
+            res,
+            query=query,
+            args=args,
+            config=config,
+            console=console,
+            default_since_hint=default_since_hint,
+        )
         return
 
     # Handle standalone --filter (shorthand for --list --filter)
     if args.filter:
         search_limit = None if args.summarize else args.limit
-        res = search_command(
-            conn,
-            storage_dir,
-            config,
+        res = service.query(
             args.filter,
             limit=search_limit,
+            now=now,
         )
-        if res.get("success", False):
-            if args.summarize:
-                if res["matches"]:
-                    print_sums(res["matches"])
-                else:
-                    print("\U0001f50d No numeric values found to sum")
-            elif not res["matches"] and args.output_format != "json":
-                print_no_matches(
-                    args.filter,
-                    metadata_filters=res.get("metadata_filters"),
-                )
-            else:
-                print_matches(
-                    res["matches"],
-                    args.filter,
-                    args.output_format,
-                    config,
-                    console=console,
-                    metadata_filters=res.get("metadata_filters"),
-                    total=res.get("total"),
-                    limit=res.get("limit"),
-                )
-        else:
-            if "error" in res:
-                print(res["error"])
+        _handle_search_result(
+            res,
+            query=args.filter,
+            args=args,
+            config=config,
+            console=console,
+        )
         return
 
     if args.edit is not None and args.delete is not None:
@@ -653,40 +554,30 @@ def main() -> None:
             print(f"\U0001f937 Invalid entry ID: {args.edit[0]}")
             return
         if len(args.edit) > 1:
-            # Inline update: --edit ID "new text"
             inline_text = " ".join(args.edit[1:])
-            update_entry_inline(
-                conn, storage_dir, config, edit_id, text=inline_text, now=now
-            )
+            service.update_entry(edit_id, text=inline_text)
         else:
-            # Editor mode: --edit ID
-            edit_entry_command(conn, storage_dir, config, edit_id, now)
+            service.edit_in_editor(edit_id, now=now)
         return
     if args.delete is not None:
         for entry_id in args.delete:
-            try:
-                res = delete_entry_command(
-                    conn,
-                    storage_dir,
-                    config,
-                    entry_id,
-                    assume_yes=args.assume_yes,
-                    now=now,
-                )
-                if res and "message" in res:
-                    print(res["message"])
-            except (ValueError, FileNotFoundError) as e:
-                print(str(e))
+            res = service.delete_entry(
+                entry_id, assume_yes=args.assume_yes
+            )
+            if res and "message" in res:
+                print(res["message"])
+            elif res and not res.get("success") and "error" in res:
+                print(res["error"])
         return
 
     if args.summarize:
-        res = search_command(conn, storage_dir, config, "")
+        res = service.query("", allow_empty=True, now=now)
         if res.get("success", False) and res["matches"]:
             print_sums(res["matches"])
         else:
             print("\U0001f50d No entries found to sum")
         return
 
-    res = add_entry_command(args, config, config_dir, storage_dir, now, conn)
+    res = service.add_from_cli(args, now=now)
     if res and "message" in res:
         print(res["message"])

@@ -12,6 +12,7 @@ import pytest
 
 from kaydet import __version__ as package_version
 from kaydet import cli, utils
+from kaydet import service as service_module
 
 
 @pytest.fixture
@@ -45,7 +46,9 @@ def setup_kaydet(monkeypatch, tmp_path: Path) -> dict:
             fake_index_dir,  # index_dir
         )
 
+    # CLI and KaydetService both resolve config via load_config
     monkeypatch.setattr(cli, "load_config", fake_load_config)
+    monkeypatch.setattr(service_module, "load_config", fake_load_config)
 
     return {
         "monkeypatch": monkeypatch,
@@ -66,6 +69,7 @@ def mock_datetime_factory(monkeypatch):
                 return now_fixed
 
         monkeypatch.setattr(cli, "datetime", MockDateTime)
+        monkeypatch.setattr(service_module, "datetime", MockDateTime)
 
     return factory
 
