@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [0.48.0] - 2026-07-27
 
 ### Changed
 - **`--stats` matches [git-stats](https://github.com/IonicaBizau/git-stats):**
