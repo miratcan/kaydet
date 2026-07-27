@@ -191,9 +191,7 @@ def list_todos_command(
                 completed_at = entry.metadata.get("completed_at", "")
 
                 lines = list(entry.lines)
-                description = (
-                    lines[0] if lines else "(no description)"
-                )
+                description = lines[0] if lines else "(no description)"
 
                 todos.append(
                     {

@@ -587,9 +587,7 @@ def main() -> None:
         return
     if args.delete is not None:
         for entry_id in args.delete:
-            res = service.delete_entry(
-                entry_id, assume_yes=args.assume_yes
-            )
+            res = service.delete_entry(entry_id, assume_yes=args.assume_yes)
             if res and "message" in res:
                 print(res["message"])
             elif res and not res.get("success") and "error" in res:

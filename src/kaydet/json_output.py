@@ -30,9 +30,7 @@ def json_err(error: str, **extra: Any) -> str:
     payload: dict[str, Any] = {"success": False, "error": error}
     if extra:
         payload.update(extra)
-    return json.dumps(
-        payload, indent=2, ensure_ascii=False, default=str
-    )
+    return json.dumps(payload, indent=2, ensure_ascii=False, default=str)
 
 
 def print_json_ok(data: Any) -> None:

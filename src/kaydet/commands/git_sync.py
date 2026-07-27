@@ -42,16 +42,12 @@ def git_init(storage_dir: Path, remote_url: str | None = None) -> dict:
     )
 
     if remote_url:
-        proc = _run_git(
-            ["remote", "add", "origin", remote_url], storage_dir
-        )
+        proc = _run_git(["remote", "add", "origin", remote_url], storage_dir)
         if proc.returncode == 0:
             branch = _run_git(
                 ["rev-parse", "--abbrev-ref", "HEAD"], storage_dir
             ).stdout.strip()
-            _run_git(
-                ["push", "-u", "origin", branch], storage_dir
-            )
+            _run_git(["push", "-u", "origin", branch], storage_dir)
 
     msg = "Git repo initialized."
     if remote_url:
@@ -65,9 +61,7 @@ def git_commit(storage_dir: Path) -> dict:
         return {"success": False, "message": "Not a git repository."}
 
     _run_git(["add", "-A"], storage_dir)
-    proc = _run_git(
-        ["commit", "-m", COMMIT_MESSAGE], storage_dir
-    )
+    proc = _run_git(["commit", "-m", COMMIT_MESSAGE], storage_dir)
 
     if proc.returncode == 0:
         return {"success": True, "message": "Changes committed."}

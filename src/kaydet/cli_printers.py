@@ -238,9 +238,7 @@ def print_tags(result: dict[str, Any], output_format: str) -> None:
         print(f"{label:<20} {count} {suffix}")
 
 
-def print_doctor(
-    result: dict[str, Any], output_format: str = "text"
-) -> None:
+def print_doctor(result: dict[str, Any], output_format: str = "text") -> None:
     """Print doctor rebuild results."""
     if not result.get("success"):
         if output_format == "json":

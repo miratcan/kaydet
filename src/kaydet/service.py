@@ -68,25 +68,17 @@ class KaydetService:
 
     def _ensure_index(self, now: datetime | None = None) -> datetime:
         moment = now or datetime.now()
-        sync_modified_diary_files(
-            self.conn, self.log_dir, self.config, moment
-        )
-        rebuild_index_if_empty(
-            self.conn, self.log_dir, self.config, moment
-        )
+        sync_modified_diary_files(self.conn, self.log_dir, self.config, moment)
+        rebuild_index_if_empty(self.conn, self.log_dir, self.config, moment)
         return moment
 
     # --- Doctor / git -------------------------------------------------
 
     def doctor(self, now: datetime | None = None) -> dict[str, Any]:
         moment = now or datetime.now()
-        return doctor_command(
-            self.conn, self.log_dir, self.config, moment
-        )
+        return doctor_command(self.conn, self.log_dir, self.config, moment)
 
-    def git_init(
-        self, remote_url: str | None = None
-    ) -> dict[str, Any]:
+    def git_init(self, remote_url: str | None = None) -> dict[str, Any]:
         return git_init(self.log_dir, remote_url=remote_url)
 
     def git_sync(self) -> dict[str, Any]:
@@ -298,9 +290,7 @@ class KaydetService:
                 "success": False,
                 "error": f"Entry {entry_id} not found.",
             }
-        matches = load_matches(
-            [(row[0], entry_id)], self.log_dir, self.config
-        )
+        matches = load_matches([(row[0], entry_id)], self.log_dir, self.config)
         if not matches:
             return {
                 "success": False,
@@ -421,9 +411,7 @@ class KaydetService:
             "total_entries": total,
         }
 
-    def monthly_stats(
-        self, now: datetime | None = None
-    ) -> dict[str, Any]:
+    def monthly_stats(self, now: datetime | None = None) -> dict[str, Any]:
         """Calendar stats for the CLI --stats command."""
         moment = now or datetime.now()
         return stats_command(self.log_dir, self.config, moment)
@@ -626,9 +614,7 @@ class KaydetService:
                         continue
                     completed_at = entry.metadata.get("completed_at", "")
                     lines = list(entry.lines)
-                    description = (
-                        lines[0] if lines else "(no description)"
-                    )
+                    description = lines[0] if lines else "(no description)"
 
                     date_str = (
                         entry.day.isoformat() if entry.day else "unknown"

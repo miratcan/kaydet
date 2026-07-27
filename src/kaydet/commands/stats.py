@@ -46,9 +46,7 @@ def stats_command(
     longest, current = compute_streaks(daily, start, end)
     max_day = max(daily.values()) if daily else 0
 
-    month_counts = collect_month_counts(
-        log_dir, config, now.year, now.month
-    )
+    month_counts = collect_month_counts(log_dir, config, now.year, now.month)
 
     return {
         "success": True,

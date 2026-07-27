@@ -85,9 +85,7 @@ def aggregate_sums(
     for (key, unit), total in sorted(
         totals.items(), key=lambda item: (item[0][0], item[0][1])
     ):
-        total_out: float | int = (
-            int(total) if total == int(total) else total
-        )
+        total_out: float | int = int(total) if total == int(total) else total
         groups.append(
             {
                 "key": key,
@@ -142,6 +140,4 @@ def print_sums(matches: list) -> None:
         print(f"  {g['label']:<{width}}  {g['display']}")
 
     if _has_split_units(groups):
-        print(
-            "\U0001f4a1 Same key, different units — not combined."
-        )
+        print("\U0001f4a1 Same key, different units — not combined.")

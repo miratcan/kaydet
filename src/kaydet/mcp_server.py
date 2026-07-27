@@ -411,9 +411,7 @@ async def serve() -> None:
             if not query:
                 return error_response("Search query is required")
             limit = arguments.get("limit", 50)
-            return safe_call(
-                service.search_entries, query=query, limit=limit
-            )
+            return safe_call(service.search_entries, query=query, limit=limit)
 
         if name == "list_recent_entries":
             limit = arguments.get("limit", 10)

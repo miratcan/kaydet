@@ -222,15 +222,9 @@ class SearchResultFormatter:
         separator = "=" * len(day_label)
         color_header = self.config.get("COLOR_HEADER", "bold cyan")
 
-        self.console.print(
-            f"\n[{color_header}]{separator}[/{color_header}]"
-        )
-        self.console.print(
-            f"[{color_header}]{day_label}[/{color_header}]"
-        )
-        self.console.print(
-            f"[{color_header}]{separator}[/{color_header}]\n"
-        )
+        self.console.print(f"\n[{color_header}]{separator}[/{color_header}]")
+        self.console.print(f"[{color_header}]{day_label}[/{color_header}]")
+        self.console.print(f"[{color_header}]{separator}[/{color_header}]\n")
 
     def _print_entry(
         self,

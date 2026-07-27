@@ -241,8 +241,7 @@ def print_no_matches(
     restricted = bool(window)
     if restricted:
         print(
-            "\U0001f4a1 Showing a date window — "
-            "use since:0 for all history."
+            "\U0001f4a1 Showing a date window — use since:0 for all history."
         )
     else:
         print(
@@ -332,8 +331,7 @@ def print_matches(
         )
     if window:
         print(
-            "\U0001f4a1 Showing a date window — "
-            "use since:0 for all history."
+            "\U0001f4a1 Showing a date window — use since:0 for all history."
         )
 
 
