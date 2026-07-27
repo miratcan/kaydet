@@ -12,7 +12,7 @@ __all__ = (
 
 __author__ = "Mirat Can Bayrak"
 __copyright__ = "Copyright 2016, Planet Earth"
-__version__ = "0.48.1"
+__version__ = "0.49.0"
 __description__ = (
     "Terminal note-taking app for developers. CLI notes, work logs, "
     "daily journal, with SQLite FTS search and MCP AI integration."

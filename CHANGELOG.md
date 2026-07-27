@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [0.49.0] - 2026-07-27
 
 ### Added
 - **stdin pipe:** `ls -lah | kaydet` (and `… | kaydet #tag`) creates an entry
