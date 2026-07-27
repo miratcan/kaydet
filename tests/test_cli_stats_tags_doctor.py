@@ -50,8 +50,9 @@ def test_stats_command(setup_kaydet, capsys, mock_datetime_factory):
     assert "September 2025" in output
     # GitHub-style heat grid (weekdays as rows)
     assert "Mo  " in output
-    assert "less → more" in output
-    assert "■" in output  # contribution squares
+    assert "Less" in output and "More" in output
+    assert "■" in output  # active days
+    assert "·" in output  # empty days
     # Two active days this month (1st and 15th)
     assert "2 of 30 days" in output or "2 of" in output
     assert "with writing" in output

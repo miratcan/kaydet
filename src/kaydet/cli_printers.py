@@ -9,11 +9,12 @@ from rich.console import Console
 
 from .json_output import print_json_err, print_json_ok
 
-# GitHub contribution greens (dark-terminal friendly)
+# GitHub contribution graph cells (dark-terminal friendly).
+# Empty must stay visually distinct from greens (not the same ■).
 # level 0 empty → level 4 heaviest
-_HEAT_GLYPHS = ("■", "■", "■", "■", "■")
+_HEAT_GLYPHS = ("·", "■", "■", "■", "■")
 _HEAT_STYLES = (
-    "bright_black",  # empty
+    "bright_black",  # empty — not a filled green block
     "#0e4429",  # lightest green
     "#006d32",
     "#26a641",
@@ -69,7 +70,7 @@ def _print_contribution_grid(
 
     legend = " ".join(_styled_cell(i) for i in range(5))
     console.print()
-    console.print(f"  {legend}  [dim]less → more[/dim]")
+    console.print(f"  [dim]Less[/dim] {legend} [dim]More[/dim]")
 
 
 def print_stats(result: dict[str, Any], output_format: str) -> None:
