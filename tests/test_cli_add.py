@@ -34,6 +34,25 @@ def test_add_simple_entry(setup_kaydet, mock_datetime_factory):
     assert re.search(regex, content)
 
 
+def test_add_multiline_cli_argument(setup_kaydet, mock_datetime_factory):
+    """Quoted multiline argv keeps body lines (not one collapsed line)."""
+    fake_log_dir = setup_kaydet["fake_log_dir"]
+    monkeypatch = setup_kaydet["monkeypatch"]
+    mock_datetime_factory(datetime(2025, 9, 30, 10, 45, 0))
+
+    entry_text = "line 1\n\nline 2\n\nline 3"
+    monkeypatch.setattr(sys, "argv", ["kaydet", entry_text])
+
+    cli.main()
+
+    content = (fake_log_dir / "2025-09-30.txt").read_text()
+    assert re.search(r"10:45 \[\d+\]: line 1\n", content)
+    assert "\nline 2\n" in content
+    assert "\nline 3\n" in content
+    # Must not collapse to a single header line
+    assert "line 1 line 2 line 3" not in content
+
+
 def test_add_entry_with_tags(setup_kaydet, mock_datetime_factory):
     """Test that an entry with hashtags is captured in the new SQLite index."""
     fake_log_dir = setup_kaydet["fake_log_dir"]

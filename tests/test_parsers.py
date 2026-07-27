@@ -164,6 +164,16 @@ def test_partition_entry_tokens_escaped_hash():
     assert tags == ["work"]
 
 
+def test_partition_entry_tokens_preserves_newlines():
+    """Quoted multiline argv must keep blank lines and line breaks."""
+    msg, meta, tags = partition_entry_tokens(
+        ["line 1\n\nline 2\n\nline 3 cost:10 #work"]
+    )
+    assert msg[0] == "line 1\n\nline 2\n\nline 3"
+    assert meta == {"cost": "10"}
+    assert tags == ["work"]
+
+
 # --- format_entry_header ---
 
 

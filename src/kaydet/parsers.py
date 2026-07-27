@@ -124,7 +124,11 @@ def build_numeric_metadata(metadata: Dict[str, str]) -> Dict[str, float]:
 def partition_entry_tokens(
     tokens: Iterable[str],
 ) -> Tuple[List[str], Dict[str, str], List[str]]:
-    """Extract message text, metadata, and tags from CLI tokens."""
+    """Extract message text, metadata, and tags from CLI tokens.
+
+    Newlines in the input are preserved (so a quoted multiline argv works).
+    Within each line, tokens are still whitespace-split for key:value metadata.
+    """
     full_text = " ".join(tokens)
     tags = list(extract_tags_from_text(full_text))
 
@@ -134,16 +138,19 @@ def partition_entry_tokens(
     )
 
     metadata: Dict[str, str] = {}
-    message_parts: List[str] = []
+    # Process line-by-line so ``.split()`` does not collapse newlines.
+    message_lines: List[str] = []
+    for line in text_clean.splitlines():
+        parts: List[str] = []
+        for word in line.split():
+            if parsed := parse_metadata_token(word):
+                key, value = parsed
+                metadata[key] = value
+                continue
+            parts.append(word)
+        message_lines.append(" ".join(parts))
 
-    for word in text_clean.split():
-        if parsed := parse_metadata_token(word):
-            key, value = parsed
-            metadata[key] = value
-            continue
-        message_parts.append(word)
-
-    message_text = " ".join(message_parts).strip()
+    message_text = "\n".join(message_lines).strip()
     return ([message_text] if message_text else []), metadata, tags
 
 
