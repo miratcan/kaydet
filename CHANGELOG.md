@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- **stdin pipe:** `ls -lah | kaydet` (and `… | kaydet #tag`) creates an entry
+  from piped text; bare interactive `kaydet` still opens the editor.
+
 ## [0.48.1] - 2026-07-27
 
 ### Fixed

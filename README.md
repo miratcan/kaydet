@@ -36,6 +36,10 @@ uv tool install kaydet    # uv
 # Capture a solution (terminal notes, instantly)
 kaydet "Fixed auth race condition commit:abc123 issue:312"
 
+# Pipe command output into a new entry
+ls -lah | kaydet
+git log -5 --oneline | kaydet #git
+
 # 6 months later — find it
 kaydet --filter auth
 

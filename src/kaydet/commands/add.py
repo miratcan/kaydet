@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import shutil
+import sys
 from configparser import SectionProxy
 from datetime import datetime
 from pathlib import Path
@@ -212,14 +213,56 @@ def create_entry(
     }
 
 
+def _read_piped_stdin() -> str | None:
+    """Return stdin contents when data is piped in; else ``None``.
+
+    Interactive TTYs return ``None`` so bare ``kaydet`` still opens the editor.
+    Empty non-TTY stdin (e.g. tests) also returns ``None``.
+    """
+    stdin = sys.stdin
+    isatty = getattr(stdin, "isatty", None)
+    if callable(isatty) and isatty():
+        return None
+    try:
+        data = stdin.read()
+    except (OSError, KeyboardInterrupt):
+        return None
+    if not data or not data.strip():
+        return None
+    return data
+
+
 def get_entry(
     args: argparse.Namespace, config: SectionProxy
 ) -> Tuple[str, Dict[str, str], Tuple[str, ...]]:
-    """Resolve entry text, metadata, and tags from CLI args or the editor."""
+    """Resolve entry text, metadata, and tags from CLI args, pipe, or editor.
+
+    Priority:
+    1. ``-e`` / ``--editor`` → editor (seeded with argv and/or piped text)
+    2. Piped stdin (e.g. ``ls | kaydet``) → body from pipe; argv keeps
+       tags/metadata and optional text prefix
+    3. Positional argv → normal CLI entry
+    4. Nothing → open editor
+    """
     tokens = list(args.entry or [])
     message_tokens, metadata, explicit_tags = partition_entry_tokens(tokens)
     message_text = " ".join(message_tokens)
-    if args.use_editor or not (message_text or metadata or explicit_tags):
+    piped = _read_piped_stdin()
+
+    if args.use_editor:
+        seed = message_text
+        if piped:
+            seed = (
+                f"{message_text.rstrip()}\n{piped}" if message_text else piped
+            )
+        editor_text = open_editor(seed, config["EDITOR"])
+        return editor_text, {}, ()
+
+    if piped is not None:
+        body = f"{message_text.rstrip()}\n{piped}" if message_text else piped
+        return body, metadata, tuple(explicit_tags)
+
+    if not (message_text or metadata or explicit_tags):
         editor_text = open_editor(message_text, config["EDITOR"])
         # Editor text is returned as-is; metadata and tags can be embedded with
         # hashes and key:value pairs.

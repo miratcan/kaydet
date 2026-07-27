@@ -209,6 +209,54 @@ def test_editor_usage(setup_kaydet, mock_datetime_factory):
     )
 
 
+def test_piped_stdin_creates_entry(setup_kaydet, mock_datetime_factory):
+    """``cmd | kaydet`` saves stdin as a new entry (no editor)."""
+    fake_log_dir = setup_kaydet["fake_log_dir"]
+    monkeypatch = setup_kaydet["monkeypatch"]
+    mock_datetime_factory(datetime(2025, 9, 30, 16, 0, 0))
+
+    class _PipeStdin:
+        def isatty(self) -> bool:
+            return False
+
+        def read(self) -> str:
+            return "total 8\n-rw-r--r--  1 me  staff  42B  .\n"
+
+    monkeypatch.setattr(sys, "argv", ["kaydet"])
+    monkeypatch.setattr(sys, "stdin", _PipeStdin())
+
+    cli.main()
+
+    content = (fake_log_dir / "2025-09-30.txt").read_text()
+    assert re.search(r"16:00 \[\d+\]: total 8\n", content)
+    assert "-rw-r--r--  1 me  staff  42B  .\n" in content
+
+
+def test_piped_stdin_with_cli_tags(setup_kaydet, mock_datetime_factory):
+    """``cmd | kaydet #tag`` keeps tags from argv and body from the pipe."""
+    fake_log_dir = setup_kaydet["fake_log_dir"]
+    monkeypatch = setup_kaydet["monkeypatch"]
+    mock_datetime_factory(datetime(2025, 9, 30, 16, 15, 0))
+
+    class _PipeStdin:
+        def isatty(self) -> bool:
+            return False
+
+        def read(self) -> str:
+            return "disk snapshot\nline two\n"
+
+    monkeypatch.setattr(sys, "argv", ["kaydet", "#sysadmin"])
+    monkeypatch.setattr(sys, "stdin", _PipeStdin())
+
+    cli.main()
+
+    content = (fake_log_dir / "2025-09-30.txt").read_text()
+    assert re.search(
+        r"16:15 \[\d+\]: disk snapshot #sysadmin\n", content
+    )
+    assert "line two\n" in content
+
+
 def test_open_editor_flow(setup_kaydet, mock_datetime_factory, mocker):
     """Test the full flow of opening an editor and saving the content."""
     fake_log_dir = setup_kaydet["fake_log_dir"]
