@@ -9,7 +9,7 @@ from kaydet import cli
 
 
 def test_stats_command(setup_kaydet, capsys, mock_datetime_factory):
-    """Test the --stats command output."""
+    """Test the --stats command output (git-stats year calendar)."""
     fake_log_dir = setup_kaydet["fake_log_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
     fake_log_dir.mkdir(exist_ok=True)
@@ -47,15 +47,16 @@ def test_stats_command(setup_kaydet, capsys, mock_datetime_factory):
     captured = capsys.readouterr()
     output = captured.out
 
-    assert "September 2025" in output
-    # GitHub-style heat grid (weekdays as rows)
-    assert "Mo  " in output
-    assert "Less" in output and "More" in output
-    assert "■" in output  # active days
-    assert "·" in output  # empty days
-    # Two active days this month (1st and 15th)
-    assert "2 of 30 days" in output or "2 of" in output
-    assert "with writing" in output
+    # git-stats box + weekday rows (Sunday first)
+    assert "╔" in output and "╚" in output
+    assert "Sun" in output and "Sat" in output
+    assert "◼" in output
+    assert "Entries in" in output
+    assert "Longest Streak:" in output
+    assert "Current Streak:" in output
+    assert "Max a day: 5" in output
+    # 3 + 5 + 1 = 9 entries in window
+    assert "Entries in" in output and ": 9" in output
 
 
 def test_tags_command(setup_kaydet, capsys, mock_datetime_factory):
@@ -157,7 +158,7 @@ def test_stats_no_log_dir(setup_kaydet, capsys, mock_datetime_factory):
 def test_stats_busy_day_shows_heat(
     setup_kaydet, capsys, mock_datetime_factory
 ):
-    """Busy days render as heat, not raw entry counts."""
+    """Busy days render as heat squares, not raw entry counts in cells."""
     fake_log_dir = setup_kaydet["fake_log_dir"]
     monkeypatch = setup_kaydet["monkeypatch"]
     fake_log_dir.mkdir(exist_ok=True)
@@ -173,8 +174,8 @@ def test_stats_busy_day_shows_heat(
     captured = capsys.readouterr()
     output = captured.out
 
-    assert "■" in output  # heat squares (color is terminal markup)
-    assert "1 day with writing" in output or "days with writing" in output
+    assert "◼" in output
+    assert "Max a day: 100" in output
     assert "[99+]" not in output
     assert "Total entries this month: 100" not in output
 
@@ -257,7 +258,8 @@ def test_stats_ignores_directories(
 
     captured = capsys.readouterr()
     # Check that only the file is counted and the directory is ignored
-    assert "with writing" in captured.out
+    assert "Entries in" in captured.out
+    assert "Max a day: 1" in captured.out
 
 
 def test_read_diary_with_bad_encoding(
@@ -280,4 +282,5 @@ def test_read_diary_with_bad_encoding(
 
     captured = capsys.readouterr()
     output = captured.out
-    assert "with writing" in output
+    assert "Entries in" in output
+    assert "Max a day:" in output

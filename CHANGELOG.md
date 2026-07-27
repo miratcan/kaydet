@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Changed
+- **`--stats` matches [git-stats](https://github.com/IonicaBizau/git-stats):**
+  last-year calendar (Sun–Sat rows), `cli-gh-cal` glyphs/levels, box frame,
+  and footer (`Entries` / longest / current streak / max a day).
+
 ## [0.47.0] - 2026-07-27
 
 ### Added
