@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.48.1] - 2026-07-27
+
+### Fixed
+- **CLI multiline entries:** Quoted multi-line argv (e.g. `kaydet "a\n\nb"`)
+  no longer collapses to a single line; newlines are preserved like editor mode.
+
 ## [0.48.0] - 2026-07-27
 
 ### Changed
