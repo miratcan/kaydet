@@ -52,7 +52,9 @@ class TextUtils:
         >>> TextUtils.clean_hashtags("No tags here")
         'No tags here'
         """
-        return re.sub(r"#([a-z-]+)", "", text).strip()
+        # Same charset as parsers.HASHTAG_PATTERN: lowercase-led tags with
+        # digits/underscores/hyphens, honoring backslash escapes.
+        return re.sub(r"(?<!\\)#([a-z][a-z0-9_-]*)", "", text).strip()
 
     @staticmethod
     def extract_hashtags(text: str) -> List[str]:
@@ -66,7 +68,8 @@ class TextUtils:
         >>> TextUtils.extract_hashtags("No tags here")
         []
         """
-        return re.findall(r"#([a-z-]+)", text)
+        # Same charset as parsers.HASHTAG_PATTERN (see clean_hashtags).
+        return re.findall(r"(?<!\\)#([a-z][a-z0-9_-]*)", text)
 
     @staticmethod
     def wrap_single_line(line: str, available_width: int) -> List[str]:

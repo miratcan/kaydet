@@ -4,9 +4,11 @@ from datetime import date
 
 from kaydet.formatters import (
     SearchResult,
+    TextUtils,
     format_search_results,
     format_todo_results,
 )
+from kaydet.parsers import extract_tags_from_text
 
 
 class TestSearchResult:
@@ -304,3 +306,29 @@ class TestSearchResultFormatter:
         assert tags.startswith("│ ")
 
         assert any(ln.strip() == "└─────" for ln in lines)
+
+
+class TestTextUtilsHashtagCharset:
+    """Display/JSON tag handling must match the canonical parser charset.
+
+    The storage parser (parsers.HASHTAG_PATTERN) accepts lowercase-led tags
+    with digits/underscores/hyphens and honors backslash escapes; the
+    formatter helpers must strip/extract exactly those tokens.
+    """
+
+    def test_clean_hashtags_with_digits_and_underscores(self):
+        cleaned = TextUtils.clean_hashtags("Meeting #todo2 and #c_14 done")
+        assert "#todo2" not in cleaned
+        assert "#c_14" not in cleaned
+        assert " 2 " not in cleaned  # no mangled residue left behind
+        assert "_14" not in cleaned
+
+    def test_extract_hashtags_matches_parser(self):
+        text = "Ship #todo2 and #c_14 today"
+        assert sorted(TextUtils.extract_hashtags(text)) == sorted(
+            extract_tags_from_text(text)
+        )
+
+    def test_clean_hashtags_keeps_escaped(self):
+        assert TextUtils.clean_hashtags("\\#notatag") == "\\#notatag"
+
