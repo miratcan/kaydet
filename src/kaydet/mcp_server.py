@@ -13,6 +13,7 @@ import json
 import sys
 from typing import Any
 
+from . import __version__
 from .service import KaydetService
 
 
@@ -24,23 +25,30 @@ Server: Any | None = None
 stdio_server: Any | None = None
 TextContent: Any | None = None
 Tool: Any | None = None
+ListToolsResult: Any | None = None
+CallToolResult: Any | None = None
+
+_MCP_SYMBOLS = (
+    "Server",
+    "stdio_server",
+    "TextContent",
+    "Tool",
+    "ListToolsResult",
+    "CallToolResult",
+)
 
 
 def _load_mcp_dependencies():
     """Return MCP objects or raise a helpful error if missing."""
 
-    global Server, stdio_server, TextContent, Tool
-    if all(
-        symbol is not None
-        for symbol in (Server, stdio_server, TextContent, Tool)
-    ):
-        return Server, stdio_server, TextContent, Tool
+    module = globals()
+    if all(module[symbol] is not None for symbol in _MCP_SYMBOLS):
+        return tuple(module[symbol] for symbol in _MCP_SYMBOLS)
 
     try:
+        from mcp import types as mcp_types  # noqa: PLC0415
         from mcp.server import Server as MCPServer  # noqa: PLC0415
         from mcp.server.stdio import stdio_server as MCPStdio  # noqa: PLC0415
-        from mcp.types import TextContent as MCPTextContent  # noqa: PLC0415
-        from mcp.types import Tool as MCPTool  # noqa: PLC0415
     except ModuleNotFoundError as error:  # pragma: no cover - import guard
         raise MissingMCPDependencyError(
             (
@@ -50,21 +58,30 @@ def _load_mcp_dependencies():
                 'miratcan/kaydet.git#egg=kaydet[mcp]"`.'
             )
         ) from error
-    Server = MCPServer
-    stdio_server = MCPStdio
-    TextContent = MCPTextContent
-    Tool = MCPTool
-    return Server, stdio_server, TextContent, Tool
+    module.update(
+        Server=MCPServer,
+        stdio_server=MCPStdio,
+        TextContent=mcp_types.TextContent,
+        Tool=mcp_types.Tool,
+        ListToolsResult=mcp_types.ListToolsResult,
+        CallToolResult=mcp_types.CallToolResult,
+    )
+    return tuple(module[symbol] for symbol in _MCP_SYMBOLS)
 
 
 async def serve() -> None:
     """Start the MCP server."""
 
-    Server, stdio_server, TextContent, Tool = _load_mcp_dependencies()
+    (
+        Server,
+        stdio_server,
+        TextContent,
+        Tool,
+        ListToolsResult,
+        CallToolResult,
+    ) = _load_mcp_dependencies()
     service = KaydetService.initialize()
-    server = Server("kaydet")
 
-    @server.list_tools()
     async def list_tools() -> list[Tool]:
         """List available Kaydet tools."""
         return [
@@ -348,7 +365,6 @@ async def serve() -> None:
             ),
         ]
 
-    @server.call_tool()
     async def call_tool(name: str, arguments: Any) -> list[TextContent]:
         """Handle tool calls."""
 
@@ -471,6 +487,20 @@ async def serve() -> None:
             )
 
         return error_response(f"Unknown tool: {name}")
+
+    async def on_list_tools(ctx, params):
+        return ListToolsResult(tools=await list_tools())
+
+    async def on_call_tool(ctx, params):
+        content = await call_tool(params.name, params.arguments or {})
+        return CallToolResult(content=content)
+
+    server = Server(
+        "kaydet",
+        version=__version__,
+        on_list_tools=on_list_tools,
+        on_call_tool=on_call_tool,
+    )
 
     async with stdio_server() as (read_stream, write_stream):
         await server.run(
