@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import os
 import sys
 from datetime import datetime, timedelta
@@ -193,3 +194,45 @@ def test_load_config_xdg_home(monkeypatch, tmp_path):
 def test_extract_tags_empty_string():
     """Test the pure function extract_tags_from_text with an empty string."""
     assert cli.extract_tags_from_text("") == ()
+
+
+class _FakeStream(io.StringIO):
+    def __init__(self, tty: bool, text: str = ""):
+        super().__init__(text)
+        self._tty = tty
+
+    def isatty(self):
+        return self._tty
+
+
+@pytest.mark.parametrize(
+    "stdin_tty, stdout_tty", [(False, True), (True, False), (False, False)]
+)
+def test_prompt_storage_location_without_tty(
+    monkeypatch, tmp_path, capsys, stdin_tty, stdout_tty
+):
+    """Without a TTY (MCP stdio, pipes) never read stdin or touch stdout."""
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    stdin = _FakeStream(stdin_tty, '{"jsonrpc": "2.0"}\n')
+    monkeypatch.setattr(sys, "stdin", stdin)
+    stdout = _FakeStream(stdout_tty)
+    monkeypatch.setattr(sys, "stdout", stdout)
+
+    storage = utils.prompt_storage_location()
+
+    assert storage == utils.get_default_storage_path()
+    assert storage.exists()
+    assert stdin.read() == '{"jsonrpc": "2.0"}\n'  # untouched
+    assert stdout.getvalue() == ""
+    assert str(storage) in capsys.readouterr().err
+
+
+def test_prompt_storage_location_interactive(monkeypatch, tmp_path):
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    monkeypatch.setattr(sys, "stdin", _FakeStream(True))
+    monkeypatch.setattr(sys, "stdout", _FakeStream(True))
+    custom = tmp_path / "notes"
+    monkeypatch.setattr("builtins.input", lambda _prompt: str(custom))
+
+    assert utils.prompt_storage_location() == custom
+    assert custom.exists()

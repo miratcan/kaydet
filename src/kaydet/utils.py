@@ -5,6 +5,7 @@ from __future__ import annotations
 import platform
 import shlex
 import subprocess
+import sys
 from configparser import ConfigParser, SectionProxy
 from datetime import datetime, timedelta
 from os import environ as env
@@ -76,7 +77,22 @@ def get_default_index_path() -> Path:
 
 
 def prompt_storage_location() -> Path:
-    """Prompt user for storage location on first run."""
+    """Prompt user for storage location on first run.
+
+    Only asks when both stdin and stdout are a terminal. Otherwise (MCP
+    stdio server, piped input, ``--json`` output) stdin/stdout belong to
+    someone else, so fall back to the default and report on stderr.
+    """
+    if not (sys.stdin.isatty() and sys.stdout.isatty()):
+        storage_path = get_default_storage_path()
+        storage_path.mkdir(parents=True, exist_ok=True)
+        print(
+            f"Kaydet: storing entries in {storage_path} "
+            "(edit STORAGE_DIR in config.ini to change)",
+            file=sys.stderr,
+        )
+        return storage_path
+
     print("\nWelcome to Kaydet!\n")
     print("Where should I store your entries?")
     print("(Plain text files, safe to sync with cloud storage)\n")
