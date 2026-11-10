@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.50.0] - 2026-11-10
+
+### Fixed
+- **`kaydet-mcp` on mcp 2.x:** The server crashed at startup on fresh
+  installs because mcp 2.0 removed the decorator-based handler API. It now
+  uses the 2.x handlers and reports the kaydet version in `serverInfo`.
+- **First run without a terminal:** The storage-location prompt no longer
+  runs when stdin/stdout are not a TTY. Under `kaydet-mcp` it used to break
+  the JSON-RPC stream and save the client's handshake as the storage path;
+  piped input and `--json` output were affected too. The default path is
+  used and reported on stderr.
+
+### Changed
+- **Dependencies:** The `mcp` extra now requires `mcp>=2.3,<3`. Lockfile
+  refreshed, clearing open Dependabot alerts.
+
 ## [0.49.1] - 2026-11-10
 
 ### Fixed
