@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 import textwrap
 from configparser import SectionProxy
 from datetime import date
@@ -13,6 +12,7 @@ from typing import List, Optional
 from rich.console import Console
 
 from .json_output import json_ok
+from .parsers import HASHTAG_PATTERN
 
 
 class SearchResult:
@@ -52,9 +52,7 @@ class TextUtils:
         >>> TextUtils.clean_hashtags("No tags here")
         'No tags here'
         """
-        # Same charset as parsers.HASHTAG_PATTERN: lowercase-led tags with
-        # digits/underscores/hyphens, honoring backslash escapes.
-        return re.sub(r"(?<!\\)#([a-z][a-z0-9_-]*)", "", text).strip()
+        return HASHTAG_PATTERN.sub("", text).strip()
 
     @staticmethod
     def extract_hashtags(text: str) -> List[str]:
@@ -68,8 +66,7 @@ class TextUtils:
         >>> TextUtils.extract_hashtags("No tags here")
         []
         """
-        # Same charset as parsers.HASHTAG_PATTERN (see clean_hashtags).
-        return re.findall(r"(?<!\\)#([a-z][a-z0-9_-]*)", text)
+        return HASHTAG_PATTERN.findall(text)
 
     @staticmethod
     def wrap_single_line(line: str, available_width: int) -> List[str]:
