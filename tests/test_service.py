@@ -293,7 +293,6 @@ def test_suggest_tags_from_file_with_real_tags(service_env, tmp_path):
     assert result["source"] == "tags_file"
 
 
-
 def test_service_doctor_rebuilds_index(service_env):
     service = service_module.KaydetService.initialize()
     service.add_entry(text="Index me #work")

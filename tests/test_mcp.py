@@ -94,5 +94,3 @@ def test_serve_registers_tools(monkeypatch, mcp_env):
         )
     )
     assert isinstance(suggestion_response[0], FakeTextContent)
-
-

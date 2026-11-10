@@ -251,9 +251,7 @@ def test_piped_stdin_with_cli_tags(setup_kaydet, mock_datetime_factory):
     cli.main()
 
     content = (fake_log_dir / "2025-09-30.txt").read_text()
-    assert re.search(
-        r"16:15 \[\d+\]: disk snapshot #sysadmin\n", content
-    )
+    assert re.search(r"16:15 \[\d+\]: disk snapshot #sysadmin\n", content)
     assert "line two\n" in content
 
 

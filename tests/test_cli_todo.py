@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from datetime import datetime
 
@@ -65,8 +66,6 @@ def test_bare_todo_identical_to_open_todo_filter(
     cli.main()
     capsys.readouterr()
     content = day.read_text(encoding="utf-8")
-    import re
-
     ids = re.findall(r"\[(\d+)\]: Already finished", content)
     assert ids
     monkeypatch.setattr(sys, "argv", ["kaydet", "--done", ids[0]])
@@ -109,9 +108,7 @@ def test_todo_with_filter_appends_open_todo_query(
     cli.main()
     capsys.readouterr()
 
-    monkeypatch.setattr(
-        sys, "argv", ["kaydet", "--todo", "--filter", "#work"]
-    )
+    monkeypatch.setattr(sys, "argv", ["kaydet", "--todo", "--filter", "#work"])
     cli.main()
     via_todo = capsys.readouterr().out
 

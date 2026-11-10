@@ -331,4 +331,3 @@ class TestTextUtilsHashtagCharset:
 
     def test_clean_hashtags_keeps_escaped(self):
         assert TextUtils.clean_hashtags("\\#notatag") == "\\#notatag"
-
