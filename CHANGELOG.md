@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.49.1] - 2026-11-10
+
+### Fixed
+- **Hashtags in search/JSON output:** Tags with digits or underscores
+  (`#todo2`, `#c_14`) are no longer mangled in display text, `--json` tags
+  now match what is stored, and escaped `\#tags` are left intact. Thanks
+  @Qrytics (#22).
+
 ## [0.49.0] - 2026-07-27
 
 ### Added
